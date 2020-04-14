@@ -9,7 +9,7 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[Functors]]
 deps = ["MacroTools"]
-git-tree-sha1 = "58dd223f9ad2601b0e9964fd65fa9d2c7219be41"
+git-tree-sha1 = "f70dabffddbfe9b22e5f61800c7ca813f1e685df"
 repo-rev = "master"
 repo-url = "https://github.com/FluxML/Functors.jl"
 uuid = "d9f16b24-f501-4c13-a1f2-28368ffc5196"

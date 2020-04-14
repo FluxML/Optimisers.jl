@@ -22,7 +22,8 @@ function update(o, x, x̄, state)
   elseif isleaf(x)
     _update(o, x, x̄, state)
   else
-    x, re = functor(x)
+    x̄, _  = functor(typeof(x), x̄)
+    x, re = functor(typeof(x), x)
     xstate = map((x, x̄, state) -> update(o, x, x̄, state), x, x̄, state)
     re(map(first, xstate)), map(x -> x[2], xstate)
   end
