@@ -1,6 +1,8 @@
 module Optimisers
 
-include("apply.jl")
+using Functors: functor, fmap, isleaf
+
+include("interface.jl")
 include("rules.jl")
 
 end # module

@@ -4,6 +4,7 @@ authors = ["Mike J Innes <mike.j.innes@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [extras]
