@@ -23,7 +23,7 @@ function (o::Descent)(m, m̄, st)
   update(o, m, m̄, st)
 end
 
-mutable struct ADAM{T,K}
+struct ADAM{T,K}
   eta::T
   beta::Tuple{K,K}
 end
