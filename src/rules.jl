@@ -10,17 +10,17 @@ end
 
 init(o::Descent, x) = nothing
 
-function apply(o::Descent, x, x̄, st)
+function apply(o::Descent, x, x̄, state)
   η = convert(eltype(x̄), o.eta)
-  x̄ .* η, st
+  x̄ .* η, state
 end
 
 function (o::Descent)(m, m̄)
   update(o, m, m̄, state(o, m))[1]
 end
 
-function (o::Descent)(m, m̄, state)
-  update(o, m, m̄, state)
+function (o::Descent)(m, m̄, st)
+  update(o, m, m̄, st)
 end
 
 mutable struct ADAM{T,K}
@@ -29,14 +29,23 @@ mutable struct ADAM{T,K}
 end
 
 const ϵ = 1e-8
-init(o::ADAM, x) = IdDict()
+
+function (o::ADAM)(m, m̄)
+  op = update(o, m, m̄, state(o, m))[1]
+end
+
+function (o::ADAM)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
+init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
+init(o::ADAM, x) = nothing
 
 function apply(o::ADAM, x, Δ, st)
   η, β = o.eta, o.beta
-  mt, vt, βp = get!(st, x, (zero(x), zero(x), β))
+  mt, vt, βp = st
   @. mt = β[1] * mt + (1 - β[1]) * Δ
   @. vt = β[2] * vt + (1 - β[2]) * Δ^2
   @. Δ =  mt / (1 - βp[1]) / (√(vt / (1 - βp[2])) + ϵ) * η
-  st[x] = (mt, vt, βp .* β)
-  return Δ, st
+  return Δ, (mt, vt, βp .* β)
 end
