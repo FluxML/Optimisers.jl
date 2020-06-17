@@ -1,15 +1,10 @@
-abstract type AbstractOptimiser end
-
-(opt::AbstractOptimiser)(x, x̂, state) = update(opt, x, x̂, state)
-(opt::AbstractOptimiser)(m, m̂) = update(opt, m, m̂, state(opt, m))[1]
-
 """
     Descent(η)
 
 Classic gradient descent optimiser with learning rate `η`.
 For each parameter `p` and its gradient `p̄`, this runs `p -= η*p̄`.
 """
-mutable struct Descent <: AbstractOptimiser
+mutable struct Descent
   eta::Float64
 end
 
@@ -20,7 +15,15 @@ function apply(o::Descent, x, x̄, st)
   x̄ .* η, st
 end
 
-mutable struct ADAM{T,K} <: AbstractOptimiser
+function (o::Descent)(m, m̄)
+  update(o, m, m̄, state(o, m))[1]
+end
+
+function (o::Descent)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
+mutable struct ADAM{T,K}
   eta::T
   beta::Tuple{K,K}
 end
