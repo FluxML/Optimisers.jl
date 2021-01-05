@@ -26,7 +26,6 @@ end
 struct Momentum{T,S}
   eta::T
   rho::S
-  # velocity::IdDict
 end
 
 Momentum(η = 0.01, ρ = 0.9) = Momentum{typeof(η), typeof(ρ)}(η, ρ)
@@ -44,6 +43,29 @@ function (o::Momentum)(m, m̄, state)
 end
 
 init(o::Momentum, x::AbstractArray) = zero(x)
+
+struct Nesterov{T,S}
+  eta::T
+  rho::S
+  # velocity::IdDict
+end
+
+Nesterov(η = 0.001, ρ = 0.9) = Nesterov{typeof(η), typeof(ρ)}(η, ρ)
+
+init(o::Nesterov, x::AbstractArray) = zero(x)
+
+function (o::Nesterov)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
+function apply(o::Nesterov, x, Δ, st)
+  η, ρ = o.eta, o.rho
+  v = st
+  d = @. ρ^2 * v - (1+ρ) * η * Δ
+  v = @. ρ*v - η*Δ
+  Δ = -d
+  Δ, v
+end
 
 struct ADAM{T,K}
   eta::T
