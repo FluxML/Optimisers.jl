@@ -66,10 +66,9 @@ function apply(o::Nesterov, x, Δ, st)
   Δ, v
 end
 
-mutable struct RMSProp
+struct RMSProp
   eta::Float64
   rho::Float64
-  # acc::IdDict
 end
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
