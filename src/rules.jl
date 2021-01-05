@@ -23,6 +23,28 @@ function (o::Descent)(m, m̄, st)
   update(o, m, m̄, st)
 end
 
+struct Momentum{T,S}
+  eta::T
+  rho::S
+  # velocity::IdDict
+end
+
+Momentum(η = 0.01, ρ = 0.9) = Momentum{typeof(η), typeof(ρ)}(η, ρ)
+
+function apply(o::Momentum, x, Δ, st)
+  η, ρ = o.eta, o.rho
+  v = st
+  v = @. ρ * v - η * Δ
+  Δ = @. -v
+  Δ, v
+end
+
+function (o::Momentum)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
+init(o::Momentum, x::AbstractArray) = zero(x)
+
 struct ADAM{T,K}
   eta::T
   beta::Tuple{K,K}
@@ -45,3 +67,5 @@ function apply(o::ADAM, x, Δ, st)
   Δ =  mt ./ (1 .- βp[1]) ./ (.√(vt ./ (1f0 .- βp[2])) .+ ϵ) .* η
   return Δ, (mt, vt, βp .* β)
 end
+
+
