@@ -47,7 +47,6 @@ init(o::Momentum, x::AbstractArray) = zero(x)
 struct Nesterov{T,S}
   eta::T
   rho::S
-  # velocity::IdDict
 end
 
 Nesterov(η = 0.001, ρ = 0.9) = Nesterov{typeof(η), typeof(ρ)}(η, ρ)
@@ -65,6 +64,27 @@ function apply(o::Nesterov, x, Δ, st)
   v = @. ρ*v - η*Δ
   Δ = -d
   Δ, v
+end
+
+mutable struct RMSProp
+  eta::Float64
+  rho::Float64
+  # acc::IdDict
+end
+
+init(o::RMSProp, x::AbstractArray) = zero(x)
+RMSProp(η = 0.001, ρ = 0.9) = RMSProp(η, ρ, IdDict())
+
+function apply(o::RMSProp, x, Δ, st)
+  η, ρ = o.eta, o.rho
+  acc = st
+  acc = ρ .* acc .+ (1 .- ρ) .* Δ.^2
+  Δ = Δ .* (η ./ (.√acc .+ ϵ))
+  Δ, acc
+end
+
+function (o::RMSProp)(m, m̄, state)
+  update(o, m, m̄, state)
 end
 
 struct ADAM{T,K}
