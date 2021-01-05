@@ -12,18 +12,14 @@ function state(o, x)
 end
 
 function _update(o, x, x̄, st)
-  # @show x, typeof(st)
   x̄, st = apply(o, x, x̄, st)
   return patch(x, x̄), st
 end
 
 function update(o, x::T, x̄, state) where T
-  # @show x, x̄
-  # @show isleaf(x)
   if x̄ === nothing
     return x, state
   elseif isleaf(x)
-    # @show typeof(x) == typeof(T(x̄...))
     _update(o, x, x̄, state)
   else
     x̄, _  = functor(typeof(x), x̄)
