@@ -66,13 +66,13 @@ function apply(o::Nesterov, x, Δ, st)
   Δ, v
 end
 
-struct RMSProp
-  eta::Float64
-  rho::Float64
+struct RMSProp{T,S}
+  eta::T
+  rho::S
 end
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
-RMSProp(η = 0.001, ρ = 0.9) = RMSProp(η, ρ, IdDict())
+RMSProp(η = 0.001, ρ = 0.9) = RMSProp{typeof(η), typeof(ρ)}(η, ρ, IdDict())
 
 function apply(o::RMSProp, x, Δ, st)
   η, ρ = o.eta, o.rho
