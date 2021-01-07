@@ -72,7 +72,7 @@ struct RMSProp{T,S}
 end
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
-RMSProp(η = 0.001, ρ = 0.9) = RMSProp{typeof(η), typeof(ρ)}(η, ρ, IdDict())
+RMSProp(η = 0.001, ρ = 0.9) = RMSProp{typeof(η), typeof(ρ)}(η, ρ)
 
 function apply(o::RMSProp, x, Δ, st)
   η, ρ = o.eta, o.rho
@@ -108,5 +108,4 @@ function apply(o::ADAM, x, Δ, st)
   Δ =  mt ./ (1 .- βp[1]) ./ (.√(vt ./ (1f0 .- βp[2])) .+ ϵ) .* η
   return Δ, (mt, vt, βp .* β)
 end
-
 
