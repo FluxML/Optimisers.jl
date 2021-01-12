@@ -1,11 +1,12 @@
 using Optimisers, Test
 using Zygote, Random
+using Statistics
 
 @testset "Optimisers" begin
   Random.seed!(84)
   w′ = rand(3,3)
-  @testset for o in (Descent(), Momentum(), Nesterov(), RMSProp(),
-                     ADAM())
+  @testset for o in (Descent(0.1), Momentum(), Nesterov(), RMSProp(),
+                     ADAM(0.001, (0.9, 0.99)))
     w = rand(3,3)
     st = Optimisers.init(o,w)
     loss(x, y) = mean((x .- y) .^ 2)
