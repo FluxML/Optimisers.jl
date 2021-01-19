@@ -23,6 +23,69 @@ function (o::Descent)(m, m̄, st)
   update(o, m, m̄, st)
 end
 
+struct Momentum{T,S}
+  eta::T
+  rho::S
+end
+
+Momentum(η = 0.01, ρ = 0.9) = Momentum{typeof(η), typeof(ρ)}(η, ρ)
+
+function apply(o::Momentum, x, Δ, st)
+  η, ρ = o.eta, o.rho
+  v = st
+  v = @. ρ * v - η * Δ
+  Δ = @. -v
+  Δ, v
+end
+
+function (o::Momentum)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
+init(o::Momentum, x::AbstractArray) = zero(x)
+
+struct Nesterov{T,S}
+  eta::T
+  rho::S
+end
+
+Nesterov(η = 0.001, ρ = 0.9) = Nesterov{typeof(η), typeof(ρ)}(η, ρ)
+
+init(o::Nesterov, x::AbstractArray) = zero(x)
+
+function (o::Nesterov)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
+function apply(o::Nesterov, x, Δ, st)
+  η, ρ = o.eta, o.rho
+  v = st
+  d = @. ρ^2 * v - (1+ρ) * η * Δ
+  v = @. ρ*v - η*Δ
+  Δ = -d
+  Δ, v
+end
+
+struct RMSProp{T,S}
+  eta::T
+  rho::S
+end
+
+init(o::RMSProp, x::AbstractArray) = zero(x)
+RMSProp(η = 0.001, ρ = 0.9) = RMSProp{typeof(η), typeof(ρ)}(η, ρ)
+
+function apply(o::RMSProp, x, Δ, st)
+  η, ρ = o.eta, o.rho
+  acc = st
+  acc = ρ .* acc .+ (1 .- ρ) .* Δ.^2
+  Δ = Δ .* (η ./ (.√acc .+ ϵ))
+  Δ, acc
+end
+
+function (o::RMSProp)(m, m̄, state)
+  update(o, m, m̄, state)
+end
+
 struct ADAM{T,K}
   eta::T
   beta::Tuple{K,K}
@@ -45,3 +108,4 @@ function apply(o::ADAM, x, Δ, st)
   Δ =  mt ./ (1 .- βp[1]) ./ (.√(vt ./ (1f0 .- βp[2])) .+ ϵ) .* η
   return Δ, (mt, vt, βp .* β)
 end
+

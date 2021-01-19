@@ -11,12 +11,12 @@ function state(o, x)
   end
 end
 
-function _update(o, x, x̄, state)
-  x̄, state = apply(o, x, x̄, state)
-  return patch(x, x̄), state
+function _update(o, x, x̄, st)
+  x̄, st = apply(o, x, x̄, st)
+  return patch(x, x̄), st
 end
 
-function update(o, x, x̄, state)
+function update(o, x::T, x̄, state) where T
   if x̄ === nothing
     return x, state
   elseif isleaf(x)
