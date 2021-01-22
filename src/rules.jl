@@ -28,8 +28,6 @@ struct Momentum{T,S}
   rho::S
 end
 
-Momentum(η = 0.01, ρ = 0.9) = Momentum{typeof(η), typeof(ρ)}(η, ρ)
-
 function apply(o::Momentum, x, Δ, st)
   η, ρ = o.eta, o.rho
   v = st
@@ -48,8 +46,6 @@ struct Nesterov{T,S}
   eta::T
   rho::S
 end
-
-Nesterov(η = 0.001, ρ = 0.9) = Nesterov{typeof(η), typeof(ρ)}(η, ρ)
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
@@ -72,7 +68,6 @@ struct RMSProp{T,S}
 end
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
-RMSProp(η = 0.001, ρ = 0.9) = RMSProp{typeof(η), typeof(ρ)}(η, ρ)
 
 function apply(o::RMSProp, x, Δ, st)
   η, ρ = o.eta, o.rho
