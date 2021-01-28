@@ -5,7 +5,9 @@ using Statistics
 @testset "Optimisers" begin
   Random.seed!(84)
   w′ = (α = rand(3, 3), β = rand(3, 3))
-  @testset for o in (Descent(), Momentum(), Nesterov(), RMSProp(), ADAM())
+  @testset for o in (Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
+                     ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
+                     ADAMW(), RADAM(), OADAM(), AdaBelief())
     w = (α = rand(3, 3), β = rand(3, 3))
     st = init(o, w)
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)

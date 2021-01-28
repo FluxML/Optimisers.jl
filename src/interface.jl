@@ -13,7 +13,7 @@ function init(o, x)
 end
 
 function _update!(o, x, x̄, st)
-  x̄, st = apply!(o, x̄, st)
+  x̄, st = apply!(o, x, x̄, st)
   return patch!(x, x̄), st
 end
 
