@@ -1,106 +1,152 @@
 """
-    Descent(η)
+    Descent(;η = 0.1)
 
 Classic gradient descent optimiser with learning rate `η`.
-For each parameter `p` and its gradient `p̄`, this runs `p -= η*p̄`.
+For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
+
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
 """
-mutable struct Descent
-  eta::Float64
+mutable struct Descent{T}
+  eta::T
+end
+Descent(;η = 0.1) = Descent(η)
+
+init(o::Descent, x::AbstractArray) = nothing
+
+function apply!(o::Descent, dx, state)
+  η = convert(eltype(dx), o.eta)
+  dx .*= η
+  
+  return dx, state
 end
 
-init(o::Descent, x) = nothing
+(o::Descent)(m, dm, st) = update!(o, m, dm, st)
 
-function apply(o::Descent, x, x̄, state)
-  η = convert(eltype(x̄), o.eta)
-  x̄ .* η, state
-end
+"""
+    Momentum(;η = 0.01, ρ = 0.9)
 
-function (o::Descent)(m, m̄)
-  update(o, m, m̄, state(o, m))[1]
-end
+Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
-function (o::Descent)(m, m̄, st)
-  update(o, m, m̄, st)
-end
-
-struct Momentum{T,S}
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
+- Momentum (`ρ`): Controls the acceleration of gradient descent in the
+                  prominent direction, in effect dampening oscillations.
+"""
+mutable struct Momentum{T,S}
   eta::T
   rho::S
 end
+Momentum(;η = 0.01, ρ = 0.9) = Momentum(η, ρ)
 
-function apply(o::Momentum, x, Δ, st)
-  η, ρ = o.eta, o.rho
-  v = st
-  v = @. ρ * v - η * Δ
-  Δ = @. -v
-  Δ, v
+init(o::Momentum, x::AbstractArray) = (velocity = zero(x),)
+
+function apply!(o::Momentum, dx, state)
+  η, ρ, v = o.eta, o.rho, state.velocity
+  @. v = ρ * v - η * dx
+  @. dx = -v
+  
+  return dx, (velocity = v,)
 end
 
-function (o::Momentum)(m, m̄, state)
-  update(o, m, m̄, state)
-end
+(o::Momentum)(m, dm, state) = update!(o, m, dm, state)
 
-init(o::Momentum, x::AbstractArray) = zero(x)
+"""
+    Nesterov(;η = 0.001, ρ = 0.9)
 
-struct Nesterov{T,S}
+Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
+
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
+- Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
+                           prominent direction, in effect dampening oscillations.
+"""
+mutable struct Nesterov{T,S}
   eta::T
   rho::S
 end
+Nesterov(;η = 0.001, ρ = 0.9) = Nesterov(η, ρ)
 
-init(o::Nesterov, x::AbstractArray) = zero(x)
+init(o::Nesterov, x::AbstractArray) = (velocity = zero(x),)
 
-function (o::Nesterov)(m, m̄, state)
-  update(o, m, m̄, state)
+(o::Nesterov)(m, dm, state) = update!(o, m, dm, state)
+
+function apply!(o::Nesterov, dx, state)
+  η, ρ, v = o.eta, o.rho, state.velocity
+  d = @. ρ^2 * v - (1+ρ) * η * dx
+  @. v = ρ * v - η * dx
+  @. dx = -d
+  
+  return dx, (velocity = v,)
 end
 
-function apply(o::Nesterov, x, Δ, st)
-  η, ρ = o.eta, o.rho
-  v = st
-  d = @. ρ^2 * v - (1+ρ) * η * Δ
-  v = @. ρ*v - η*Δ
-  Δ = -d
-  Δ, v
-end
+"""
+    RMSProp(;η = 0.001, ρ = 0.9, ϵ = 1f-8)
 
-struct RMSProp{T,S}
+Optimizer using the
+[RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
+algorithm. Often a good choice for recurrent networks. Parameters other than learning rate
+generally don't need tuning.
+
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
+- Momentum (`ρ`): Controls the acceleration of gradient descent in the
+                  prominent direction, in effect dampening oscillations.
+- Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
+                  (no need to change default)
+"""
+mutable struct RMSProp{T,S}
   eta::T
   rho::S
+  epsilon::Float32
+end
+RMSProp(;η = 0.001, ρ = 0.9, ϵ = 1f-8) = RMSProp(η, ρ, ϵ)
+
+init(o::RMSProp, x::AbstractArray) = (acceleration = zero(x),)
+
+function apply!(o::RMSProp, dx, state)
+  η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state.acceleration
+  @. acc = ρ * acc + (1 - ρ) * dx^2
+  @. dx = dx * (η / (sqrt(acc) + ϵ))
+  
+  return dx, (acceleration = acc,)
 end
 
-init(o::RMSProp, x::AbstractArray) = zero(x)
+(o::RMSProp)(m, dm, state) = update!(o, m, dm, state)
 
-function apply(o::RMSProp, x, Δ, st)
-  η, ρ = o.eta, o.rho
-  acc = st
-  acc = ρ .* acc .+ (1 .- ρ) .* Δ.^2
-  Δ = Δ .* (η ./ (.√acc .+ ϵ))
-  Δ, acc
-end
+"""
+    ADAM(;η = 0.001, β = (0.9, 0.999), ϵ = 1f-8)
 
-function (o::RMSProp)(m, m̄, state)
-  update(o, m, m̄, state)
-end
+[ADAM](https://arxiv.org/abs/1412.6980) optimiser.
 
-struct ADAM{T,K}
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
+- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+                                   second (β2) momentum estimate.
+- Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
+                                  (no need to change default)
+"""
+mutable struct ADAM{T,K}
   eta::T
   beta::Tuple{K,K}
+  epsilon::Float32
 end
+ADAM(;η = 0.001, β = (0.9, 0.999), ϵ = 1f-8) = ADAM(η, β, ϵ)
 
-const ϵ = 1f-8
+init(o::ADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
 
-function (o::ADAM)(m, m̄, state)
-  update(o, m, m̄, state)
+(o::ADAM)(m, dm, state) = update!(o, m, dm, state)
+
+function apply!(o::ADAM{T}, dx, state) where T
+  η, β, βt, ϵ = o.eta, o.beta, state.decays, o.epsilon
+  mt, vt = state.moments
+  @. mt = β[1] * mt + (one(T) - β[1]) * dx
+  @. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
+  @. dx =  mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
+  return dx, (moments = (mt, vt), decays = βt .* β)
 end
-
-init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
-init(o::ADAM, x) = nothing
-
-function apply(o::ADAM, x, Δ, st)
-  η, β = o.eta, o.beta
-  mt, vt, βp = st
-  mt = β[1] .* mt .+ (1f0 .- β[1]) .* Δ
-  vt = β[2] .* vt .+ (1f0 .- β[2]) .* Δ .^ 2
-  Δ =  mt ./ (1 .- βp[1]) ./ (.√(vt ./ (1f0 .- βp[2])) .+ ϵ) .* η
-  return Δ, (mt, vt, βp .* β)
-end
-
