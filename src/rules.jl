@@ -83,7 +83,7 @@ end
 
 struct ADAM{T,K}
   eta::T
-  beta::Tuple{K,K}
+  beta::K
 end
 
 const ϵ = 1f-8
@@ -104,3 +104,159 @@ function apply(o::ADAM, x, Δ, st)
   return Δ, (mt, vt, βp .* β)
 end
 
+struct RADAM{T,S}
+  eta::T
+  beta::S
+end
+
+init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), [β[1], β[2]], 1)
+
+function apply(o::RADAM, x, Δ, st)
+  η, β = o.eta, o.beta
+  ρ∞ = 2/(1-β[2])-1
+
+  mt, vt, βp, t = st
+
+  mt = β[1] .* mt .+ (1 .- β[1]) .* Δ
+  vt = β[2] .* vt .+ (1 .- β[2]) .* Δ .^ 2
+  ρ = ρ∞ - 2t[] * βp[2] / (1 - βp[2])
+  if ρ > 4
+    r = sqrt((ρ-4)*(ρ-2)*ρ∞/((ρ∞-4)*(ρ∞-2)*ρ))
+    Δ =  mt ./ (1 .- βp[1]) ./ (.√(vt ./ (1 .- βp[2])) .+ ϵ) .* η .* r
+  else
+    Δ =  mt ./ (1 .- βp[1]) .* η
+  end
+  βp .= βp .* β
+  t_ = t + 1
+
+  return Δ, (mt, vt, βp, t_)
+end
+
+struct AdaMax{T,S}
+  eta::T
+  beta::S
+end
+
+init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), [β[1], β[2]])
+
+function apply(o::AdaMax, x, Δ, st)
+  η, β = o.eta, o.beta
+
+  mt, ut, βp = st 
+
+  mt = β[1] .* mt .+ (1 .- β[1]) .* Δ
+  ut = max.(β[2] .* ut, abs.(Δ))
+  Δ = (η ./ (1 .- βp[1])) .* mt ./ (ut .+ ϵ)
+  βp = βp .* β
+
+  return Δ, (mt, ut, βp)
+end
+
+struct OADAM{T,S}
+  eta::T
+  beta::S
+end
+
+init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), zero(x), [β[1], β[2]])
+
+function apply(o::OADAM, x, Δ, st)
+  η, β = o.eta, o.beta
+
+  mt, vt, Δ_, βp = st
+
+  mt = β[1] .* mt .+ (1 .- β[1]) .* Δ
+  vt = β[2] .* vt .+ (1 .- β[2]) .* Δ .^ 2
+  Δ = -Δ_
+  Δ_ = η .* mt ./ (1 .- βp[1]) ./ (.√(vt ./ (1 .- βp[2])) .+ ϵ)
+  Δ = Δ .+ 2Δ_
+  βp = βp .* β
+
+  return Δ, (mt, vt, Δ_, βp)
+end
+
+struct ADAGrad{T}
+  eta::T
+end
+
+init(o::ADAGrad, x::AbstractArray) = (fill!(similar(x), ϵ),)
+
+function apply(o::ADAGrad, x, Δ, st)
+  η = o.eta
+  acc, = st
+  acc = acc .+ Δ .^ 2
+  Δ = Δ .* η ./ (.√acc .+ ϵ)
+  Δ, (acc,)
+end
+
+struct ADADelta
+  rho::Float64
+end
+
+init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
+
+function apply(o::ADADelta, x, Δ, st)
+  ρ = o.rho
+  acc, Δacc = st
+  acc = ρ .* acc .+ (1 .- ρ) .* Δ .^ 2
+  # DON'T remove epsilon from numerator
+  # or even out of the square roots
+  Δ = Δ .* .√(Δacc .+ ϵ) ./ .√(acc .+ ϵ)
+  Δacc = ρ .* Δacc .+ (1 .- ρ) .* Δ .^ 2
+  return Δ, (acc, Δacc)
+end
+
+struct AMSGrad{T,S}
+  eta::T
+  beta::S
+end
+
+init(o::AMSGrad, x::AbstractArray) = (fill!(similar(x), ϵ), fill!(similar(x), ϵ), fill!(similar(x), ϵ))
+
+function apply(o::AMSGrad, x, Δ, st)
+  η, β = o.eta, o.beta
+
+  mt, vt, v̂t = st 
+
+  mt = β[1] .* mt .+ (1 .- β[1]) .* Δ
+  vt = β[2] .* vt .+ (1 .- β[2]) .* Δ .^ 2
+  v̂t = max.(v̂t, vt)
+  Δ = η .* mt ./ (.√v̂t .+ ϵ)
+  Δ, (mt, vt, v̂t)
+end
+
+struct NADAM
+  eta::Float64
+  beta::Tuple{Float64, Float64}
+end
+
+init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), [o.beta[1], o.beta[2]])
+
+function apply(o::NADAM, x, Δ, st)
+  η, β = o.eta, o.beta
+
+  mt, vt, βp = st 
+  β1p, β2p = βp
+
+  mt = β[1] .* mt .+ (1 .- β[1]) .* Δ
+  vt = β[2] .* vt .+ (1 .- β[2]) .* Δ .^ 2
+  Δ = (β[1] .* mt ./ (1 .- β[1] .* β1p) .+ (1 .- β[1]) .* Δ ./ (1 .- β1p)) ./ (.√(vt .* β[2] ./ (1 .- β2p)) .+ ϵ) .* η
+  βp = βp .* β
+
+  return Δ, (mt, vt, βp)
+end
+
+struct AdaBelief{T,S}
+  eta::T
+  beta::S
+end
+
+init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x))
+
+function apply(o::AdaBelief, x, Δ, st)
+  η, β = o.eta, o.beta
+  mt, st = st 
+  mt = β[1] .* mt .+ (1 .- β[1]) .* Δ
+  st = β[2] .* st .+ (1 .- β[2]) * (Δ .- mt) .^ 2
+  Δ =  η .* mt ./ (.√(st) .+ ϵ)
+  Δ, (mt, st)
+end
