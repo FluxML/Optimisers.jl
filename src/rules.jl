@@ -188,8 +188,8 @@ function apply(o::ADAGrad, x, Δ, st)
   Δ, (acc,)
 end
 
-struct ADADelta
-  rho::Float64
+struct ADADelta{T}
+  rho::T
 end
 
 init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
@@ -224,9 +224,9 @@ function apply(o::AMSGrad, x, Δ, st)
   Δ, (mt, vt, v̂t)
 end
 
-struct NADAM
-  eta::Float64
-  beta::Tuple{Float64, Float64}
+struct NADAM{T,S}
+  eta::T
+  beta::S
 end
 
 init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), [o.beta[1], o.beta[2]])
@@ -274,11 +274,11 @@ function apply(o::InvDecay, x, Δ, st)
   return Δ, (n + 1,)
 end
 
-mutable struct ExpDecay
-  eta::Float64
-  decay::Float64
-  step::Int64
-  clip::Float64
+mutable struct ExpDecay{T,S}
+  eta::T
+  decay::T
+  step::S
+  clip::T
 end
 
 init(o::ExpDecay, x::AbstractArray) = (0,)
