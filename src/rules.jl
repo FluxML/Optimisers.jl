@@ -109,7 +109,7 @@ struct RADAM{T,S}
   beta::S
 end
 
-init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), [β[1], β[2]], 1)
+init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), [o.beta[1], o.beta[2]], 1)
 
 function apply(o::RADAM, x, Δ, st)
   η, β = o.eta, o.beta
@@ -137,7 +137,7 @@ struct AdaMax{T,S}
   beta::S
 end
 
-init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), [β[1], β[2]])
+init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), [o.beta[1], o.beta[2]])
 
 function apply(o::AdaMax, x, Δ, st)
   η, β = o.eta, o.beta
@@ -157,7 +157,7 @@ struct OADAM{T,S}
   beta::S
 end
 
-init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), zero(x), [β[1], β[2]])
+init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), zero(x), [o.beta[1], o.beta[2]])
 
 function apply(o::OADAM, x, Δ, st)
   η, β = o.eta, o.beta

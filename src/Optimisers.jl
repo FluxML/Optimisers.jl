@@ -6,6 +6,8 @@ include("interface.jl")
 include("rules.jl")
 
 export Descent, Momentum, Nesterov, RMSProp,
-       ADAM
+       ADAM, ADAGrad, AdaMax, ADADelta, AMSGrad,
+       NADAM, RADAM, OADAM, AdaBelief,
+       InvDecay, ExpDecay, WeightDecay
 
 end # module
