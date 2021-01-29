@@ -260,3 +260,48 @@ function apply(o::AdaBelief, x, Δ, st)
   Δ =  η .* mt ./ (.√(st) .+ ϵ)
   Δ, (mt, st)
 end
+
+struct InvDecay{T}
+  gamma::T
+end
+
+init(o::InvDecay, x::AbstractArray) = 1
+
+function apply(o::InvDecay, x, Δ, st)
+  γ = o.gamma
+  n, = st
+  Δ = Δ .* 1 ./ (1 .+ γ .* n)
+  return Δ, (n + 1,)
+end
+
+mutable struct ExpDecay
+  eta::Float64
+  decay::Float64
+  step::Int64
+  clip::Float64
+end
+
+init(o::ExpDecay, x::AbstractArray) = (0,)
+
+function apply(o::ExpDecay, x, Δ, st)
+  η, s, decay = o.eta, o.step, o.decay
+  n, = st .+ 1
+  if n%s == 0 && count(x -> x%s == 0, st) == 1
+    η = max(η * decay, o.clip)
+    o.eta = η
+  end
+  Δ = Δ * η
+  Δ, (n,)
+end
+
+struct WeightDecay{T}
+  wd::T
+end
+
+init(o::WeightDecay, x) = nothing
+
+function apply!(o::WeightDecay, x, Δ, st)
+  wd = o.wd
+  Δ = Δ + wd * x
+  Δ, st
+end
