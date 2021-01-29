@@ -300,7 +300,7 @@ end
 
 init(o::WeightDecay, x) = nothing
 
-function apply!(o::WeightDecay, x, Δ, st)
+function apply(o::WeightDecay, x, Δ, st)
   wd = o.wd
   Δ = Δ + wd * x
   Δ, st
