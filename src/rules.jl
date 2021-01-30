@@ -10,7 +10,7 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 - Learning rate (`η`): Amount by which gradients are discounted before updating
                        the weights.
 """
-mutable struct Descent{T}
+struct Descent{T}
   eta::T
 end
 Descent(; η = 0.1) = Descent(η)
@@ -37,7 +37,7 @@ Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
-mutable struct Momentum{T,S}
+struct Momentum{T,S}
   eta::T
   rho::S
 end
@@ -65,7 +65,7 @@ Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
                            prominent direction, in effect dampening oscillations.
 """
-mutable struct Nesterov{T,S}
+struct Nesterov{T,S}
   eta::T
   rho::S
 end
@@ -99,7 +99,7 @@ generally don't need tuning.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                   (no need to change default)
 """
-mutable struct RMSProp{T,S}
+struct RMSProp{T,S}
   eta::T
   rho::S
   epsilon::Float32
@@ -131,7 +131,7 @@ end
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct ADAM{T,K}
+struct ADAM{T,K}
   eta::T
   beta::Tuple{K,K}
   epsilon::Float32
@@ -166,7 +166,7 @@ end
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct RADAM{T,S}
+struct RADAM{T,S}
   eta::T
   beta::Tuple{S,S}
   epsilon::Float32
@@ -210,7 +210,7 @@ end
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct AdaMax{T,S}
+struct AdaMax{T,S}
   eta::T
   beta::Tuple{S,S}
   epsilon::Float32
@@ -248,7 +248,7 @@ is a variant of ADAM adding an "optimistic" term suitable for adversarial traini
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct OADAM{T,S}
+struct OADAM{T,S}
   eta::T
   beta::Tuple{S,S}
   epsilon::Float32
@@ -287,7 +287,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct ADAGrad{T}
+struct ADAGrad{T}
   eta::T
   epsilon::Float32
 end
@@ -319,7 +319,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct ADADelta{T}
+struct ADADelta{T}
   rho::T
   epsilon::Float32
 end
@@ -356,7 +356,7 @@ optimiser. Parameters don't need tuning.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct AMSGrad{T,S}
+struct AMSGrad{T,S}
   eta::T
   beta::Tuple{S,S}
   epsilon::Float32
@@ -395,7 +395,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct NADAM{T,S}
+struct NADAM{T,S}
   eta::T
   beta::Tuple{S,S}
   epsilon::Float32
@@ -452,7 +452,7 @@ ADAM optimiser.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-mutable struct AdaBelief{T,S}
+struct AdaBelief{T,S}
   eta::T
   beta::Tuple{S,S}
   epsilon::Float32
@@ -482,7 +482,7 @@ Decay weights by `wd`.
 # Parameters
 - Weight decay (`γ`)
 """
-mutable struct WeightDecay{T}
+struct WeightDecay{T}
   wd::T
 end
 WeightDecay(; γ = 1e-4) = WeightDecay(γ)
@@ -513,9 +513,10 @@ init(o::SequenceOptimiser, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 (o::SequenceOptimiser)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::SequenceOptimiser, x, dx, states)
+  new_states = similar(states)
   for (i, (opt, state)) in enumerate(zip(o.opts, states))
-    dx, states[i] = apply(opt, x, dx, state)
+    dx, new_states[i] = apply(opt, x, dx, state)
   end
 
-  return dx, states
+  return dx, new_states
 end

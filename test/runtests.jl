@@ -9,7 +9,7 @@ using Statistics
                      ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
                      ADAMW(), RADAM(), OADAM(), AdaBelief())
     w = (α = rand(3, 3), β = rand(3, 3))
-    st = Optimisers.init(o, w)
+    st = Optimisers.state(o, w)
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
     l = loss(w, w′)
     for i = 1:10^4
