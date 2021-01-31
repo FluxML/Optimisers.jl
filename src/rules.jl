@@ -1,5 +1,5 @@
 """
-    Descent(; η = 0.1)
+    Descent(η = 0.1)
 
 Classic gradient descent optimiser with learning rate `η`.
 For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
@@ -11,7 +11,7 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 struct Descent{T}
   eta::T
 end
-Descent(; η = 0.1) = Descent(η)
+Descent(η = 0.1) = Descent(η)
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -25,7 +25,7 @@ end
 (o::Descent)(m, dm, st) = update(o, m, dm, st)
 
 """
-    Momentum(; η = 0.01, ρ = 0.9)
+    Momentum(η = 0.01, ρ = 0.9)
 
 Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
@@ -39,7 +39,7 @@ struct Momentum{T}
   eta::T
   rho::T
 end
-Momentum(; η = 0.01, ρ = 0.9) = Momentum(η, ρ)
+Momentum(η = 0.01, ρ = 0.9) = Momentum(η, ρ)
 
 init(o::Momentum, x::AbstractArray) = (velocity = zero(x),)
 
@@ -53,7 +53,7 @@ end
 (o::Momentum)(m, dm, state) = update(o, m, dm, state)
 
 """
-    Nesterov(; η = 0.001, ρ = 0.9)
+    Nesterov(η = 0.001, ρ = 0.9)
 
 Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 
@@ -67,7 +67,7 @@ struct Nesterov{T}
   eta::T
   rho::T
 end
-Nesterov(; η = 0.001, ρ = 0.9) = Nesterov(η, ρ)
+Nesterov(η = 0.001, ρ = 0.9) = Nesterov(η, ρ)
 
 init(o::Nesterov, x::AbstractArray) = (velocity = zero(x),)
 
@@ -82,7 +82,7 @@ function apply(o::Nesterov, x, dx, state)
 end
 
 """
-    RMSProp(; η = 0.001, ρ = 0.9, ϵ = eps(typeof(η)))
+    RMSProp(η = 0.001, ρ = 0.9, ϵ = eps(typeof(η)))
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -102,7 +102,7 @@ struct RMSProp{T}
   rho::T
   epsilon::T
 end
-RMSProp(; η = 0.001, ρ = 0.9, ϵ = eps(typeof(η))) = RMSProp(η, ρ, ϵ)
+RMSProp(η = 0.001, ρ = 0.9, ϵ = eps(typeof(η))) = RMSProp(η, ρ, ϵ)
 
 init(o::RMSProp, x::AbstractArray) = (acceleration = zero(x),)
 
@@ -117,7 +117,7 @@ end
 (o::RMSProp)(m, dm, state) = update(o, m, dm, state)
 
 """
-    ADAM(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
+    ADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
 
 [ADAM](https://arxiv.org/abs/1412.6980) optimiser.
 
@@ -134,7 +134,7 @@ struct ADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-ADAM(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = ADAM(η, β, ϵ)
+ADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = ADAM(η, β, ϵ)
 
 init(o::ADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
 
@@ -152,7 +152,7 @@ function apply(o::ADAM{T}, x, dx, state) where T
 end
 
 """
-    RADAM(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
+    RADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
 
 [Rectified ADAM](https://arxiv.org/abs/1908.03265) optimizer.
 
@@ -169,7 +169,7 @@ struct RADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-RADAM(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = RADAM(η, β, ϵ)
+RADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = RADAM(η, β, ϵ)
 
 init(o::RADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta, t = 1)
 
@@ -196,7 +196,7 @@ function apply(o::RADAM, x, dx, state)
 end
 
 """
-    AdaMax(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
+    AdaMax(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
 
 [AdaMax](https://arxiv.org/abs/1412.6980) is a variant of ADAM based on the ∞-norm.
 
@@ -213,7 +213,7 @@ struct AdaMax{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaMax(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AdaMax(η, β, ϵ)
+AdaMax(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AdaMax(η, β, ϵ)
 
 init(o::AdaMax, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
 
@@ -233,7 +233,7 @@ function apply(o::AdaMax, x, dx, state)
 end
 
 """
-    OADAM(; η = 0.001, β = (0.5, 0.9), ϵ = eps(typeof(η)))
+    OADAM(η = 0.001, β = (0.5, 0.9), ϵ = eps(typeof(η)))
 
 [OADAM](https://arxiv.org/abs/1711.00141) (Optimistic ADAM)
 is a variant of ADAM adding an "optimistic" term suitable for adversarial training.
@@ -251,7 +251,7 @@ struct OADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-OADAM(; η = 0.001, β = (0.5, 0.9), ϵ = eps(typeof(η))) = OADAM(η, β, ϵ)
+OADAM(η = 0.001, β = (0.5, 0.9), ϵ = eps(typeof(η))) = OADAM(η, β, ϵ)
 
 init(o::OADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta, dx = zero(x))
 
@@ -273,7 +273,7 @@ function apply(o::OADAM, x, dx, state)
 end
 
 """
-    ADAGrad(; η = 0.1, ϵ = eps(typeof(η)))
+    ADAGrad(η = 0.1, ϵ = eps(typeof(η)))
 
 [ADAGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) optimizer. It has
 parameter specific learning rates based on how frequently it is updated.
@@ -289,7 +289,7 @@ struct ADAGrad{T}
   eta::T
   epsilon::T
 end
-ADAGrad(; η = 0.1, ϵ = eps(typeof(η))) = ADAGrad(η, ϵ)
+ADAGrad(η = 0.1, ϵ = eps(typeof(η))) = ADAGrad(η, ϵ)
 
 init(o::ADAGrad, x::AbstractArray) = (acceleration = fill!(similar(x), o.epsilon),)
 
@@ -306,7 +306,7 @@ function apply(o::ADAGrad, x, dx, state)
 end
 
 """
-    ADADelta(; ρ = 0.9, ϵ = eps(typeof(ρ)))
+    ADADelta(ρ = 0.9, ϵ = eps(typeof(ρ)))
 
 [ADADelta](https://arxiv.org/abs/1212.5701) is a version of ADAGrad adapting its learning
 rate based on a window of past gradient updates.
@@ -321,7 +321,7 @@ struct ADADelta{T}
   rho::T
   epsilon::T
 end
-ADADelta(; ρ = 0.9, ϵ = eps(typeof(ρ))) = ADADelta(ρ, ϵ)
+ADADelta(ρ = 0.9, ϵ = eps(typeof(ρ))) = ADADelta(ρ, ϵ)
 
 init(o::ADADelta, x::AbstractArray) = (acceleration = zero(x), Δacceleration = zero(x))
 
@@ -341,7 +341,7 @@ function apply(o::ADADelta, x, dx, state)
 end
 
 """
-    AMSGrad(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
+    AMSGrad(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
 
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the ADAM
 optimiser. Parameters don't need tuning.
@@ -359,7 +359,7 @@ struct AMSGrad{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AMSGrad(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AMSGrad(η, β, ϵ)
+AMSGrad(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AMSGrad(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
   (moments = (fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon)),)
@@ -380,7 +380,7 @@ function apply(o::AMSGrad, x, dx, state)
 end
 
 """
-    NADAM(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
+    NADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
 
 [NADAM](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of ADAM.
 Parameters don't need tuning.
@@ -398,7 +398,7 @@ struct NADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-NADAM(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = NADAM(η, β, ϵ)
+NADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = NADAM(η, β, ϵ)
 
 init(o::NADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
 
@@ -419,7 +419,7 @@ function apply(o::NADAM, x, dx, state)
 end
 
 """
-    ADAMW(; η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = eps(typeof(η)))
+    ADAMW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = eps(typeof(η)))
 
 [ADAMW](https://arxiv.org/abs/1711.05101) is a variant of ADAM fixing (as in repairing) its
 weight decay regularization.
@@ -433,11 +433,11 @@ weight decay regularization.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-ADAMW(; η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = eps(typeof(η))) =
+ADAMW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = eps(typeof(η))) =
   SequenceOptimiser(ADAM(η, β, ϵ), WeightDecay(γ))
 
 """
-    AdaBelief(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
+    AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η)))
 
 The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the well-known
 ADAM optimiser.
@@ -455,7 +455,7 @@ struct AdaBelief{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaBelief(; η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AdaBelief(η, β, ϵ)
+AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AdaBelief(η, β, ϵ)
 
 init(o::AdaBelief, x::AbstractArray) = (moments = (zero(x), zero(x)),)
 
@@ -473,7 +473,7 @@ function apply(o::AdaBelief, x, dx, state)
 end
 
 """
-    WeightDecay(; γ = 0)
+    WeightDecay(γ = 0)
 
 Decay weights by `γ`.
 
@@ -483,7 +483,7 @@ Decay weights by `γ`.
 struct WeightDecay{T}
   wd::T
 end
-WeightDecay(; γ = 1e-4) = WeightDecay(γ)
+WeightDecay(γ = 1e-4) = WeightDecay(γ)
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
