@@ -11,7 +11,7 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 struct Descent{T}
   eta::T
 end
-Descent(η = 0.1) = Descent(η)
+Descent() = Descent(0.1)
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -41,13 +41,13 @@ struct Momentum{T}
 end
 Momentum(η = 0.01, ρ = 0.9) = Momentum(η, ρ)
 
-init(o::Momentum, x::AbstractArray) = (velocity = zero(x),)
+init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply(o::Momentum, x, dx, state)
-  η, ρ, v = o.eta, o.rho, state.velocity
+  η, ρ, v = o.eta, o.rho, state
   @. v = ρ * v - η * dx
   
-  return -v, (velocity = v,)
+  return -v, v
 end
 
 (o::Momentum)(m, dm, state) = update(o, m, dm, state)
@@ -69,16 +69,16 @@ struct Nesterov{T}
 end
 Nesterov(η = 0.001, ρ = 0.9) = Nesterov(η, ρ)
 
-init(o::Nesterov, x::AbstractArray) = (velocity = zero(x),)
+init(o::Nesterov, x::AbstractArray) = zero(x)
 
 (o::Nesterov)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::Nesterov, x, dx, state)
-  η, ρ, v = o.eta, o.rho, state.velocity
+  η, ρ, v = o.eta, o.rho, state
   d = @. ρ^2 * v - (1+ρ) * η * dx
   @. v = ρ * v - η * dx
   
-  return -d, (velocity = v,)
+  return -d, v
 end
 
 """
@@ -104,14 +104,14 @@ struct RMSProp{T}
 end
 RMSProp(η = 0.001, ρ = 0.9, ϵ = eps(typeof(η))) = RMSProp(η, ρ, ϵ)
 
-init(o::RMSProp, x::AbstractArray) = (acceleration = zero(x),)
+init(o::RMSProp, x::AbstractArray) = zero(x)
 
 function apply(o::RMSProp, x, dx, state)
-  η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state.acceleration
+  η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
   @. acc = ρ * acc + (1 - ρ) * dx^2
   dx = @. dx * (η / (sqrt(acc) + ϵ))
   
-  return dx, (acceleration = acc,)
+  return dx, acc
 end
 
 (o::RMSProp)(m, dm, state) = update(o, m, dm, state)
@@ -136,19 +136,19 @@ struct ADAM{T}
 end
 ADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = ADAM(η, β, ϵ)
 
-init(o::ADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
+init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::ADAM)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::ADAM{T}, x, dx, state) where T
-  η, β, βt, ϵ = o.eta, o.beta, state.decays, o.epsilon
-  mt, vt = state.moments
+  η, β, ϵ = o.eta, o.beta, o.epsilon
+  mt, vt, βt = state
 
   @. mt = β[1] * mt + (one(T) - β[1]) * dx
   @. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
   dx = @. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
 
-  return dx, (moments = (mt, vt), decays = βt .* β)
+  return dx, (mt, vt, βt .* β)
 end
 
 """
@@ -171,7 +171,7 @@ struct RADAM{T}
 end
 RADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = RADAM(η, β, ϵ)
 
-init(o::RADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta, t = 1)
+init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
 (o::RADAM)(m, dm, state) = update(o, m, dm, state)
 
@@ -179,8 +179,7 @@ function apply(o::RADAM, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   ρ∞ = 2/(1-β[2])-1
 
-  mt, vt = state.moments
-  βt, t = state.decays, state.t
+  mt, vt, βt, t = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
@@ -192,7 +191,7 @@ function apply(o::RADAM, x, dx, state)
     dx = @. mt / (1 - βt[1]) * η
   end
 
-  return dx, (moments = (mt, vt), decays = βt .* β, t = t + 1)
+  return dx, (mt, vt, βt .* β, t + 1)
 end
 
 """
@@ -215,21 +214,20 @@ struct AdaMax{T}
 end
 AdaMax(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AdaMax(η, β, ϵ)
 
-init(o::AdaMax, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
+init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::AdaMax)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::AdaMax, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  mt, ut = state.moments
-  βt = state.decays
+  mt, ut, βt = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. ut = max(β[2] * ut, abs(dx))
   dx = @. (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return dx, (moments = (mt, ut), decays = βt .* β)
+  return dx, (mt, ut, βt .* β)
 end
 
 """
@@ -253,15 +251,14 @@ struct OADAM{T}
 end
 OADAM(η = 0.001, β = (0.5, 0.9), ϵ = eps(typeof(η))) = OADAM(η, β, ϵ)
 
-init(o::OADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta, dx = zero(x))
+init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
 (o::OADAM)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::OADAM, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  mt, vt = state.moments
-  βt, dx_ = state.decays, state.dx
+  mt, vt, βt, dx_ = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
@@ -269,7 +266,7 @@ function apply(o::OADAM, x, dx, state)
   @. dx_ = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
   dx = @. dx + 2*dx_
 
-  return dx, (moments = (mt, vt), decays = βt .* β, dx = dx_)
+  return dx, (mt, vt, βt .* β, dx_)
 end
 
 """
@@ -291,18 +288,18 @@ struct ADAGrad{T}
 end
 ADAGrad(η = 0.1, ϵ = eps(typeof(η))) = ADAGrad(η, ϵ)
 
-init(o::ADAGrad, x::AbstractArray) = (acceleration = fill!(similar(x), o.epsilon),)
+init(o::ADAGrad, x::AbstractArray) = fill!(similar(x), o.epsilon)
 
 (o::ADAGrad)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::ADAGrad, x, dx, state)
   η, ϵ = o.eta, o.epsilon
-  acc = state.acceleration
+  acc = state
 
   @. acc += dx^2
   dx = @. dx * η / (sqrt(acc) + ϵ)
 
-  return dx, (acceleration = acc,)
+  return dx,  acc
 end
 
 """
@@ -323,13 +320,13 @@ struct ADADelta{T}
 end
 ADADelta(ρ = 0.9, ϵ = eps(typeof(ρ))) = ADADelta(ρ, ϵ)
 
-init(o::ADADelta, x::AbstractArray) = (acceleration = zero(x), Δacceleration = zero(x))
+init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
 
 (o::ADADelta)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::ADADelta, x, dx, state)
   ρ, ϵ = o.rho, o.epsilon
-  acc, Δacc = state.acceleration, state.Δacceleration
+  acc, Δacc = state
 
   @. acc = ρ * acc + (1 - ρ) * dx^2
   # DON'T remove epsilon from numerator
@@ -337,7 +334,7 @@ function apply(o::ADADelta, x, dx, state)
   dx = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
   @. Δacc = ρ * Δacc + (1 - ρ) * dx^2
   
-  return dx, (acceleration = acc, Δacceleration = Δacc)
+  return dx, (acc, Δacc)
 end
 
 """
@@ -362,21 +359,21 @@ end
 AMSGrad(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AMSGrad(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
-  (moments = (fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon)),)
+  (fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon))
 
 (o::AMSGrad)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::AMSGrad, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  mt, vt, v̂t = state.moments
+  mt, vt, v̂t = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
   @. v̂t = max(v̂t, vt)
   dx = @. η * mt / (sqrt(v̂t) + ϵ)
 
-  return dx, (moments = (mt, vt, v̂t),)
+  return dx, (mt, vt, v̂t)
 end
 
 """
@@ -400,22 +397,21 @@ struct NADAM{T}
 end
 NADAM(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = NADAM(η, β, ϵ)
 
-init(o::NADAM, x::AbstractArray) = (moments = (zero(x), zero(x)), decays = o.beta)
+init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::NADAM)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::NADAM, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  mt, vt = state.moments
-  βt = state.decays
+  mt, vt, βt = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
   dx = @. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
-  return dx, (moments = (mt, vt), decays = βt .* β)
+  return dx, (mt, vt, βt .* β)
 end
 
 """
@@ -457,19 +453,19 @@ struct AdaBelief{T}
 end
 AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = eps(typeof(η))) = AdaBelief(η, β, ϵ)
 
-init(o::AdaBelief, x::AbstractArray) = (moments = (zero(x), zero(x)),)
+init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x))
 
 (o::AdaBelief)(m, dm, state) = update(o, m, dm, state)
 
 function apply(o::AdaBelief, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
-  mt, st = state.moments
+  mt, st = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
   dx = @. η * mt / (sqrt(st) + ϵ)
   
-  return dx, (moments = (mt, st),)
+  return dx, (mt, st)
 end
 
 """
@@ -483,7 +479,7 @@ Decay weights by `γ`.
 struct WeightDecay{T}
   wd::T
 end
-WeightDecay(γ = 1e-4) = WeightDecay(γ)
+WeightDecay() = WeightDecay(1e-4)
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
