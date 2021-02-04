@@ -492,21 +492,21 @@ function apply(o::WeightDecay, x, dx, state)
 end
 
 """
-    SequenceOptimiser(opts...)
+    ChainOptimiser(opts...)
 
-Compose a sequence of optimisers so that each `opt` in `opts`
+Compose a chain (sequence) of optimisers so that each `opt` in `opts`
 updates the gradient in the order specified.
 """
-struct SequenceOptimiser{O}
+struct ChainOptimiser{O}
   opts::O
 end
-SequenceOptimiser(opts...) = SequenceOptimiser(opts)
+ChainOptimiser(opts...) = ChainOptimiser(opts)
 
-init(o::SequenceOptimiser, x::AbstractArray) = [init(opt, x) for opt in o.opts]
+init(o::ChainOptimiser, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 
-(o::SequenceOptimiser)(m, dm, state) = update(o, m, dm, state)
+(o::ChainOptimiser)(m, dm, state) = update(o, m, dm, state)
 
-function apply(o::SequenceOptimiser, x, dx, states)
+function apply(o::ChainOptimiser, x, dx, states)
   new_states = similar(states)
   for (i, (opt, state)) in enumerate(zip(o.opts, states))
     dx, new_states[i] = apply(opt, x, dx, state)
