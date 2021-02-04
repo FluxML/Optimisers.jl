@@ -430,7 +430,7 @@ weight decay regularization.
                          (no need to change default)
 """
 ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  SequenceOptimiser(ADAM(η, β, ϵ), WeightDecay(γ))
+  ChainOptimiser(ADAM(η, β, ϵ), WeightDecay(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
