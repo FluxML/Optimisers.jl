@@ -18,5 +18,19 @@ using Statistics
     end
     @test loss(w, w′) < 0.01
   end
+end
 
+@testset "OptimiserChain" begin
+  Random.seed!(84)
+  w = randn(10, 10)
+  w′ = randn(10, 10)
+  loss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
+  opt = OptimiserChain(WeightDecay(), ADAM(0.001))
+  st = Optimisers.state(opt, w)
+  for t = 1:10^5
+    x = rand(10)
+    gs = gradient(w -> loss(x, w, w′), w)
+    w, st = Optimisers.update(opt, w, gs..., st)
+  end
+  @test loss(rand(10, 10), w, w′) < 0.01
 end
