@@ -39,7 +39,7 @@ struct Momentum{T}
   eta::T
   rho::T
 end
-Momentum(η = 1f-2, ρ = 9f-1) = Momentum(η, ρ)
+Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 
 init(o::Momentum, x::AbstractArray) = zero(x)
 
@@ -67,7 +67,7 @@ struct Nesterov{T}
   eta::T
   rho::T
 end
-Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov(η, ρ)
+Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov{typeof(η)}(η, ρ)
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
@@ -102,7 +102,7 @@ struct RMSProp{T}
   rho::T
   epsilon::T
 end
-RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η))) = RMSProp(η, ρ, ϵ)
+RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η))) = RMSProp{typeof(η)}(η, ρ, ϵ)
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
 
@@ -134,7 +134,7 @@ struct ADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-ADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = ADAM(η, β, ϵ)
+ADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = ADAM{typeof(η)}(η, β, ϵ)
 
 init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
@@ -169,7 +169,7 @@ struct RADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-RADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = RADAM(η, β, ϵ)
+RADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = RADAM{typeof(η)}(η, β, ϵ)
 
 init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
@@ -212,7 +212,7 @@ struct AdaMax{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaMax(η, β, ϵ)
+AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaMax{typeof(η)}(η, β, ϵ)
 
 init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
@@ -249,7 +249,7 @@ struct OADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-OADAM(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η))) = OADAM(η, β, ϵ)
+OADAM(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η))) = OADAM{typeof(η)}(η, β, ϵ)
 
 init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
@@ -286,7 +286,7 @@ struct ADAGrad{T}
   eta::T
   epsilon::T
 end
-ADAGrad(η = 1f-1, ϵ = eps(typeof(η))) = ADAGrad(η, ϵ)
+ADAGrad(η = 1f-1, ϵ = eps(typeof(η))) = ADAGrad{typeof(η)}(η, ϵ)
 
 init(o::ADAGrad, x::AbstractArray) = fill!(similar(x), o.epsilon)
 
@@ -318,7 +318,7 @@ struct ADADelta{T}
   rho::T
   epsilon::T
 end
-ADADelta(ρ = 9f-1, ϵ = eps(typeof(ρ))) = ADADelta(ρ, ϵ)
+ADADelta(ρ = 9f-1, ϵ = eps(typeof(ρ))) = ADADelta{typeof(ρ)}(ρ, ϵ)
 
 init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
 
@@ -356,7 +356,7 @@ struct AMSGrad{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad(η, β, ϵ)
+AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad{typeof(η)}(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
   (fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon))
@@ -395,7 +395,7 @@ struct NADAM{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-NADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = NADAM(η, β, ϵ)
+NADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = NADAM{typeof(η)}(η, β, ϵ)
 
 init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
@@ -430,7 +430,7 @@ weight decay regularization.
                          (no need to change default)
 """
 ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(ADAM(η, β, ϵ), WeightDecay(γ))
+  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
@@ -451,7 +451,7 @@ struct AdaBelief{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaBelief(η, β, ϵ)
+AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaBelief{typeof(η)}(η, β, ϵ)
 
 init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x))
 
