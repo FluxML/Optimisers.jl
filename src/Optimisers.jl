@@ -7,6 +7,6 @@ include("rules.jl")
 
 export Descent, ADAM, Momentum, Nesterov, RMSProp,
        ADAGrad, AdaMax, ADADelta, AMSGrad, NADAM, ADAMW, RADAM, OADAM, AdaBelief,
-       WeightDecay, ChainOptimiser
+       WeightDecay, OptimiserChain
 
 end # module

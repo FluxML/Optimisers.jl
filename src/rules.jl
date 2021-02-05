@@ -430,7 +430,7 @@ weight decay regularization.
                          (no need to change default)
 """
 ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  ChainOptimiser(ADAM(η, β, ϵ), WeightDecay(γ))
+  OptimiserChain(ADAM(η, β, ϵ), WeightDecay(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
@@ -492,21 +492,21 @@ function apply(o::WeightDecay, x, dx, state)
 end
 
 """
-    ChainOptimiser(opts...)
+    OptimiserChain(opts...)
 
 Compose a chain (sequence) of optimisers so that each `opt` in `opts`
 updates the gradient in the order specified.
 """
-struct ChainOptimiser{O}
+struct OptimiserChain{O}
   opts::O
 end
-ChainOptimiser(opts...) = ChainOptimiser(opts)
+OptimiserChain(opts...) = OptimiserChain(opts)
 
-init(o::ChainOptimiser, x::AbstractArray) = [init(opt, x) for opt in o.opts]
+init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 
-(o::ChainOptimiser)(m, dm, state) = update(o, m, dm, state)
+(o::OptimiserChain)(m, dm, state) = update(o, m, dm, state)
 
-function apply(o::ChainOptimiser, x, dx, states)
+function apply(o::OptimiserChain, x, dx, states)
   new_states = similar(states)
   for (i, (opt, state)) in enumerate(zip(o.opts, states))
     dx, new_states[i] = apply(opt, x, dx, state)
