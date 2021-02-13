@@ -10,7 +10,7 @@ function state(o, x)
 end
 
 function _update(o, x, x̄, st)
-  x̄, st = apply(o, x, x̄, st)
+  x̄, st = ismutable(x) ? apply!(o, x, x̄, st) : apply(o, x, x̄, st)
   return patch(x, x̄), st
 end
 
