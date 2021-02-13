@@ -1,5 +1,11 @@
 # This file is machine-generated - editing it directly is not advised
 
+[[ArrayInterface]]
+deps = ["IfElse", "LinearAlgebra", "Requires", "SparseArrays"]
+git-tree-sha1 = "ee07ae00e3cc277dcfa5507ce25be522313ecc3e"
+uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
+version = "3.1.1"
+
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
@@ -9,6 +15,11 @@ git-tree-sha1 = "bd96c1974893293ecc8b7e9016954d8cbd840ee4"
 repo-rev = "master"
 repo-url = "https://github.com/FluxML/Functors.jl"
 uuid = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
+version = "0.1.0"
+
+[[IfElse]]
+git-tree-sha1 = "28e837ff3e7a6c3cdb252ce49fb412c8eb3caeef"
+uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 version = "0.1.0"
 
 [[Libdl]]
