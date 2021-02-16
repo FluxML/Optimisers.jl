@@ -34,3 +34,9 @@ end
   end
   @test loss(rand(10, 10), w, w′) < 0.01
 end
+
+@testset "Optimiser Updates" begin
+  opt = ADAM()
+  new_opt = ADAM(opt, eta = 9.f0)
+  @test new_opt.eta == 9.f0
+end
