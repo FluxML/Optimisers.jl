@@ -41,7 +41,7 @@ The state is a tuple of the state as defined by the scheduling function.
 """
 function next(s::Schedule{O}, (cursor, cursor_step)) where O
   cursor += cursor_step
-  ADAM(s.opt, eta = s.f(cursor) * s.opt.eta) #replace with O(..)
+  ADAM(s.opt, eta = s.f(cursor) * s.opt.eta), (cursor .+ cursor_step, cursor_step) #replace with O(..)
 end
 
 init(f, x) = (1.f0, 0.1f0)
@@ -49,16 +49,17 @@ init(s::Schedule, x) = (init(s.f, x), init(s.opt, x))
 
 function apply(s::Schedule, x, dx, st)
   schedst, optst = st
-  cursor, cursor_step = schedst
-  o = next(s, schedst)
+  # cursor, cursor_step = schedst
+  o, schedst2 = next(s, schedst)
   Δ, optst2 = apply(o, x, dx, optst)
-  Δ, ((cursor .+ cursor_step, cursor_step), optst2)
+  Δ, (schedst2, optst2)
 end
 
 struct InvDecay{T}
   decay::T
 end
 
+# (start, step) -> consider step to be a function/ vector of step sizes?
 init(inv::InvDecay, x) = (1, 1)
 (inv::InvDecay)(t) = 1 / (1 + inv.decay * t)
 
