@@ -2,7 +2,7 @@
 # sine(t, p = 1.) = (2 / π) * abs(asin(sin(π * (t - 1) / p)))
 
 # Simple scheduling can happen as a basic closure.
-sine(p) = t -> (2 / Float32(π)) * abs(asin(sin(Float32(π) * (t - 1) / p)))
+triangle(t) = (1 - 2 * abs(round(Int, t/2) - t/2))
 
 mutable struct Schedule{O,F}
   f::F
@@ -49,6 +49,7 @@ init(s::Schedule, x) = (init(s.f, x), init(s.opt, x))
 
 function apply(s::Schedule, x, dx, st)
   schedst, optst = st
+  cursor, cursor_step = schedst
   o = next(s, schedst)
   Δ, optst2 = apply(o, x, dx, optst)
   Δ, ((cursor .+ cursor_step, cursor_step), optst2)
@@ -63,4 +64,4 @@ init(inv::InvDecay, x) = (1, 1)
 
 InvDecay(s = 0.1f0) = InvDecay{typeof(s)}(s)
 
-
+sine(p) = t -> sin(Float32(π) * t / p)
