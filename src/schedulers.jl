@@ -20,15 +20,17 @@ end
 """
     Schedule(f, opt)
 
-Create a scheduled optimiser whose update rule is controlled by `f`.
+Create a scheduled optimiser which can update the optimiser fields defined by `f`.
 
 `f` can be any callable, while `opt` can be any optimiser.
 
 See also [next](@ref), [init](@ref)
 """
 function Schedule(f, opt)
-  Schedule(f, opt, 1.f0 + eps(Float32)) 
+  Schedule(f, opt, 1.f0 + eps(Float32))
 end
+
+# Schedule(v::AbstractVector, opt) = Schedule(Iterators.cycle(v), opt)
 
 # Timestep: t - always depends on run
 # Phase: p - mostly likely constant
@@ -38,20 +40,29 @@ end
 # If `f` relies on only time - it can be generated on the fly
 
 # st = (t, timestep)
-function next(itr::T, st) where T <: BaseIterators
-  t, ts = st
-  @show st
-  iterate(itr, ts)
-end
 
-function next(arr::T, st) where T
-  t, ts = st
-  iterate(arr, ts)
+check_empty(x) = x
+check_empty(::Nothing) = (nothing, nothing)
+
+
+"""
+   next(itr, st)
+
+Returns the next value of the scheduling function and its updated state
+
+For general iterators, this amounts to a call to [Base.iterate](@ref).
+"""
+function next(itr::T, st) where T <: Union{AbstractVector{<:Real}, BaseIterators}
+  ft, itrst = st
+  @show st
+  res = iterate(itr, itrst)
+  check_empty(res) 
 end
 
 next(f, (t,ts)) = f(t .+ ts), (t .+ ts, ts)
 
-next_opt(o::T, kwargs...) where T = T(o, kwargs...)
+getUnionAll(t) = Base.typename(t).wrapper
+next_opt(o::T; kwargs...) where T = getUnionAll(T)(o, kwargs...)
 
 """
     next(s::Schedule, state)
@@ -61,16 +72,29 @@ and the optimiser. This allocates a new optimiser on the stack, keeping the orig
 
 The state is a tuple of the state as defined by the scheduling policy.
 """
+
+# just need to handle what happens if an iteration runs out (returns nothing)
+# In that case just switch to the next thing in the vector `s.f`
+# it could also be a Sequence(::Vector)
 function next(s::Schedule{O}, st) where O
-  snew, schedst = next(s.f, st)
-  @show schedst
-  ADAM(s.opt, eta = snew * s.opt.eta), (snew, schedst) #replace with O(..)
+  tnew, schedst = next(s.f, st)
+  ADAM(s.opt, eta = tnew * s.opt.eta), (tnew, schedst) #replace with O(..)
 end
 
-init(f, x) = (1, 1)
-init(itr::T, x) where T <: BaseIterators = iterate(itr)
-init(s::Schedule, x) = (init(s.f, x), init(s.opt, x))
+# function next(v::AbstractVector, st)
+#   o = s.opt
+#   for f in v
+#     s_ = Schedule(f, o)
+#     st_ = init(s_)
+#     next(s_, st_) 
+#   end
+# end
 
+init(f) = (1, 1)
+init(itr::T) where T <: BaseIterators = iterate(itr)
+init(s::Schedule, x) = (init(s.f, x), init(s.opt, x))
+init(s::Schedule{O, <: AbstractVector}, x) where O = init(Schedule(s.f[1], s.opt), x)
+ 
 function apply(s::Schedule, x, dx, st)
   schedst, optst = st
   o, schedst2 = next(s, schedst)
@@ -89,3 +113,4 @@ end
 InvDecay(s = 0.1f0) = InvDecay{typeof(s)}(s)
 
 sine(p) = t -> sin(Float32(π) * t / p)
+
