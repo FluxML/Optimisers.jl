@@ -14,7 +14,7 @@ using Statistics
     l = loss(w, w′)
     for i = 1:10^4
       gs = gradient(x -> loss(x, w′), w)
-      w, st = o(st, w, gs...)
+      st, w = o(st, w, gs...)
     end
     @test loss(w, w′) < 0.01
   end
@@ -30,7 +30,7 @@ end
   for t = 1:10^5
     x = rand(10)
     gs = gradient(w -> loss(x, w, w′), w)
-    w, st = Optimisers.update(opt, st, w, gs...)
+    st, w = Optimisers.update(opt, st, w, gs...)
   end
   @test loss(rand(10, 10), w, w′) < 0.01
 end

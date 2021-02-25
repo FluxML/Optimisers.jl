@@ -9,20 +9,23 @@ function state(o, x)
   end
 end
 
-function _update(o, st, x, x̄)
-  x̄, st = apply(o, st, x, x̄)
-  return patch(x, x̄), st
+function _update(o, st, x, x̄s...)
+  st, x̄ = apply(o, st, x, x̄s...)
+  return st, patch(x, x̄)
 end
 
-function update(o, state, x::T, x̄) where T
-  if x̄ === nothing
-    return x, state
+function update(o, state, x::T, x̄s...) where T
+  if all(isnothing, x̄s)
+    return state, x
   elseif isleaf(x)
-    return _update(o, state, x, x̄)
+    return _update(o, state, x, x̄s...)
   else
-    x̄, _  = functor(typeof(x), x̄)
+    x̄s = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x, restructure = functor(typeof(x), x)
-    xstate = map((x, x̄, state) -> update(o, state, x, x̄), x, x̄, state)
-    return restructure(map(first, xstate)), map(x -> x[2], xstate)
+    xstate = map((state, x, x̄s...) -> update(o, state, x, x̄s...), state, x, x̄s...)
+    return map(first, xstate), restructure(map(last, xstate))
   end
 end
+
+# default all rules to first order calls
+apply(o, state, x, dx, dxs...) = apply(o, state, x, dx)
