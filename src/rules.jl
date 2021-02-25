@@ -505,10 +505,10 @@ init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 
 (o::OptimiserChain)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::OptimiserChain, states, x, dx)
+function apply(o::OptimiserChain, states, x, dx, dxs...)
   new_states = similar(states)
   for (i, (opt, state)) in enumerate(zip(o.opts, states))
-    new_states[i], dx = apply(opt, state, x, dx)
+    new_states[i], dx = apply(opt, state, x, dx, dxs...)
   end
 
   return new_states, dx
