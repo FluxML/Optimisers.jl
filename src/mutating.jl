@@ -64,7 +64,7 @@ end
 function apply!(o::AdaMax, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  (mt, ut), βt = state
+  mt, ut, βt = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. ut = max(β[2] * ut, abs(dx))
@@ -76,7 +76,7 @@ end
 function apply!(o::AdaMax, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  (mt, ut), βt = state
+  mt, ut, βt = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. ut = max(β[2] * ut, abs(dx))
@@ -88,7 +88,7 @@ end
 function apply!(o::OADAM, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  (mt, vt), βt, dx_ = state
+  mt, vt, βt, dx_ = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
@@ -138,7 +138,7 @@ end
 function apply!(o::NADAM, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  (mt, vt), βt = state.decays
+  mt, vt, βt = state
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
