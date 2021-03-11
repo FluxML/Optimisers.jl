@@ -15,7 +15,7 @@ function apply!(o::Momentum, x, dx, state)
   return -v, v
 end
 
-function apply(o::Nesterov, x, dx, state)
+function apply!(o::Nesterov, x, dx, state)
   η, ρ, v = o.eta, o.rho, state
   @. d = ρ^2 * v - (1+ρ) * η * dx
   @. v = ρ * v - η * dx
@@ -23,7 +23,7 @@ function apply(o::Nesterov, x, dx, state)
   return -d, v
 end
 
-function apply(o::RMSProp, x, dx, state)
+function apply!(o::RMSProp, x, dx, state)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
   @. acc = ρ * acc + (1 - ρ) * dx^2
   @. dx = dx * (η / (sqrt(acc) + ϵ))
@@ -31,7 +31,7 @@ function apply(o::RMSProp, x, dx, state)
   return dx, acc
 end
 
-function apply(o::ADAM{T}, x, dx, state) where T
+function apply!(o::ADAM{T}, x, dx, state) where T
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
@@ -42,7 +42,7 @@ function apply(o::ADAM{T}, x, dx, state) where T
   return dx, (mt, vt, βt .* β)
 end
 
-function apply(o::RADAM, x, dx, state)
+function apply!(o::RADAM, x, dx, state)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   ρ∞ = 2/(1-β[2])-1
 
