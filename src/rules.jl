@@ -17,7 +17,6 @@ init(o::Descent, x::AbstractArray) = nothing
 
 function apply(o::Descent, x, dx, state)
   η = convert(eltype(dx), o.eta)
-  dx .*= η
   
   return dx .* η, state
 end
