@@ -503,7 +503,7 @@ OptimiserChain(opts...) = OptimiserChain(opts)
 
 init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 
-(o::OptimiserChain)(state, m, dm) = update(o, state, m, dm)
+(o::OptimiserChain)(state, m, dms...) = update(o, state, m, dms...)
 
 function apply(o::OptimiserChain, states, x, dx, dxs...)
   new_states = similar(states)
