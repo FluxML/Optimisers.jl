@@ -70,7 +70,7 @@ function apply!(o::AdaMax, x, dx, state)
   @. ut = max(β[2] * ut, abs(dx))
   @. dx = (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return dx, ((mt, ut), βt .* β)
+  return dx, (mt, ut, βt .* β)
 end
 
 function apply!(o::AdaMax, x, dx, state)
@@ -82,7 +82,7 @@ function apply!(o::AdaMax, x, dx, state)
   @. ut = max(β[2] * ut, abs(dx))
   @. dx = (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return dx, ((mt, ut), βt .* β)
+  return dx, (mt, ut, βt .* β)
 end
 
 function apply!(o::OADAM, x, dx, state)
@@ -96,7 +96,7 @@ function apply!(o::OADAM, x, dx, state)
   @. dx_ = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
   @. dx += 2*dx_
 
-  return dx, ((mt, vt), βt .* β, dx_)
+  return dx, (mt, vt, βt .* β, dx_)
 end
 
 function apply!(o::ADAGrad, x, dx, state)
@@ -145,7 +145,7 @@ function apply!(o::NADAM, x, dx, state)
   @. dx = (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
-  return dx, ((mt, vt), βt .* β)
+  return dx, (mt, vt, βt .* β)
 end
 
 function apply!(o::AdaBelief, x, dx, state)
@@ -157,4 +157,13 @@ function apply!(o::AdaBelief, x, dx, state)
   @. dx =  η * mt / (sqrt(st) + ϵ)
 
   return dx, (mt, st)
+end
+
+function apply!(o::OptimiserChain, x, dx, states)
+  new_states = similar(states)
+  for (i, (opt, state)) in enumerate(zip(o.opts, states))
+    _, new_states[i] = apply!(opt, x, dx, state)
+  end
+
+  return dx, new_states
 end
