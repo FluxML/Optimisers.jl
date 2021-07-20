@@ -23,13 +23,13 @@ The API for defining an optimiser, and using it is simple.
 # Define a container to hold any optimiser specific parameters
 # it's not a strict requirement - just a convention
 struct Descent{T}
-  \eta::T
+  η::T
 end
 
 # Define an `apply` rule with which to update the current params
 # using the gradients
-function Optimisers.apply(o::Descent, st, m, m\bar)
-  m .- o.\eta .* m\bar, st
+function Optimisers.apply(o::Descent, st, m, m̄)
+  m .- o.η .* m̄, st
 end
 
 Optimisers.init(o, x::AbstractArray) = nothing
@@ -52,16 +52,16 @@ st = Optimisers.state(o, m)  # initialize the optimiser before using it
 model = ResNet().layers # define a model to train on
 ip = rand(Float32, 224, 224, 3, 1) # dummy data
 
-m\bar, _ = gradient(model, ip) do m, x # calculate the gradients
+m̄, _ = gradient(model, ip) do m, x # calculate the gradients
   sum(m(x))
 end
 
 
-st, mnew = Optimisers.update(o, st, m, m\bar)
+st, mnew = Optimisers.update(o, st, m, m̄)
 
 # or
 
-st, mnew = o(m, m\bar, st)
+st, mnew = o(m, m̄, st)
 ```
 
 Notice that a completely new instance of the model is returned. Internally, this
