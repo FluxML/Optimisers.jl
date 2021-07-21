@@ -20,16 +20,15 @@ The API for defining an optimiser, and using it is simple.
 ## Define an Optimiser
 
 ```julia
-# Define a container to hold any optimiser specific parameters
-# it's not a strict requirement - just a convention
+# Define a container to hold any optimiser specific parameters (if any)
 struct Descent{T}
   η::T
 end
 
 # Define an `apply` rule with which to update the current params
 # using the gradients
-function Optimisers.apply(o::Descent, st, m, m̄)
-  m .- o.η .* m̄, st
+function Optimisers.apply(o::Descent, state, m, m̄)
+    o.η .* m̄, state
 end
 
 Optimisers.init(o, x::AbstractArray) = nothing
