@@ -48,7 +48,7 @@ using Flux, Metalhead, Optimisers
 o = Optimisers.ADAM() # define an ADAM optimiser with default settings
 st = Optimisers.state(o, m)  # initialize the optimiser before using it
 
-model = ResNet().layers # define a model to train on
+model = ResNet() # define a model to train on
 ip = rand(Float32, 224, 224, 3, 1) # dummy data
 
 m̄, _ = gradient(model, ip) do m, x # calculate the gradients
