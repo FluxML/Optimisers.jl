@@ -57,16 +57,15 @@ In this manner Flux also allows one to create custom optimisers to be used seaml
 mutable struct Momentum
   eta
   rho
-  velocity
 end
 
-Momentum(eta::Real, rho::Real) = Momentum(eta, rho, IdDict())
+Momentum(eta::Real, rho::Real) = Momentum(eta, rho)
 ```
 
 The `Momentum` type will act as our optimiser in this case. Notice that we have added all the parameters as fields, along with the velocity which we will use as our state dictionary. Each parameter in our models will get an entry in there. We can now define the rule applied when this optimiser is invoked.
 
 ```julia
-function Flux.Optimise.apply!(o::Momentum, x, Δ)
+function Optimisers.apply(o::Momentum, x, Δ, st)
   η, ρ = o.eta, o.rho
   v = get!(o.velocity, x, zero(x))::typeof(x)
   @. v = ρ * v - η * Δ
@@ -83,7 +82,7 @@ w = w - v
 
 The `apply!` defines the update rules for an optimiser `opt`, given the parameters and gradients. It returns the updated gradients. Here, every parameter `x` is retrieved from the running state `v` and subsequently updates the state of the optimiser.
 
-Flux internally calls on this function via the `update!` function. It shares the API with `apply!` but ensures that multiple parameters are handled gracefully.
+Flux internally calls on this function via the `update` function. It shares the API with `apply!` but ensures that multiple parameters are handled gracefully.
 
 ## Composing Optimisers
 
@@ -91,7 +90,7 @@ Flux defines a special kind of optimiser simply called `Optimiser` which takes i
 that will be fed into the next, and the resultant update will be applied to the parameter as usual. A classic use case is where adding decays is desirable. Flux defines some basic decays including `ExpDecay`, `InvDecay` etc.
 
 ```julia
-opt = Optimiser(ExpDecay(1, 0.1, 1000, 1e-4), Descent())
+opt = OptimiserChain(ExpDecay(1, 0.1, 1000, 1e-4), Descent())
 ```
 
 Here we apply exponential decay to the `Descent` optimiser. The defaults of `ExpDecay` say that its learning rate will be decayed every 1000 steps.
@@ -109,7 +108,7 @@ loss(rand(10)) # around 9
 for t = 1:10^5
   θ = Params([w, w1])
   θ̄ = gradient(() -> loss(rand(10)), θ)
-  Flux.Optimise.update!(opt, θ, θ̄)
+  θ, st = Flux.Optimise.update(opt, st, θ, θ̄)
 end
 
 loss(rand(10)) # around 0.9
@@ -118,7 +117,7 @@ loss(rand(10)) # around 0.9
 In this manner it is possible to compose optimisers for some added flexibility.
 
 ```@docs
-Flux.Optimise.Optimiser
+Optimisers.OptimiserChain
 ```
 
 ## Scheduling Optimisers
@@ -166,7 +165,7 @@ WeightDecay
 Gradient clipping is useful for training recurrent neural networks, which have a tendency to suffer from the exploding gradient problem. An example usage is
 
 ```julia
-opt = Optimiser(ClipValue(1e-3), ADAM(1e-3))
+opt = OptimiserChain(ClipValue(1e-3), ADAM(1e-3))
 ```
 
 ```@docs
