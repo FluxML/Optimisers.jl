@@ -16,7 +16,7 @@
 
   # Update the parameters based on the chosen
   # optimiser (opt)
-  Flux.Optimise.update!(opt, parameters, grads)
+  updated_parameters, updated_state = Optimisers.update(opt, state, parameters, grads)
 end</code></pre><p>To make it easy, Flux defines <code>train!</code>:</p><div class="admonition is-warning"><header class="admonition-header">Missing docstring.</header><div class="admonition-body"><p>Missing docstring for <code>Flux.Optimise.train!</code>. Check Documenter&#39;s build log for details.</p></div></div><p>There are plenty of examples in the <a href="https://github.com/FluxML/model-zoo">model zoo</a>, and more information can be found on <a href="../models/advanced.md">Custom Training Loops</a>.</p><h2 id="Loss-Functions"><a class="docs-heading-anchor" href="#Loss-Functions">Loss Functions</a><a id="Loss-Functions-1"></a><a class="docs-heading-anchor-permalink" href="#Loss-Functions" title="Permalink"></a></h2><p>The objective function must return a number representing how far the model is from its target – the <em>loss</em> of the model. The <code>loss</code> function that we defined in <a href="../models/basics.md">basics</a> will work as an objective. In addition to custom losses, model can be trained in conjuction with the commonly used losses that are grouped under the <code>Flux.Losses</code> module. We can also define an objective in terms of some model:</p><pre><code class="language-julia hljs">m = Chain(
   Dense(784, 32, σ),
   Dense(32, 10), softmax)
@@ -63,7 +63,7 @@ end</code></pre><h2 id="Custom-Training-loops"><a class="docs-heading-anchor" hr
     # logging_callback(training_loss)
     # Insert what ever code you want here that needs gradient.
     # E.g. logging with TensorBoardLogger.jl as histogram so you can see if it is becoming huge.
-    update!(opt, ps, gs)
+    ps, st = update(opt, st, ps, gs)
     # Here you might like to check validation set accuracy, and break out to do early stopping.
   end
 end</code></pre><p>You could simplify this further, for example by hard-coding in the loss function.</p><p>Another possibility is to use <a href="https://fluxml.ai/Zygote.jl/dev/adjoints/#Pullbacks-1"><code>Zygote.pullback</code></a> to access the training loss and the gradient simultaneously.</p><pre><code class="language-julia hljs">function my_custom_train!(loss, ps, data, opt)
@@ -77,7 +77,7 @@ end</code></pre><p>You could simplify this further, for example by hard-coding i
     gs = back(one(train_loss))
     # Insert what ever code you want here that needs gradient.
     # E.g. logging with TensorBoardLogger.jl as histogram so you can see if it is becoming huge.
-    update!(opt, ps, gs)
+    ps, _ = update(opt, st, ps, gs)
     # Here you might like to check validation set accuracy, and break out to do early stopping.
   end
-end</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.5 on <span class="colophon-date" title="Thursday 5 August 2021 18:39">Thursday 5 August 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end</code></pre></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.5 on <span class="colophon-date" title="Thursday 5 August 2021 18:41">Thursday 5 August 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
