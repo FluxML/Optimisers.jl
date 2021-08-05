@@ -25,7 +25,7 @@ for d in datapoints
 
   # Update the parameters based on the chosen
   # optimiser (opt)
-  Flux.Optimise.update!(opt, parameters, grads)
+  updated_parameters, updated_state = Optimisers.update(opt, state, parameters, grads)
 end
 ```
 
@@ -177,7 +177,7 @@ function my_custom_train!(loss, ps, data, opt)
     # logging_callback(training_loss)
     # Insert what ever code you want here that needs gradient.
     # E.g. logging with TensorBoardLogger.jl as histogram so you can see if it is becoming huge.
-    update!(opt, ps, gs)
+    ps, st = update(opt, st, ps, gs)
     # Here you might like to check validation set accuracy, and break out to do early stopping.
   end
 end
@@ -200,7 +200,7 @@ function my_custom_train!(loss, ps, data, opt)
     gs = back(one(train_loss))
     # Insert what ever code you want here that needs gradient.
     # E.g. logging with TensorBoardLogger.jl as histogram so you can see if it is becoming huge.
-    update!(opt, ps, gs)
+    ps, _ = update(opt, st, ps, gs)
     # Here you might like to check validation set accuracy, and break out to do early stopping.
   end
 end
