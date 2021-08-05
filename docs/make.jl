@@ -5,7 +5,7 @@ DocMeta.setdocmeta!(Optimisers, :DocTestSetup, :(using Optimisers); recursive = 
 makedocs(modules = [Optimisers],
          doctest = VERSION == v"1.6",
          sitename = "Optimisers.jl",
-         pages = ["Home" => "index.md",
+         pages = ["Home" => "optimisers.md",
                   "API" => "api.md"],
          format = Documenter.HTML(
              analytics = "UA-36890222-9",
