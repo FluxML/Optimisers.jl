@@ -17,6 +17,12 @@ Optimisers.jl defines many standard optimisers and utilities for learning loops.
 
 The API for defining an optimiser, and using it is simple.
 
+## Installation
+
+```julia
+]add Optimisers
+```
+
 ## Define an Optimiser
 
 ```julia
