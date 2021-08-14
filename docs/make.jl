@@ -11,10 +11,12 @@ makedocs(modules = [Optimisers],
              canonical = "https://fluxml.ai/Optimisers.jl/stable/",
              analytics = "UA-36890222-9",
              assets = ["assets/flux.css"],
-             prettyurls = get(ENV, "CI", nothing) == "true"),
-         )
+             prettyurls = get(ENV, "CI", nothing) == "true"
+         ),
 )
 
-deploydocs(repo = "github.com/FluxML/Optimisers.jl.git",
-           target = "build",
-           push_preview = true)
+deploydocs(
+   repo = "github.com/FluxML/Optimisers.jl.git",
+   target = "build",
+   push_preview = true,
+)
