@@ -13,6 +13,6 @@ Optimisers.AMSGrad
 Optimisers.NADAM
 Optimisers.ADAMW
 Optimisers.AdaBelief
-Optimisers.weightDecay
+Optimisers.WeightDecay
 Optimisers.OptimiserChain
 ```
