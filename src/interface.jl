@@ -9,9 +9,9 @@ function state(o, x)
   end
 end
 
-function _update(o, st, x, x̄)
-  st, x̄ = apply(o, st, x, x̄)
-  return st, patch(x, x̄)
+function _update(o, x, x̄, st)
+  st, x = apply(o, st, x, x̄)
+  return patch(x, x̄), st
 end
 
 function update(o, x::T, x̄, state) where T
@@ -36,4 +36,4 @@ _functor(T, x) = Functors.functor(T, x)
 init(o, x) = nothing
 
 # default all rules to first order calls
-apply(o, state, x, dx, dxs...) = apply(o, state, x, dx)
+apply(o, x, dx, dxs, state) = apply(o, x, dx, state)
