@@ -10,7 +10,7 @@ function state(o, x)
 end
 
 function _update(o, x, x̄, st)
-  st, x = apply(o, st, x, x̄)
+  x̄, st = apply(o, x, x̄, st)
   return patch(x, x̄), st
 end
 
@@ -36,4 +36,4 @@ _functor(T, x) = Functors.functor(T, x)
 init(o, x) = nothing
 
 # default all rules to first order calls
-apply(o, x, dx, dxs, state) = apply(o, x, dx, state)
+# apply(o, x, dx, dxs, state) = apply(o, x, dx, state)
