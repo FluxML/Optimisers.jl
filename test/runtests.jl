@@ -13,8 +13,8 @@ using Statistics
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
     l = loss(w, w′)
     for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), w)
-      st, w = o(st, w, gs...)
+      gs, = gradient(x -> loss(x, w′), w)
+      w, st = o(w, gs, st)
     end
     @test loss(w, w′) < 0.01
   end
@@ -29,8 +29,8 @@ end
   st = Optimisers.state(opt, w)
   for t = 1:10^5
     x = rand(10)
-    gs = gradient(w -> loss(x, w, w′), w)
-    st, w = Optimisers.update(opt, st, w, gs...)
+    gs, = gradient(w -> loss(x, w, w′), w)
+    w, st = Optimisers.update(opt, w, gs, st)
   end
   @test loss(rand(10, 10), w, w′) < 0.01
 end

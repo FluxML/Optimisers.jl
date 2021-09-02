@@ -1,5 +1,6 @@
 module Optimisers
 
+using Functors
 using Functors: functor, fmap, isleaf
 
 include("interface.jl")
