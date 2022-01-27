@@ -1,42 +1,42 @@
 
-struct State{O,S}
-  optimiser::O
+struct Store{R,S}
+  rule::R
   state::S
 end
-function Base.show(io::IO, st::State)
+function Base.show(io::IO, ξ::Store)
   ioc = IOContext(io, :compact => true)
-  print(io, "State("); show(ioc, st.optimiser); print(io, ", "); show(ioc, st.state); print(io, ")")
+  print(io, "Store("); show(ioc, ξ.rule); print(io, ", "); show(ioc, ξ.state); print(io, ")")
 end
 
-function state(o, x)
+function setup(r, x)
   if isnumeric(x)
-    return State(o, init(o, x))
+    return Store(r, init(r, x))
   elseif isleaf(x)
     return nothing
   else
     x′, _ = functor(x)
-    return map(xᵢ -> state(o, xᵢ), x′)
+    return map(xᵢ -> setup(r, xᵢ), x′)
   end
 end
 
 patch!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
-function update!(s::State, x, x̄s...)
+function update!(s::Store, x, x̄s...)
   o = s.optimiser
   st′, x̄′ = apply!(o, s.state, x, x̄s...)
-  return State(o, st′), patch(x, x̄′)
+  return Store(o, st′), patch(x, x̄′)
 end
 
-function update!(state, x::T, x̄s...) where T
+function update!(state, x, x̄s...)
   if all(isnothing, x̄s)
-    return state, x
+    return store, x
   elseif isnumeric(x)
-    return _update(state, x, x̄s...)
+    return _update(store, x, x̄s...)
   else
     x̄s′ = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x′, re = functor(typeof(x), x)
-    xstate = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), state, x′, x̄s′...)
-    return map(first, xstate), re(map(last, xstate))
+    xstore = map((stᵢ, xᵢ, x̄sᵢ...) -> update(stᵢ, xᵢ, x̄sᵢ...), store, x′, x̄s′...)
+    return map(first, xstore), re(map(last, xstore))
   end
 end
 

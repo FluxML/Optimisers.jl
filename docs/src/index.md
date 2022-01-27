@@ -29,7 +29,7 @@ It of course also makes it easier to store the state.
 using Flux, Metalhead, Optimisers
 
 o = Optimisers.ADAM() # define an ADAM optimiser with default settings
-st = Optimisers.state(o, m)  # initialize the optimiser before using it
+st = Optimisers.setup(o, m)  # initialize the optimiser before using it
 
 model = ResNet18() # define a model to train on
 ip = rand(Float32, 224, 224, 3, 1) # dummy data
