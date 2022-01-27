@@ -8,9 +8,9 @@ struct Descent{T}
   η::T
 end
 
-# Define an `apply` rule with which to update the current params
+# Define an `apply!` rule with which to update the current params
 # using the gradients
-function Optimisers.apply(o::Descent, state, m, m̄)
+function Optimisers.apply!(o::Descent, state, m, m̄)
     o.η .* m̄, state
 end
 
@@ -52,3 +52,7 @@ tree formed by the model and update the parameters using the gradients. Optimise
 work with different forms of gradients, but most likely use case are the gradients as
 returned by [Zygote.jl](https://fluxml.ai/Zygote.jl).
 
+There is also `Optimisers.update!` which similarly returns a new model and new state,
+but is free to mutate arrays within the old one, for efficiency.
+The method of `apply!` you write is likewise free to mutate arrays within its state;
+they are defensively copied when this rule is used with `update`.
