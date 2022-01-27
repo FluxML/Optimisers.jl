@@ -56,7 +56,7 @@ Random.seed!(84)
   end
 
   @testset "gradient clipping" begin
-    @test_skip m = (α = ([0], sin), γ = rand(3))
+    @test_skip m = (α = ([0], sin), γ = rand(3))  # https://github.com/FluxML/Optimisers.jl/issues/28
     m = (α = ([0], [0]), γ = rand(3))
     c1 = ClipGrad(13)
     s1 = Optimisers.state(c1, m)

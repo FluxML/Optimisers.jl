@@ -493,7 +493,7 @@ end
 """
     ClipGrad(δ = 10f0)
 
-Restricts every gradient component to live in `-δ ≤ dx ≤ δ`.
+Restricts every gradient component to obey `-δ ≤ dx[i] ≤ δ`.
 
 See also [`ClipNorm`](@ref).
 """
@@ -516,25 +516,26 @@ end
 """
     ClipNorm(ω = 10f0, p = 2; throw = true)
 
-Scales any gradient array for which `norm(dx, p) > μ` to
-bring this p-norm down to the given threshold.
+Scales any gradient array for which `norm(dx, p) > ω`
+to stay at this threshold (unless `p==0`).
 Throws an error if the norm is infinite or `NaN`.
 
 See also [`ClipGrad`](@ref).
 """
-struct ClipNorm{E,T<:Real}
+struct ClipNorm{T<:Real}
   omega::T
   p::T
+  throw::Bool
 end
-ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{throw,typeof(ω)}(ω, p)
+ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{typeof(ω)}(ω, p, throw)
 
 init(o::ClipNorm, x::AbstractArray) = nothing
 
 (o::ClipNorm)(state::Nothing, m, dm) = update(o, state, m, dm)
 
-function apply(o::ClipNorm{E}, state, x, dx) where {E}
+function apply(o::ClipNorm, state, x, dx)
   nrm = norm(dx, o.p)
-  if E && !isfinite(nrm)
+  if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
   λ = min(o.omega / nrm, 1)
