@@ -11,7 +11,7 @@ Random.seed!(84)
     w′ = (α = rand(3, 3), β = rand(3, 3))
 
     # Original example
-    w = (α = rand(3, 3), β = rand(3, 3))
+    w = (α = 5rand(3, 3), β = rand(3, 3))
     st = Optimisers.state(o, w)
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
     @test loss(w, w′) > 1
