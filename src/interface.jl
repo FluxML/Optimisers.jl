@@ -1,3 +1,13 @@
+
+struct State{T} backing::T end
+State(st::State) = st
+backing(st::State) = getfield(st, :backing)
+function Base.show(io::IO, st::State)
+  print(io, "State(")
+  show(IOContext(io, :compact => true), backing(st))
+  print(io, ")")
+end
+
 patch(x, x̄) = x .- x̄
 
 function state(o, x)
@@ -7,27 +17,29 @@ function state(o, x)
     return nothing
   else
     x, _ = functor(x)
-    return map(x -> state(o, x), x)
+    return State(map(x -> state(o, x), x))
   end
 end
 
-function _update(o, st, x, x̄s...)
+function update(o, st, x, x̄s...)
   st, x̄ = apply(o, st, x, x̄s...)
   return st, patch(x, x̄)
 end
 
-function update(o, state, x::T, x̄s...) where T
+function update(o, state::State, x::T, x̄s...) where T
   if all(isnothing, x̄s)
     return state, x
   elseif isnumeric(x)
-    return _update(o, state, x, x̄s...)
+    return update(o, backing(state), x, x̄s...)
   else
     x̄s = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x, restructure = functor(typeof(x), x)
-    xstate = map((state, x, x̄s...) -> update(o, state, x, x̄s...), state, x, x̄s...)
-    return map(first, xstate), restructure(map(last, xstate))
+    xstate = map((state, x, x̄s...) -> update(o, State(state), x, x̄s...), backing(state), x, x̄s...)
+    return State(map(first, xstate)), restructure(map(last, xstate))
   end
 end
+
+update(::State, args...) = throw(ArgumentError("the optimiser state must be the 2nd argument"))
 
 # default all rules to first order calls
 apply(o, state, x, dx, dxs...) = apply(o, state, x, dx)
