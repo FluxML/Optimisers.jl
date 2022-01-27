@@ -491,6 +491,58 @@ function apply(o::WeightDecay, state, x, dx)
 end
 
 """
+    ClipGrad(δ = 10f0)
+
+Restricts every gradient component to live in `-δ ≤ dx ≤ δ`.
+
+See also [`ClipNorm`](@ref).
+"""
+struct ClipGrad{T<:Real}
+  delta::T
+end
+ClipGrad() = ClipGrad(10f0)
+
+init(o::ClipGrad, x::AbstractArray) = nothing
+
+(o::ClipGrad)(state::Nothing, m, dm) = update(o, state, m, dm)
+
+function apply(o::ClipGrad, state, x, dx)
+  δ = convert(eltype(dx), o.delta)
+  dx′ = @. clamp(dx, -δ, δ)
+
+  return state, dx′
+end
+
+"""
+    ClipNorm(ω = 10f0, p = 2; throw = true)
+
+Scales any gradient array for which `norm(dx, p) > μ` to
+bring this p-norm down to the given threshold.
+Throws an error if the norm is infinite or `NaN`.
+
+See also [`ClipGrad`](@ref).
+"""
+struct ClipNorm{E,T<:Real}
+  omega::T
+  p::T
+end
+ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{throw,typeof(ω)}(ω, p)
+
+init(o::ClipNorm, x::AbstractArray) = nothing
+
+(o::ClipNorm)(state::Nothing, m, dm) = update(o, state, m, dm)
+
+function apply(o::ClipNorm{E}, state, x, dx) where {E}
+  nrm = norm(dx, o.p)
+  if E && !isfinite(nrm)
+    throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
+  end
+  λ = min(o.omega / nrm, 1)
+
+  return state, @. dx * λ
+end
+
+"""
     OptimiserChain(opts...)
 
 Compose a chain (sequence) of optimisers so that each `opt` in `opts`
