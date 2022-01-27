@@ -2,6 +2,7 @@ using Optimisers, Test
 using Zygote
 using Statistics, Random, LinearAlgebra
 Random.seed!(84)
+using Optimisers: @..
 
 @testset verbose=true "Optimisers.jl" begin
 
@@ -82,6 +83,19 @@ Random.seed!(84)
     opt = ADAM()
     new_opt = ADAM(opt, eta = 9.f0)
     @test new_opt.eta == 9.f0
+  end
+
+  @testset "broadcasting macro" begin
+    x = [1.0, 2.0]; y = [3,4]; z = [5,6]
+    @test (@.. x + y * z) isa Broadcast.Broadcasted
+    bc = @.. x + y * z
+    @test (y .+ 2 .* bc) == [35,56]
+
+    @test (@.. x = y * z) isa Array
+    @test x == y .* z  # mutated
+    r = 1.0:2.0  # immutable
+    @test (@.. r = y * z) isa Array
+    @test (@.. r = y * z) == y .* z
   end
 
 end

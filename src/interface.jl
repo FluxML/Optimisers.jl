@@ -35,3 +35,38 @@ apply(o, state, x, dx, dxs...) = apply(o, state, x, dx)
 isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
 isnumeric(x::AbstractArray{<:Bool}) = false  # convention of ChainRules is that Bool is non-differentiable
 isnumeric(x) = false
+
+iswriteable(::DenseArray{<:AbstractFloat}) = true
+iswriteable(_) = false
+
+"""
+    @.. x = x + y
+    @.. x + y / z
+
+Magic broadcasting macro:
+* Applied to assignment `x = ...` it is like `@.` unless `!iswriteable(x)`,
+  in which case it ignores `x`, and applies `@.` on the right.
+* Applied to other expressions, it broadcasts like `@.` but does not materialise,
+  returning a `Broadcasted` object for later use.
+"""
+macro var".."(ex)
+  if Meta.isexpr(ex, :(=))
+    dst = esc(ex.args[1])
+    src = esc(Broadcast.__dot__(ex.args[2]))
+    :(if $iswriteable($dst)
+        $dst .= $src
+      else
+        $src
+      end)
+  else
+    bc = esc(Broadcast.__dot__(ex))
+    :($lazy.($bc))
+  end
+end
+
+function lazy end
+Broadcast.broadcasted(::typeof(lazy), x) = Lazy(x)
+struct Lazy{T}; bc::T; end
+Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
+
+patch!!(x, x̄) = @. x .- x̄

@@ -18,7 +18,7 @@ init(o::Descent, x::AbstractArray) = nothing
 function apply(o::Descent, state, x, dx)
   η = convert(eltype(dx), o.eta)
   
-  return state, dx .* η
+  return state, @.. dx * η
 end
 
 (o::Descent)(state, m, dm) = update(o, state, m, dm)
@@ -44,9 +44,9 @@ init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply(o::Momentum, state, x, dx)
   η, ρ, v = o.eta, o.rho, state
-  @. v = ρ * v - η * dx
+  v′ = @.. v = ρ * v - η * dx
   
-  return v, -v
+  return v′, @.. -v′
 end
 
 (o::Momentum)(state, m, dm) = update(o, state, m, dm)
@@ -74,10 +74,10 @@ init(o::Nesterov, x::AbstractArray) = zero(x)
 
 function apply(o::Nesterov, state, x, dx)
   η, ρ, v = o.eta, o.rho, state
-  d = @. ρ^2 * v - (1+ρ) * η * dx
-  @. v = ρ * v - η * dx
+  d = @.. ρ^2 * v - (1+ρ) * η * dx
+  v′ = @. v = ρ * v - η * dx
   
-  return v, -d
+  return v′, @.. -d
 end
 
 """
@@ -107,10 +107,10 @@ init(o::RMSProp, x::AbstractArray) = zero(x)
 
 function apply(o::RMSProp, state, x, dx)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
-  @. acc = ρ * acc + (1 - ρ) * dx^2
-  dx′ = @. dx * (η / (sqrt(acc) + ϵ))
+  acc′ = @.. acc = ρ * acc + (1 - ρ) * dx^2
+  dx′ = @.. dx * (η / (sqrt(acc) + ϵ))
   
-  return acc, dx′
+  return acc′, dx′
 end
 
 (o::RMSProp)(state, m, dm) = update(o, state, m, dm)
@@ -143,11 +143,11 @@ function apply(o::ADAM{T}, state, x, dx) where T
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
-  @. mt = β[1] * mt + (one(T) - β[1]) * dx
-  @. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
-  dx′ = @. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
+  mt′ = @.. mt = β[1] * mt + (one(T) - β[1]) * dx
+  vt′ = @.. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
+  dx′ = @.. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx′
+  return (mt′, vt′, βt .* β), dx′
 end
 
 """
@@ -485,7 +485,7 @@ init(o::WeightDecay, x::AbstractArray) = nothing
 (o::WeightDecay)(state, m, dm) = update(o, state, m, dm)
 
 function apply(o::WeightDecay, state, x, dx)
-  dx′ = @. dx + o.wd * x
+  dx′ = @.. dx + o.wd * x
 
   return state, dx′
 end
