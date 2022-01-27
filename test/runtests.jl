@@ -19,10 +19,10 @@ using Statistics
       st, w = Optimisers.update(o, st, w, gs...)
     end
     lw = loss(w, w′)
-    @test lw < 0.001  broken = lw > 0.001
+    @test lw < 0.001
 
     # Slightly harder variant
-    m = (α = 5randn(3), β = transpose(randn(3,3)), γ = (rand(2), tanh))  # issue 28
+    m = (α = randn(3), β = transpose(5rand(3,3)), γ = (rand(2), tanh))  # issue 28
     st = Optimisers.state(o, m)
     @test loss(m, w′) > 1
     for i = 1:10^4
@@ -30,7 +30,11 @@ using Statistics
       st, m = o(st, m, gs...)
     end
     lm = loss(m, w′)
-    @test lm < 0.1  broken = lm > 0.1
+    if lm < 0.1
+      @test lm < 0.1
+    else
+      @test_broken lm < 0.1  # @test keyword broken doesn't exist on Julia 1.6
+    end
 
   end
 end
