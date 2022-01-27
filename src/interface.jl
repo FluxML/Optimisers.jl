@@ -1,16 +1,16 @@
 
-struct Store{R,S}
+struct Leaf{R,S}
   rule::R
   state::S
 end
-function Base.show(io::IO, ξ::Store)
+function Base.show(io::IO, ℓ::Leaf)
   ioc = IOContext(io, :compact => true)
-  print(io, "Store("); show(ioc, ξ.rule); print(io, ", "); show(ioc, ξ.state); print(io, ")")
+  print(io, "Leaf("); show(ioc, ℓ.rule); print(io, ", "); show(ioc, ℓ.state); print(io, ")")
 end
 
 function setup(r, x)
   if isnumeric(x)
-    return Store(r, init(r, x))
+    return Leaf(r, init(r, x))
   elseif isleaf(x)
     return nothing
   else
@@ -21,24 +21,24 @@ end
 
 patch!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
-function update!(ξ::Store, x, x̄s...)
+function update!(ℓ::Leaf, x, x̄s...)
   if all(isnothing, x̄s)
-    return ξ, x
+    return ℓ, x
   else
-    r = ξ.rule
-    s′, x̄′ = apply!(r, ξ.state, x, x̄s...)
-    return Store(r, s′), patch(x, x̄′)
+    r = ℓ.rule
+    s′, x̄′ = apply(r, ℓ.state, x, x̄s...)
+    return Leaf(r, s′), patch(x, x̄′)
   end
 end
 
-function update!(state, x, x̄s...)
+function update(tree, x::T, x̄s...) where T
   if all(isnothing, x̄s)
-    return store, x
+    return tree, x
   else
     x̄s′ = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x′, re = functor(typeof(x), x)
-    xstore = map((stᵢ, xᵢ, x̄sᵢ...) -> update(stᵢ, xᵢ, x̄sᵢ...), store, x′, x̄s′...)
-    return map(first, xstore), re(map(last, xstore))
+    xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
+    return map(first, xtree), re(map(last, xtree))
   end
 end
 
