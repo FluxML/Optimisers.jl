@@ -568,13 +568,3 @@ function apply!(o::OptimiserChain, states, x, dx, dxs...)
 
   return new_states, dx
 end
-
-for Opt in (:Descent, :ADAM, :Momentum, :Nesterov, :RMSProp,
-            :ADAGrad, :AdaMax, :ADADelta, :AMSGrad, :NADAM,
-            :RADAM, :OADAM, :AdaBelief)
-  @eval function $Opt(m::$Opt; kwargs...)
-    fs = fieldnames($Opt)
-    args = NamedTuple{fs}(f in keys(kwargs) ? getindex(kwargs, f) : getfield(m, f) for f in fs)
-    $Opt(args...)
-  end
-end

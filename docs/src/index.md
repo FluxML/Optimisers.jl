@@ -31,19 +31,15 @@ using Flux, Metalhead, Optimisers
 o = Optimisers.ADAM() # define an ADAM optimiser with default settings
 st = Optimisers.state(o, m)  # initialize the optimiser before using it
 
-model = ResNet() # define a model to train on
+model = ResNet18() # define a model to train on
 ip = rand(Float32, 224, 224, 3, 1) # dummy data
 
 m̄, _ = gradient(model, ip) do m, x # calculate the gradients
-  sum(m(x))
+  sum(m(x)) # dummy loss function
 end
 
+st, mnew = Optimisers.update(st, m, m̄)
 
-st, mnew = Optimisers.update(o, st, m, m̄)
-
-# or
-
-st, mnew = o(m, m̄, st)
 ```
 
 Notice that a completely new instance of the model is returned. Internally, this

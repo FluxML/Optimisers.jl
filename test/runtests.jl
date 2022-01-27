@@ -35,7 +35,7 @@ using Optimisers: @..
     @test loss(w, w′) > 1
     for i = 1:10^4
       gs = gradient(x -> loss(x, w′), w)
-      st, w = Optimisers.update(o, st, w, gs...)
+      st, w = Optimisers.update(st, w, gs...)
     end
     lw = loss(w, w′)
     if o isa ADADelta
@@ -50,7 +50,7 @@ using Optimisers: @..
     @test loss(m, w′) > 1
     for i = 1:10^4
       gs = gradient(x -> loss(x, w′), m)
-      st, m = o(st, m, gs...)
+      st, m = Optimisers.update(st, m, gs...)
     end
     lm = loss(m, w′)
     if lm < 0.1
@@ -78,8 +78,7 @@ using Optimisers: @..
   end
 
   @testset "gradient clipping" begin
-    @test_skip m = (α = ([0], sin), γ = rand(3))  # https://github.com/FluxML/Optimisers.jl/issues/28
-    m = (α = ([0], [0]), γ = rand(3))
+    m = (α = ([0], sin), γ = rand(3))
     c1 = ClipGrad(13)
     s1 = Optimisers.state(c1, m)
     _, g1 = Optimisers.update(c1, s1, m, (α = nothing, γ = [1,10,100],))
@@ -98,12 +97,6 @@ using Optimisers: @..
     @test norm(m.γ .- g3.γ, 1) ≈ 5
     _, g3n = Optimisers.update(c3, s2, m, (α = nothing, γ = [1,10,Inf],))
     @test isnan(g3n.γ[3])
-  end
-
-  @testset "Optimiser Updates" begin
-    opt = ADAM()
-    new_opt = ADAM(opt, eta = 9.f0)
-    @test new_opt.eta == 9.f0
   end
 
   @testset "broadcasting macro" begin

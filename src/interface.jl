@@ -1,7 +1,16 @@
 
+struct State{O,S}
+  optimiser::O
+  state::S
+end
+function Base.show(io::IO, st::State)
+  ioc = IOContext(io, :compact => true)
+  print(io, "State("); show(ioc, st.optimiser); print(io, ", "); show(ioc, st.state); print(io, ")")
+end
+
 function state(o, x)
   if isnumeric(x)
-    return init(o, x)
+    return State(o, init(o, x))
   elseif isleaf(x)
     return nothing
   else
@@ -12,20 +21,21 @@ end
 
 patch!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
-function _update!(o, st, x, x̄s...)
-  st′, x̄′ = apply!(o, st, x, x̄s...)
-  return st′, patch!(x, x̄′)
+function update!(s::State, x, x̄s...)
+  o = s.optimiser
+  st′, x̄′ = apply!(o, s.state, x, x̄s...)
+  return State(o, st′), patch(x, x̄′)
 end
 
-function update!(o, state, x, x̄s...)
+function update!(state, x::T, x̄s...) where T
   if all(isnothing, x̄s)
     return state, x
   elseif isnumeric(x)
-    return _update!(o, state, x, x̄s...)
+    return _update(state, x, x̄s...)
   else
     x̄s′ = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x′, re = functor(typeof(x), x)
-    xstate = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(o, stᵢ, xᵢ, x̄sᵢ...), state, x′, x̄s′...)
+    xstate = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), state, x′, x̄s′...)
     return map(first, xstate), re(map(last, xstate))
   end
 end
