@@ -13,6 +13,11 @@ Optimisers.AMSGrad
 Optimisers.NADAM
 Optimisers.ADAMW
 Optimisers.AdaBelief
+```
+
+```
+Optimisers.ClipGrad
+Optimisers.ClipNorm
 Optimisers.WeightDecay
 Optimisers.OptimiserChain
 ```
