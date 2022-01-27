@@ -108,9 +108,9 @@ init(o::RMSProp, x::AbstractArray) = zero(x)
 function apply(o::RMSProp, state, x, dx)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
   @. acc = ρ * acc + (1 - ρ) * dx^2
-  dx = @. dx * (η / (sqrt(acc) + ϵ))
+  dx′ = @. dx * (η / (sqrt(acc) + ϵ))
   
-  return acc, dx
+  return acc, dx′
 end
 
 (o::RMSProp)(state, m, dm) = update(o, state, m, dm)
@@ -145,9 +145,9 @@ function apply(o::ADAM{T}, state, x, dx) where T
 
   @. mt = β[1] * mt + (one(T) - β[1]) * dx
   @. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
-  dx = @. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
+  dx′ = @. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx
+  return (mt, vt, βt .* β), dx′
 end
 
 """
@@ -185,12 +185,12 @@ function apply(o::RADAM, state, x, dx)
   ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2])
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
-    dx = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
+    dx′ = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
   else
-    dx = @. mt / (1 - βt[1]) * η
+    dx′ = @. mt / (1 - βt[1]) * η
   end
 
-  return (mt, vt, βt .* β, t + 1), dx
+  return (mt, vt, βt .* β, t + 1), dx′
 end
 
 """
@@ -224,9 +224,9 @@ function apply(o::AdaMax, state, x, dx)
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. ut = max(β[2] * ut, abs(dx))
-  dx = @. (η/(1 - βt[1])) * mt/(ut + ϵ)
+  dx′ = @. (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return (mt, ut, βt .* β), dx
+  return (mt, ut, βt .* β), dx′
 end
 
 """
@@ -263,9 +263,9 @@ function apply(o::OADAM, state, x, dx)
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
   @. dx = -dx_
   @. dx_ = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  dx = @. dx + 2*dx_
+  dx′ = @. dx + 2*dx_
 
-  return (mt, vt, βt .* β, dx_), dx
+  return (mt, vt, βt .* β, dx_), dx′
 end
 
 """
@@ -296,9 +296,9 @@ function apply(o::ADAGrad, state, x, dx)
   acc = state
 
   @. acc += dx^2
-  dx = @. dx * η / (sqrt(acc) + ϵ)
+  dx′ = @. dx * η / (sqrt(acc) + ϵ)
 
-  return acc, dx
+  return acc, dx′
 end
 
 """
@@ -330,10 +330,10 @@ function apply(o::ADADelta, state, x, dx)
   @. acc = ρ * acc + (1 - ρ) * dx^2
   # DON'T remove epsilon from numerator
   # or even out of the square roots
-  dx = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
+  dx′ = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
   @. Δacc = ρ * Δacc + (1 - ρ) * dx^2
   
-  return (acc, Δacc), dx
+  return (acc, Δacc), dx′
 end
 
 """
@@ -370,9 +370,9 @@ function apply(o::AMSGrad, state, x, dx)
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
   @. v̂t = max(v̂t, vt)
-  dx = @. η * mt / (sqrt(v̂t) + ϵ)
+  dx′ = @. η * mt / (sqrt(v̂t) + ϵ)
 
-  return (mt, vt, v̂t), dx
+  return (mt, vt, v̂t), dx′
 end
 
 """
@@ -407,10 +407,10 @@ function apply(o::NADAM, state, x, dx)
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. vt = β[2] * vt + (1 - β[2]) * dx^2
-  dx = @. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
+  dx′ = @. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx
+  return (mt, vt, βt .* β), dx′
 end
 
 """
@@ -462,9 +462,9 @@ function apply(o::AdaBelief, state, x, dx)
 
   @. mt = β[1] * mt + (1 - β[1]) * dx
   @. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
-  dx = @. η * mt / (sqrt(st) + ϵ)
+  dx′ = @. η * mt / (sqrt(st) + ϵ)
   
-  return (mt, st), dx
+  return (mt, st), dx′
 end
 
 """
@@ -485,9 +485,9 @@ init(o::WeightDecay, x::AbstractArray) = nothing
 (o::WeightDecay)(state, m, dm) = update(o, state, m, dm)
 
 function apply(o::WeightDecay, state, x, dx)
-  dx = @. dx + o.wd * x
+  dx′ = @. dx + o.wd * x
 
-  return state, dx
+  return state, dx′
 end
 
 """
