@@ -15,7 +15,7 @@ Descent() = Descent(1f-1)
 
 init(o::Descent, x::AbstractArray) = nothing
 
-function apply(o::Descent, state, x, dx)
+function apply(o::Descent, state, x, dx; copy)
   η = convert(eltype(dx), o.eta)
   
   return state, @.. dx * η
@@ -42,7 +42,7 @@ Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 
 init(o::Momentum, x::AbstractArray) = zero(x)
 
-function apply(o::Momentum, state, x, dx)
+function apply(o::Momentum, state, x, dx; copy)
   η, ρ, v = o.eta, o.rho, state
   v′ = @.. v = ρ * v - η * dx
   
@@ -72,7 +72,7 @@ init(o::Nesterov, x::AbstractArray) = zero(x)
 
 (o::Nesterov)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::Nesterov, state, x, dx)
+function apply(o::Nesterov, state, x, dx; copy)
   η, ρ, v = o.eta, o.rho, state
   d = @.. ρ^2 * v - (1+ρ) * η * dx
   v′ = @. v = ρ * v - η * dx
@@ -105,7 +105,7 @@ RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η))) = RMSProp{typeof(η)}(η, ρ
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
 
-function apply(o::RMSProp, state, x, dx)
+function apply(o::RMSProp, state, x, dx; copy)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
   acc′ = @.. acc = ρ * acc + (1 - ρ) * dx^2
   dx′ = @.. dx * (η / (sqrt(acc) + ϵ))
@@ -139,7 +139,7 @@ init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::ADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::ADAM{T}, state, x, dx) where T
+function apply(o::ADAM{T}, state, x, dx; copy) where T
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
@@ -174,7 +174,7 @@ init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
 (o::RADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::RADAM, state, x, dx)
+function apply(o::RADAM, state, x, dx; copy)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   ρ∞ = 2/(1-β[2])-1
 
@@ -217,7 +217,7 @@ init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::AdaMax)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::AdaMax, state, x, dx)
+function apply(o::AdaMax, state, x, dx; copy)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, ut, βt = state
@@ -254,7 +254,7 @@ init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
 (o::OADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::OADAM, state, x, dx)
+function apply(o::OADAM, state, x, dx; copy)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, βt, dx_ = state
@@ -291,7 +291,7 @@ init(o::ADAGrad, x::AbstractArray) = fill!(similar(x), o.epsilon)
 
 (o::ADAGrad)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::ADAGrad, state, x, dx)
+function apply(o::ADAGrad, state, x, dx; copy)
   η, ϵ = o.eta, o.epsilon
   acc = state
 
@@ -323,7 +323,7 @@ init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
 
 (o::ADADelta)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::ADADelta, state, x, dx)
+function apply(o::ADADelta, state, x, dx; copy)
   ρ, ϵ = o.rho, o.epsilon
   acc, Δacc = state
 
@@ -362,7 +362,7 @@ init(o::AMSGrad, x::AbstractArray) =
 
 (o::AMSGrad)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::AMSGrad, state, x, dx)
+function apply(o::AMSGrad, state, x, dx; copy)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, v̂t = state
@@ -400,7 +400,7 @@ init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::NADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::NADAM, state, x, dx)
+function apply(o::NADAM, state, x, dx; copy)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, βt = state
@@ -456,7 +456,7 @@ init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x))
 
 (o::AdaBelief)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::AdaBelief, state, x, dx)
+function apply(o::AdaBelief, state, x, dx; copy)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, st = state
 
@@ -484,7 +484,7 @@ init(o::WeightDecay, x::AbstractArray) = nothing
 
 (o::WeightDecay)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::WeightDecay, state, x, dx)
+function apply(o::WeightDecay, state, x, dx; copy)
   dx′ = @.. dx + o.wd * x
 
   return state, dx′
@@ -560,10 +560,10 @@ init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 
 (o::OptimiserChain)(state, m, dms...) = update(o, state, m, dms...)
 
-function apply(o::OptimiserChain, states, x, dx, dxs...)
+function apply(o::OptimiserChain, states, x, dx, dxs...; copy)
   new_states = similar(states)
   for (i, (opt, state)) in enumerate(zip(o.opts, states))
-    new_states[i], dx = apply(opt, state, x, dx, dxs...)
+    new_states[i], dx = apply(opt, state, x, dx, dxs...; copy)
   end
 
   return new_states, dx
