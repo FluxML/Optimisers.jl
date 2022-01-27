@@ -39,20 +39,21 @@ Random.seed!(84)
 
   end
 
-@testset "OptimiserChain" begin
-  Random.seed!(84)
-  w = randn(10, 10)
-  w′ = randn(10, 10)
-  loss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
-  opt = OptimiserChain(WeightDecay(), ADAM(0.001))
-  st = Optimisers.state(opt, w)
-  for t = 1:10^5
-    x = rand(10)
-    gs = gradient(w -> loss(x, w, w′), w)
-    st, w = Optimisers.update(opt, st, w, gs...)
+  @testset "OptimiserChain with $pre" for pre in (WeightDecay(), ClipGrad(), ClipNorm())
+    Random.seed!(84)
+    w = randn(10, 10)
+    w′ = randn(10, 10)
+    loss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
+    @test loss(rand(10, 10), w, w′) > 1
+    opt = OptimiserChain(pre, ADAM(0.001))
+    st = Optimisers.init(opt, w)
+    for t = 1:10^5
+      x = rand(10)
+      gs = gradient(w -> loss(x, w, w′), w)
+      st, w = Optimisers.update(opt, st, w, gs...)
+    end
+    @test loss(rand(10, 10), w, w′) < 0.01
   end
-  @test loss(rand(10, 10), w, w′) < 0.01
-end
 
   @testset "gradient clipping" begin
     @test_skip m = (α = ([0], sin), γ = rand(3))
@@ -77,10 +78,10 @@ end
     @test isnan(g3n.γ[3])
   end
 
-@testset "Optimiser Updates" begin
-  opt = ADAM()
-  new_opt = ADAM(opt, eta = 9.f0)
-  @test new_opt.eta == 9.f0
-end
+  @testset "Optimiser Updates" begin
+    opt = ADAM()
+    new_opt = ADAM(opt, eta = 9.f0)
+    @test new_opt.eta == 9.f0
+  end
 
-end  # overall testset
+end
