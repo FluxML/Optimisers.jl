@@ -21,17 +21,19 @@ end
 
 patch!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
-function update!(s::Store, x, x̄s...)
-  o = s.optimiser
-  st′, x̄′ = apply!(o, s.state, x, x̄s...)
-  return Store(o, st′), patch(x, x̄′)
+function update!(ξ::Store, x, x̄s...)
+  if all(isnothing, x̄s)
+    return ξ, x
+  else
+    r = ξ.rule
+    s′, x̄′ = apply!(r, ξ.state, x, x̄s...)
+    return Store(r, s′), patch(x, x̄′)
+  end
 end
 
 function update!(state, x, x̄s...)
   if all(isnothing, x̄s)
     return store, x
-  elseif isnumeric(x)
-    return _update(store, x, x̄s...)
   else
     x̄s′ = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x′, re = functor(typeof(x), x)
