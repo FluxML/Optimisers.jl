@@ -92,14 +92,10 @@ using Optimisers: @..
     @test (y .+ 2 .* bc) == [35,56]
 
     @test (@.. x = y * z) isa Array
-    @test x == 1:2  # not mutated
-    let copy = false
-      @test (@.. x = y * z) isa Array
-      @test x == y .* z  # mutated
-      r = 1.0:2.0  # immutable
-      @test (@.. r = y * z) isa Array
-      @test (@.. r = y * z) == y .* z
-    end
+    @test x == y .* z  # mutated
+    r = 1.0:2.0  # immutable
+    @test (@.. r = y * z) isa Array
+    @test (@.. r = y * z) == y .* z
   end
 
 end
