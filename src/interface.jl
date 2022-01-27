@@ -1,8 +1,10 @@
 patch(x, x̄) = x .- x̄
 
 function state(o, x)
-  if isleaf(x)
+  if isnumeric(x)
     return init(o, x)
+  elseif isleaf(x)
+    return nothing
   else
     x, _ = functor(x)
     return map(x -> state(o, x), x)
@@ -17,7 +19,7 @@ end
 function update(o, state, x::T, x̄s...) where T
   if all(isnothing, x̄s)
     return state, x
-  elseif isleaf(x)
+  elseif isnumeric(x)
     return _update(o, state, x, x̄s...)
   else
     x̄s = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
@@ -29,3 +31,7 @@ end
 
 # default all rules to first order calls
 apply(o, state, x, dx, dxs...) = apply(o, state, x, dx)
+
+isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
+isnumeric(x::AbstractArray{<:Bool}) = false  # convention of ChainRules is that Bool is non-differentiable
+isnumeric(x) = false
