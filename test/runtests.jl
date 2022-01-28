@@ -23,9 +23,11 @@ using Optimisers: @..
     @test m3[1] ≈ [1,2] .- 0.1 .* [25, 33]
   end
 
-  @testset for o in (Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
+  @testset "$(first(string(o), 42))" for o in (
+                     Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
                      ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
-                     ADAMW(), RADAM(), OADAM(), AdaBelief())
+                     ADAMW(), RADAM(), OADAM(), AdaBelief()
+                     )
     w′ = (α = rand(3, 3), β = rand(3, 3))
 
     # Original example

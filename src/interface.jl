@@ -3,19 +3,15 @@ struct Leaf{R,S}
   rule::R
   state::S
 end
-function Base.show(io::IO, ℓ::Leaf)
-  ioc = IOContext(io, :compact => true)
-  print(io, "Leaf("); show(ioc, ℓ.rule); print(io, ", "); show(ioc, ℓ.state); print(io, ")")
-end
 
-function setup(r, x)
+function setup(rule, x)
   if isnumeric(x)
-    return Leaf(r, init(r, x))
+    return Leaf(rule, init(rule, x))
   elseif isleaf(x)
     return nothing
   else
     x′, _ = functor(x)
-    return map(xᵢ -> setup(r, xᵢ), x′)
+    return map(xᵢ -> setup(rule, xᵢ), x′)
   end
 end
 
@@ -25,9 +21,8 @@ function update!(ℓ::Leaf, x, x̄s...)
   if all(isnothing, x̄s)
     return ℓ, x
   else
-    r = ℓ.rule
-    s′, x̄′ = apply!(r, ℓ.state, x, x̄s...)
-    return Leaf(r, s′), subtract!(x, x̄′)
+    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, x̄s...)
+    return Leaf(ℓ.rule, s′), subtract!(x, x̄′)
   end
 end
 
@@ -42,10 +37,10 @@ function update!(tree, x, x̄s...)
   end
 end
 
-function update(o, state, x, x̄s...)
-  state′ = fmap(copy, state; exclude = iswriteable)
+function update(o, tree, x, x̄s...)
+  t′ = fmap(copy, tree; exclude = iswriteable)
   x′ = fmap(copy, x; exclude = iswriteable)
-  update!(o, state′, x′, x̄s...)
+  update!(o, t′, x′, x̄s...)
 end
 
 # default all rules to first order calls
@@ -87,3 +82,11 @@ function lazy end
 Broadcast.broadcasted(::typeof(lazy), x) = Lazy(x)
 struct Lazy{T}; bc::T; end
 Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
+
+function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
+  ioc = IOContext(io, :compact => true)
+  print(ioc, "Leaf(", ℓ.rule, ", ")
+  show(ioc, ℓ.state)
+  print(io, ")")
+end
+
