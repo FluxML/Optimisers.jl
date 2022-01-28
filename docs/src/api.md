@@ -35,6 +35,13 @@ Optimisers.update
 Optimisers.update!
 ```
 
+Calling `Functors.@functor` on your model's layer types by default causes the
+optimiser to act on all suitable fields. To restrict this, define `trainable`:
+
+```@docs
+Optimisers.trainable
+```
+
 ## Rule Definition
 
 ```@docs

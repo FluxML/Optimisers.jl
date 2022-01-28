@@ -12,12 +12,13 @@ function setup(rule, x; seen = Base.IdSet())
   elseif isleaf(x)
     return nothing
   else
-    x′, _ = functor(x)
-    return map(xᵢ -> setup(rule, xᵢ; seen), x′)
+    return map(xᵢ -> setup(rule, xᵢ; seen), _trainable(x))
   end
 end
 
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
+
+update!(::Nothing, x, x̄s...) = nothing, x
 
 function update!(ℓ::Leaf, x, x̄s...)
   if all(isnothing, x̄s)
@@ -54,6 +55,26 @@ isnumeric(x) = false
 
 iswriteable(::DenseArray{<:AbstractFloat}) = true  # more elaborate versions are possible, wait until needed?
 iswriteable(_) = false
+
+"""
+    trainable(x::Layer) -> NamedTuple
+
+This should be overloaded to make optimisers ignore some fields of
+every `Layer`, which would otherwise contain trainable parameters.
+(Elements such as functions and sizes are always ignored.)
+
+The default is `Functors.children(x)`, usually a NamedTuple of all fields,
+and `trainable(x)` must contain a subset of these.
+"""
+trainable(x) = functor(x)[1]
+
+_trainable(x) = _trainable(functor(x)[1], trainable(x))
+_trainable(ch::NamedTuple, tr::NamedTuple) = merge(map(_ -> nothing, ch), tr)
+_trainable(ch::Tuple, tr::Tuple) = tr
+function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tuple
+  @warn "trainable(x) should now return a NamedTuple with the field names, not a Tuple"
+  map(c -> c in tr ? c : nothing, ch)
+end
 
 """
     @.. x = x + y
