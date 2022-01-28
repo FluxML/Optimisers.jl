@@ -1,8 +1,16 @@
-using Optimisers, Test
-using Zygote
-using Statistics, Random, LinearAlgebra
-Random.seed!(1)
+using Optimisers, Functors, Zygote
+using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @..
+
+Random.seed!(1)
+
+struct Foo; x; y; end
+Functors.@functor Foo
+Optimisers.trainable(x::Foo) = (x.y, x.x)
+
+struct TwoThirds a; b; c; end
+Functors.@functor TwoThirds (a, c)
+Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
 @testset verbose=true "Optimisers.jl" begin
 
@@ -23,7 +31,7 @@ using Optimisers: @..
     @test m3[1] ≈ [1,2] .- 0.1 .* [25, 33]
   end
 
-  @testset "$(first(string(o), 42))" for o in (
+  @testset "rule: $(first(string(o), 42))" for o in (
                      Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
                      ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
                      ADAMW(), RADAM(), OADAM(), AdaBelief()
@@ -97,6 +105,38 @@ using Optimisers: @..
     @test norm(m.γ .- m3.γ, 1) ≈ 5
     _, m3n = Optimisers.update!(s3, m, (α = nothing, γ = [1,10,Inf],))
     @test isnan(m3n.γ[3])
+  end
+
+  @testset "trainable subset" begin
+    # Foo has an old-style tuple trainable, both elements
+    mf = Foo([1,2], (a = sin, b = [3,4], c = 5))
+    sf = Optimisers.setup(Descent(0.1), mf)
+    gf = (x = nothing, y = (a = nothing, b = [1,1], c = 1))
+    _, mf2 = Optimisers.update(sf, mf, gf)
+    @test mf2.x == [1,2]
+    @test mf2.y == (a = sin, b = [2.9, 3.9], c = 5)
+
+    # TwoThirds has functor a,c only, and trainable a only
+    mt = TwoThirds(Float32[1,2], Float32[3,4], Float32[5,6])
+    mt10 = fmap(x -> 10x, mt)
+    @test mt10.a == [10, 20]
+    @test mt10.b == [3, 4]
+    @test mt10.c == [50, 60]
+    st = Optimisers.setup(Momentum(0.1, 0.9), mt)
+    gt = gradient(m -> sum(abs2, m.a) + 100sum(abs2, m.b), mt)
+    _, mtup = Optimisers.update(st, mt, gt...)
+    @test mtup.a ≈ [0.8, 1.6]
+    @test mtup.b == [3, 4]
+    @test mtup.c == [5, 6]
+
+    # Various kinds of missing branches together:
+    m = Foo(
+        TwoThirds(Foo(1.0, Float32[2,3,4]), 5.0, Float32[6,7]),
+        TwoThirds((p = Float32[1,2,3],), sin, (q = 4.0, r = cos,)),
+        )
+    s = Optimisers.setup(Momentum(0.1, 0.9), m)
+    g = gradient(m -> sum(abs2, m.x.a.y) + m.x.b^2 + log(m.y.c.q), m)
+    @test Optimisers.update!(s, m, g...)[2] isa Foo
   end
 
   @testset "broadcasting macro" begin
