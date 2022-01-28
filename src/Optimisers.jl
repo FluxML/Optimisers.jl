@@ -97,7 +97,7 @@ Uses the optimiser and the gradient to change the trainable parameters in the mo
 Returns the improved model, and the optimiser states needed for the next update.
 The initial tree of states comes from [`setup`](@ref).
 
-This is used in exactly the same manner as [`update`](@ref), but it because it may mutate
+This is used in exactly the same manner as [`update`](@ref), but because it may mutate
 arrays within the old model (and the old state), it will be faster for models of ordinary
 `Array`s or `CuArray`s. However, you should not rely on the old model being fully updated.
 """
