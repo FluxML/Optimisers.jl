@@ -4,14 +4,16 @@ struct Leaf{R,S}
   state::S
 end
 
-function setup(rule, x)
+function setup(rule, x; seen = Base.IdSet())
   if isnumeric(x)
+    x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
+    isbits(x) || push!(seen, x)
     return Leaf(rule, init(rule, x))
   elseif isleaf(x)
     return nothing
   else
     x′, _ = functor(x)
-    return map(xᵢ -> setup(rule, xᵢ), x′)
+    return map(xᵢ -> setup(rule, xᵢ; seen), x′)
   end
 end
 
