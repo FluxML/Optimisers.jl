@@ -15,10 +15,10 @@ Descent() = Descent(1f-1)
 
 init(o::Descent, x::AbstractArray) = nothing
 
-function apply(o::Descent, state, x, dx)
-  η = convert(eltype(dx), o.eta)
+function apply!(o::Descent, state, x, dx)
+  η = convert(float(eltype(dx)), o.eta)
   
-  return state, dx .* η
+  return state, @.. dx * η
 end
 
 (o::Descent)(state, m, dm) = update(o, state, m, dm)
@@ -42,11 +42,11 @@ Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 
 init(o::Momentum, x::AbstractArray) = zero(x)
 
-function apply(o::Momentum, state, x, dx)
+function apply!(o::Momentum, state, x, dx)
   η, ρ, v = o.eta, o.rho, state
-  @. v = ρ * v - η * dx
+  v′ = @.. v = ρ * v - η * dx
   
-  return v, -v
+  return v′, @.. -v′
 end
 
 (o::Momentum)(state, m, dm) = update(o, state, m, dm)
@@ -72,12 +72,12 @@ init(o::Nesterov, x::AbstractArray) = zero(x)
 
 (o::Nesterov)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::Nesterov, state, x, dx)
+function apply!(o::Nesterov, state, x, dx)
   η, ρ, v = o.eta, o.rho, state
-  d = @. ρ^2 * v - (1+ρ) * η * dx
-  @. v = ρ * v - η * dx
+  d = @.. ρ^2 * v - (1+ρ) * η * dx
+  v′ = @.. v = ρ * v - η * dx
   
-  return v, -d
+  return v′, @.. -d
 end
 
 """
@@ -105,12 +105,12 @@ RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η))) = RMSProp{typeof(η)}(η, ρ
 
 init(o::RMSProp, x::AbstractArray) = zero(x)
 
-function apply(o::RMSProp, state, x, dx)
+function apply!(o::RMSProp, state, x, dx)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
-  @. acc = ρ * acc + (1 - ρ) * dx^2
-  dx′ = @. dx * (η / (sqrt(acc) + ϵ))
+  acc′ = @.. acc = ρ * acc + (1 - ρ) * dx^2
+  dx′ = @.. dx * (η / (sqrt(acc) + ϵ))
   
-  return acc, dx′
+  return acc′, dx′
 end
 
 (o::RMSProp)(state, m, dm) = update(o, state, m, dm)
@@ -139,15 +139,15 @@ init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::ADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::ADAM{T}, state, x, dx) where T
+function apply!(o::ADAM{T}, state, x, dx) where T
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
-  @. mt = β[1] * mt + (one(T) - β[1]) * dx
-  @. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
-  dx′ = @. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
+  mt′ = @.. mt = β[1] * mt + (one(T) - β[1]) * dx
+  vt′ = @.. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
+  dx′ = @.. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx′
+  return (mt′, vt′, βt .* β), dx′
 end
 
 """
@@ -174,23 +174,23 @@ init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
 (o::RADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::RADAM, state, x, dx)
+function apply!(o::RADAM, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   ρ∞ = 2/(1-β[2])-1
 
   mt, vt, βt, t = state
 
-  @. mt = β[1] * mt + (1 - β[1]) * dx
-  @. vt = β[2] * vt + (1 - β[2]) * dx^2
+  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
+  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx^2
   ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2])
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
-    dx′ = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
+    dx′ = @.. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
   else
-    dx′ = @. mt / (1 - βt[1]) * η
+    dx′ = @.. mt / (1 - βt[1]) * η
   end
 
-  return (mt, vt, βt .* β, t + 1), dx′
+  return (mt′, vt′, βt .* β, t + 1), dx′
 end
 
 """
@@ -217,16 +217,16 @@ init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::AdaMax)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::AdaMax, state, x, dx)
+function apply!(o::AdaMax, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, ut, βt = state
 
-  @. mt = β[1] * mt + (1 - β[1]) * dx
-  @. ut = max(β[2] * ut, abs(dx))
-  dx′ = @. (η/(1 - βt[1])) * mt/(ut + ϵ)
+  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
+  ut′ = @.. ut = max(β[2] * ut, abs(dx))
+  dx′ = @.. (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return (mt, ut, βt .* β), dx′
+  return (mt′, ut′, βt .* β), dx′
 end
 
 """
@@ -254,18 +254,18 @@ init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
 (o::OADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::OADAM, state, x, dx)
+function apply!(o::OADAM, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, βt, dx_ = state
 
-  @. mt = β[1] * mt + (1 - β[1]) * dx
-  @. vt = β[2] * vt + (1 - β[2]) * dx^2
-  @. dx = -dx_
-  @. dx_ = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  dx′ = @. dx + 2*dx_
+  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
+  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  dx = @.. -dx_
+  dx_′ = @.. dx_ = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
+  dx′ = @.. dx + 2*dx_
 
-  return (mt, vt, βt .* β, dx_), dx′
+  return (mt′, vt′, βt .* β, dx_′), dx′
 end
 
 """
@@ -291,14 +291,14 @@ init(o::ADAGrad, x::AbstractArray) = fill!(similar(x), o.epsilon)
 
 (o::ADAGrad)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::ADAGrad, state, x, dx)
+function apply!(o::ADAGrad, state, x, dx)
   η, ϵ = o.eta, o.epsilon
   acc = state
 
-  @. acc += dx^2
-  dx′ = @. dx * η / (sqrt(acc) + ϵ)
+  acc′ = @.. acc = acc + dx^2
+  dx′ = @.. dx * η / (sqrt(acc) + ϵ)
 
-  return acc, dx′
+  return acc′, dx′
 end
 
 """
@@ -323,17 +323,17 @@ init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
 
 (o::ADADelta)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::ADADelta, state, x, dx)
+function apply!(o::ADADelta, state, x, dx)
   ρ, ϵ = o.rho, o.epsilon
   acc, Δacc = state
 
-  @. acc = ρ * acc + (1 - ρ) * dx^2
+  acc′ = @.. acc = ρ * acc + (1 - ρ) * dx^2
   # DON'T remove epsilon from numerator
   # or even out of the square roots
-  dx′ = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
-  @. Δacc = ρ * Δacc + (1 - ρ) * dx^2
+  dx′ = @.. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
+  Δacc′ = @.. Δacc = ρ * Δacc + (1 - ρ) * dx^2
   
-  return (acc, Δacc), dx′
+  return (acc′, Δacc′), dx′
 end
 
 """
@@ -362,17 +362,17 @@ init(o::AMSGrad, x::AbstractArray) =
 
 (o::AMSGrad)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::AMSGrad, state, x, dx)
+function apply!(o::AMSGrad, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, v̂t = state
 
-  @. mt = β[1] * mt + (1 - β[1]) * dx
-  @. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
-  @. v̂t = max(v̂t, vt)
-  dx′ = @. η * mt / (sqrt(v̂t) + ϵ)
+  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
+  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
+  v̂t′ = @.. v̂t = max(v̂t, vt)
+  dx′ = @.. η * mt / (sqrt(v̂t) + ϵ)
 
-  return (mt, vt, v̂t), dx′
+  return (mt′, vt′, v̂t′), dx′
 end
 
 """
@@ -400,17 +400,17 @@ init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 (o::NADAM)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::NADAM, state, x, dx)
+function apply!(o::NADAM, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, βt = state
 
-  @. mt = β[1] * mt + (1 - β[1]) * dx
-  @. vt = β[2] * vt + (1 - β[2]) * dx^2
-  dx′ = @. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
+  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
+  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  dx′ = @.. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx′
+  return (mt′, vt′, βt .* β), dx′
 end
 
 """
@@ -456,15 +456,15 @@ init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x))
 
 (o::AdaBelief)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::AdaBelief, state, x, dx)
+function apply!(o::AdaBelief, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, st = state
 
-  @. mt = β[1] * mt + (1 - β[1]) * dx
-  @. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
-  dx′ = @. η * mt / (sqrt(st) + ϵ)
+  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
+  st′ = @.. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
+  dx′ = @.. η * mt / (sqrt(st) + ϵ)
   
-  return (mt, st), dx′
+  return (mt′, st′), dx′
 end
 
 """
@@ -484,8 +484,8 @@ init(o::WeightDecay, x::AbstractArray) = nothing
 
 (o::WeightDecay)(state, m, dm) = update(o, state, m, dm)
 
-function apply(o::WeightDecay, state, x, dx)
-  dx′ = @. dx + o.wd * x
+function apply!(o::WeightDecay, state, x, dx)
+  dx′ = @.. dx + o.wd * x
 
   return state, dx′
 end
@@ -506,9 +506,9 @@ init(o::ClipGrad, x::AbstractArray) = nothing
 
 (o::ClipGrad)(state::Nothing, m, dm) = update(o, state, m, dm)
 
-function apply(o::ClipGrad, state, x, dx)
-  δ = convert(eltype(dx), o.delta)
-  dx′ = @. clamp(dx, -δ, δ)
+function apply!(o::ClipGrad, state, x, dx)
+  δ = convert(float(eltype(dx)), o.delta)
+  dx′ = @.. clamp(dx, -δ, δ)
 
   return state, dx′
 end
@@ -535,14 +535,14 @@ init(o::ClipNorm, x::AbstractArray) = nothing
 
 (o::ClipNorm)(state::Nothing, m, dm) = update(o, state, m, dm)
 
-function apply(o::ClipNorm, state, x, dx)
+function apply!(o::ClipNorm, state, x, dx)
   nrm = norm(dx, o.p)
   if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
   λ = min(o.omega / nrm, 1)
 
-  return state, @. dx * λ
+  return state, @.. dx * λ
 end
 
 """
@@ -560,10 +560,10 @@ init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
 
 (o::OptimiserChain)(state, m, dms...) = update(o, state, m, dms...)
 
-function apply(o::OptimiserChain, states, x, dx, dxs...)
+function apply!(o::OptimiserChain, states, x, dx, dxs...)
   new_states = similar(states)
   for (i, (opt, state)) in enumerate(zip(o.opts, states))
-    new_states[i], dx = apply(opt, state, x, dx, dxs...)
+    new_states[i], dx = apply!(opt, state, x, dx, dxs...)
   end
 
   return new_states, dx
