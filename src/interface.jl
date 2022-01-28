@@ -19,25 +19,25 @@ function setup(r, x)
   end
 end
 
-patch!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
+subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
 function update!(ℓ::Leaf, x, x̄s...)
   if all(isnothing, x̄s)
     return ℓ, x
   else
     r = ℓ.rule
-    s′, x̄′ = apply(r, ℓ.state, x, x̄s...)
-    return Leaf(r, s′), patch(x, x̄′)
+    s′, x̄′ = apply!(r, ℓ.state, x, x̄s...)
+    return Leaf(r, s′), subtract!(x, x̄′)
   end
 end
 
-function update(tree, x::T, x̄s...) where T
+function update!(tree, x, x̄s...)
   if all(isnothing, x̄s)
     return tree, x
   else
     x̄s′ = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
     x′, re = functor(typeof(x), x)
-    xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
+    xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
     return map(first, xtree), re(map(last, xtree))
   end
 end
