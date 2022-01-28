@@ -40,6 +40,14 @@ jobs:
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
       - uses: julia-actions/julia-runtest@v1
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+      - uses: julia-actions/julia-processcoverage@v1
+        if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+      - uses: codecov/codecov-action@v2
+        if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
+        with:
+          file: lcov.info
+        continue-on-error: ${{ matrix.julia-version == 'nightly' }}
 
   docs:
     name: Documentation
