@@ -6,6 +6,23 @@ using Optimisers: @..
 
 @testset verbose=true "Optimisers.jl" begin
 
+  @testset "very basics" begin
+    m = ([1.0, 2.0],)
+    mid = objectid(m[1])
+    g = ([25, 33],)
+    o = Descent(0.1)
+    s = Optimisers.state(o, m)
+    
+    s2, m2 = Optimisers.update(o, s, m, g)
+    @test m[1] == 1:2  # not mutated
+    @test Optimisers.iswriteable(m[1])
+    @test m2[1] ≈ [1,2] .- 0.1 .* [25, 33]
+
+    s3, m3 = Optimisers.update!(o, s, m, g)
+    @test objectid(m3[1]) == mid
+    @test m3[1] ≈ [1,2] .- 0.1 .* [25, 33]
+  end
+
   @testset for o in (Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
                      ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
                      ADAMW(), RADAM(), OADAM(), AdaBelief())

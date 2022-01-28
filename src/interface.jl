@@ -1,4 +1,3 @@
-patch(x, x̄) = x .- x̄
 
 function state(o, x)
   if isnumeric(x)
@@ -10,6 +9,9 @@ function state(o, x)
     return map(xᵢ -> state(o, xᵢ), x′)
   end
 end
+
+patch(x, x̄) = x .- x̄
+patch!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : patch(x, x̄)
 
 function _update!(o, st, x, x̄s...; _copy)
   stc = _copy ? copystate(st) : st
@@ -33,7 +35,7 @@ end
 update(o, state, x, x̄s...) = update!(o, state, x, x̄s...; _copy = true)
 
 # default all rules to first order calls
-apply(o, state, x, dx, dxs...) = apply(o, state, x, dx)
+apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
 
 isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
 isnumeric(x::AbstractArray{<:Bool}) = false  # convention of ChainRules is that Bool is non-differentiable
@@ -73,5 +75,3 @@ function lazy end
 Broadcast.broadcasted(::typeof(lazy), x) = Lazy(x)
 struct Lazy{T}; bc::T; end
 Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
-
-patch!(x, x̄) = @.. x - x̄

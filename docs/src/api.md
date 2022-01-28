@@ -15,7 +15,7 @@ Optimisers.ADAMW
 Optimisers.AdaBelief
 ```
 
-```
+```@docs
 Optimisers.ClipGrad
 Optimisers.ClipNorm
 Optimisers.WeightDecay

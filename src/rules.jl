@@ -16,7 +16,7 @@ Descent() = Descent(1f-1)
 init(o::Descent, x::AbstractArray) = nothing
 
 function apply!(o::Descent, state, x, dx)
-  η = convert(eltype(dx), o.eta)
+  η = convert(float(eltype(dx)), o.eta)
   
   return state, @.. dx * η
 end
@@ -506,9 +506,9 @@ init(o::ClipGrad, x::AbstractArray) = nothing
 
 (o::ClipGrad)(state::Nothing, m, dm) = update(o, state, m, dm)
 
-function apply(o::ClipGrad, state, x, dx)
+function apply!(o::ClipGrad, state, x, dx)
   δ = convert(eltype(dx), o.delta)
-  dx′ = @. clamp(dx, -δ, δ)
+  dx′ = @.. clamp(dx, -δ, δ)
 
   return state, dx′
 end
@@ -535,14 +535,14 @@ init(o::ClipNorm, x::AbstractArray) = nothing
 
 (o::ClipNorm)(state::Nothing, m, dm) = update(o, state, m, dm)
 
-function apply(o::ClipNorm, state, x, dx)
+function apply!(o::ClipNorm, state, x, dx)
   nrm = norm(dx, o.p)
   if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
   λ = min(o.omega / nrm, 1)
 
-  return state, @. dx * λ
+  return state, @.. dx * λ
 end
 
 """
