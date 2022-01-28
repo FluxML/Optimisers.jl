@@ -112,4 +112,12 @@ using Optimisers: @..
     @test (@.. r = y * z) == y .* z
   end
 
+  @testset "tied weights" begin
+    m = (α = (1:3, sin, 1:3), γ = (1:3, sin, rand(3)))
+    m1 = (rand(3), m, rand(3))
+    @test Optimisers.setup(ADAMW(), m1) isa Tuple
+    m2 = (rand(3), m, rand(3), m, rand(3))  # illegal
+    @test_throws ArgumentError Optimisers.setup(ADAMW(), m2)
+  end
+
 end
