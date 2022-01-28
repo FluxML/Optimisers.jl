@@ -507,7 +507,7 @@ init(o::ClipGrad, x::AbstractArray) = nothing
 (o::ClipGrad)(state::Nothing, m, dm) = update(o, state, m, dm)
 
 function apply!(o::ClipGrad, state, x, dx)
-  δ = convert(eltype(dx), o.delta)
+  δ = convert(float(eltype(dx)), o.delta)
   dx′ = @.. clamp(dx, -δ, δ)
 
   return state, dx′
