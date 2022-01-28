@@ -39,10 +39,10 @@ function update!(tree, x, x̄s...)
   end
 end
 
-function update(o, tree, x, x̄s...)
+function update(tree, x, x̄s...)
   t′ = fmap(copy, tree; exclude = iswriteable)
   x′ = fmap(copy, x; exclude = iswriteable)
-  update!(o, t′, x′, x̄s...)
+  update!(t′, x′, x̄s...)
 end
 
 # default all rules to first order calls
