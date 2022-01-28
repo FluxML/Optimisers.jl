@@ -39,6 +39,8 @@ end
 # default all rules to first order calls
 apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
 
+isnumeric(x::AbstractFloat) = true
+isnumeric(x::Complex{<:AbstractFloat}) = true
 isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
 isnumeric(x::AbstractArray{<:Bool}) = false  # convention of ChainRules is that Bool is non-differentiable
 isnumeric(x) = false

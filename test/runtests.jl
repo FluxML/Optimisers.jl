@@ -12,7 +12,7 @@ using Optimisers: @..
     g = ([25, 33],)
     o = Descent(0.1)
     s = Optimisers.state(o, m)
-    
+
     s2, m2 = Optimisers.update(o, s, m, g)
     @test m[1] == 1:2  # not mutated
     @test Optimisers.iswriteable(m[1])
@@ -23,42 +23,69 @@ using Optimisers: @..
     @test m3[1] ≈ [1,2] .- 0.1 .* [25, 33]
   end
 
-  @testset for o in (Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
-                     ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
-                     ADAMW(), RADAM(), OADAM(), AdaBelief())
-    w′ = (α = rand(3, 3), β = rand(3, 3))
+  ALL_OPTS = (Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
+              ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
+              ADAMW(), RADAM(), OADAM(), AdaBelief())
+  ALL_TRANSFORMS = (ALL_OPTS..., ClipGrad(), ClipNorm(), WeightDecay())
 
-    # Original example
-    w = (α = 5rand(3, 3), β = rand(3, 3))
-    st = Optimisers.state(o, w)
-    loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
-    @test loss(w, w′) > 1
-    for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), w)
-      st, w = Optimisers.update(o, st, w, gs...)
+  @testset "Training with gradients" begin
+    @testset for o in ALL_OPTS
+      w′ = (α = rand(3, 3), β = rand(3, 3))
+
+      # Original example
+      w = (α = 5rand(3, 3), β = rand(3, 3))
+      st = Optimisers.state(o, w)
+      loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
+      @test loss(w, w′) > 1
+      for i = 1:10^4
+        gs = gradient(x -> loss(x, w′), w)
+        st, w = Optimisers.update(o, st, w, gs...)
+      end
+      lw = loss(w, w′)
+      if o isa ADADelta
+        @test_broken lw < 0.001
+      else
+        @test lw < 0.001
+      end
+
+      # Slightly harder variant
+      m = (α = randn(3), β = transpose(5rand(3,3)), γ = (rand(2), tanh))  # issue 28
+      st = Optimisers.state(o, m)
+      @test loss(m, w′) > 1
+      for i = 1:10^4
+        gs = gradient(x -> loss(x, w′), m)
+        st, m = o(st, m, gs...)
+      end
+      lm = loss(m, w′)
+      if lm < 0.1
+        @test lm < 0.1
+      else
+        @test_broken lm < 0.1  # @test keyword broken doesn't exist on Julia 1.6
+      end
     end
-    lw = loss(w, w′)
-    if o isa ADADelta
-      @test_broken lw < 0.001
-    else
-      @test lw < 0.001
+  end
+
+  @testset "Scalar Params" begin
+    m = (α = 3, β = 5f0, γ = 2.0+2.0im)
+    gs = (α = nothing, β = 1f0, γ = 1.0+1.0im)
+
+    # General compatibility
+    @testset for t in ALL_TRANSFORMS
+      m2, gs2 = m, gs
+      # These can't handle complex numbers
+      if t isa Union{AdaMax,AMSGrad,ClipGrad}
+        m2, gs2 = m[(:α, :β)], gs[(:α, :β)]
+      end
+      st = Optimisers.state(t, m2)
+      Optimisers.update(t, st, m2, gs2)
     end
 
-    # Slightly harder variant
-    m = (α = randn(3), β = transpose(5rand(3,3)), γ = (rand(2), tanh))  # issue 28
+    # End-to-end
+    o = Descent(0.1)
     st = Optimisers.state(o, m)
-    @test loss(m, w′) > 1
-    for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), m)
-      st, m = o(st, m, gs...)
-    end
-    lm = loss(m, w′)
-    if lm < 0.1
-      @test lm < 0.1
-    else
-      @test_broken lm < 0.1  # @test keyword broken doesn't exist on Julia 1.6
-    end
-
+    _, m′ = Optimisers.update(o, st, m, gs)
+    @test m.β - 0.1gs.β ≈ m′.β
+    @test m.γ - 0.1gs.γ ≈ m′.γ
   end
 
   @testset "OptimiserChain with $pre" for pre in (WeightDecay(), ClipGrad(), ClipNorm())
