@@ -33,6 +33,7 @@ Optimisers.OptimiserChain
 Optimisers.setup
 Optimisers.update
 Optimisers.update!
+Optimisers.destructure
 ```
 
 Calling `Functors.@functor` on your model's layer types by default causes the

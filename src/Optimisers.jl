@@ -1,6 +1,6 @@
 module Optimisers
 
-using Functors: functor, fmap, isleaf
+using Functors: functor, fmap, isleaf, isnumeric, Functors
 using LinearAlgebra
 
 include("interface.jl")

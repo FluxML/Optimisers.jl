@@ -1,6 +1,6 @@
 using Optimisers, Functors, Zygote
 using LinearAlgebra, Statistics, Test, Random
-using Optimisers: @..
+using Optimisers: @.., destructure
 
 Random.seed!(1)
 
@@ -137,6 +137,21 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     s = Optimisers.setup(Momentum(0.1, 0.9), m)
     g = gradient(m -> sum(abs2, m.x.a.y) + m.x.b^2 + log(m.y.c.q), m)
     @test Optimisers.update!(s, m, g...)[2] isa Foo
+  end
+
+  @testset "destructure" begin
+    nt = (a = [1,2], b = 3, c = [4,5], d = sin);
+    v, re = destructure(nt)
+    @test v == [1,2,4,5]
+    @test re([1,10,100,1000]) == (a = [1, 10], b = 3, c = [100, 1000], d = sin)
+
+    mt = TwoThirds(Float32[1,2], Float32[3,4], Float32[5,6])
+    v2, re2 = destructure(mt)
+    @test v2 == [1, 2]
+    @test re2([10, 100]) isa TwoThirds
+    @test re2([10, 100]).a == [10, 100]
+    @test re2([10, 100]).b == [3, 4]
+    @test re2([10, 100]).c == [5, 6]
   end
 
   @testset "broadcasting macro" begin

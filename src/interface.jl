@@ -4,15 +4,10 @@ struct Leaf{R,S}
   state::S
 end
 
-function setup(rule, x; seen = Base.IdSet())
-  if isnumeric(x)
-    x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
-    isbits(x) || push!(seen, x)
-    return Leaf(rule, init(rule, x))
-  elseif isleaf(x)
-    return nothing
-  else
-    return map(xᵢ -> setup(rule, xᵢ; seen), _trainable(x))
+function setup(rule, model)
+  tiecheck(model)
+  fmap(model; walk=_trainable_struct_walk, prune=nothing) do x
+    isnumeric(x) ? Leaf(rule, init(rule, x)) : nothing
   end
 end
 
@@ -49,10 +44,6 @@ end
 # default all rules to first order calls
 apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
 
-isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
-isnumeric(x::AbstractArray{<:Bool}) = false  # convention of ChainRules is that Bool is non-differentiable
-isnumeric(x) = false
-
 iswriteable(::DenseArray{<:AbstractFloat}) = true  # more elaborate versions are possible, wait until needed?
 iswriteable(_) = false
 
@@ -74,6 +65,55 @@ _trainable(ch::Tuple, tr::Tuple) = tr
 function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tuple
   @warn "trainable(x) should now return a NamedTuple with the field names, not a Tuple"
   map(c -> c in tr ? c : nothing, ch)
+end
+
+function _trainable_walk(f, x)
+  ch, re = functor(x)
+  y = map(ch, _trainable(x)) do c, t
+    isnothing(c) ? f(nothing) : isnothing(t) ? c : f(t)
+  end
+  re(y)
+end
+
+_trainable_struct_walk(f, x) = map(f, _trainable(x))
+
+function tiecheck(x; set = Base.IdSet())
+  if isnumeric(x) && !isbits(x)
+    x in set && throw(ArgumentError(
+      "Optimisers.jl does at present handle tied weights, sorry. Got $(summary(x)) twice."))
+    push!(set, x)
+  else
+    map(y -> tiecheck(y; set), trainable(x))  # no need for _trainable
+  end
+end
+
+"""
+    destructure(model) -> vector, function
+
+Concatenates all [`trainable`](@ref) parameters of a model into one vector,
+and returns this along with a function which reconstructs the model.
+
+# Example
+```jldoctest
+julia> m = (x=[1,2], y=[[3,4], nothing, (5,6)]);
+
+julia> v, re = destructure(m)
+([1, 2, 3, 4], Fix1(restructure, NamedTuple(...)))
+
+julia> re([10, 20, 300, 400])
+(x = [10, 20], y = Any[[300, 400], nothing, (5, 6)])
+```
+"""
+function destructure(x)
+  v = Functors.fvec(x; walk=_trainable_struct_walk)
+  v, Base.Fix1(_restructure, (x, length(v)))  # bit of a hack to use Fix1 & save the length!
+end
+
+restructure(x, v) = _restructure((x, Functors.flatlength(x; walk=_trainable_struct_walk)), v)
+_restructure((x, len), v) = Functors.fcopy(x, v; walk=_trainable_walk, len=len)
+
+function Base.show(io::IO, re::Base.Fix1{typeof(_restructure)})
+    print(io, "Fix1(restructure, ", typeof(re.x).name.name, "(...))")
 end
 
 """
