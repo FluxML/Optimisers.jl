@@ -9,7 +9,8 @@ RULES = [
   ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
   ADAMW(), RADAM(), OADAM(), AdaBelief(),
   # A few chained combinations:
-  OptimiserChain(WeightDecay(), ADAM(0.001)), OptimiserChain(ClipNorm(), ADAM(0.001)),
+  OptimiserChain(WeightDecay(), ADAM(0.001)),
+  OptimiserChain(ClipNorm(), ADAM(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
 ]
 
@@ -100,26 +101,26 @@ end
 
 @testset verbose=true "type promotion" begin
   @testset "$(name(o))" for o in RULES
-    marray = (f32 = Float32[1,2], f64 = Float64[3,4]) #, f16 = Float16[5,6])
+    marray = (Float32[1,2], Float64[3,4], Float16[5,6])
     types = map(eltype, marray)
 
     # This is a weak test, as it copies & then does `update!`
     uparray = Optimisers.update(Optimisers.setup(o, marray), marray, marray)[2]
-    map(eltype, uparray) == types
+    @test map(eltype, uparray) == types
 
     # Static version is truly out-of-place:
-    mstatic = (f32 = SA{Float32}[1,2], f64 = SA{Float64}[3,4]) # , f16 = SA{Float16}[5,6])  with Float16, all fail
+    mstatic = (SA{Float32}[1,2], SA{Float64}[3,4]) # , SA{Float16}[5,6])  with Float16, all fail
     upstatic = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, mstatic)[2]
     if o isa OptimiserChain && o.opts[2] isa ADAM  # These promote to Float64
-      @test_broken map(eltype, upstatic) == types
+      @test_broken map(eltype, upstatic) == types[1:2]
     else
-      @test map(eltype, upstatic) == types
+      @test map(eltype, upstatic) == types[1:2]
     end
     @test upstatic[1] isa SVector
 
     # With ordinary Array gradient, what happens?
-    upstatic2 = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, marray)[2]
-    # @test map(eltype, upstatic2) == types  # same information
+    upstatic2 = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, marray[1:2])[2]
+    # @test map(eltype, upstatic2) == types[1:2]  # same information
     if upstatic2[1] isa SVector
       @test upstatic2[1] isa SVector
     else
