@@ -16,7 +16,7 @@ Descent() = Descent(1f-1)
 init(o::Descent, x::AbstractArray) = nothing
 
 function apply!(o::Descent, state, x, dx)
-  η = convert(float(eltype(dx)), o.eta)
+  η = convert(float(eltype(x)), o.eta)
   
   return state, @.. dx * η
 end
@@ -477,7 +477,7 @@ ClipGrad() = ClipGrad(10f0)
 init(o::ClipGrad, x::AbstractArray) = nothing
 
 function apply!(o::ClipGrad, state, x, dx)
-  δ = convert(float(eltype(dx)), o.delta)
+  δ = convert(float(eltype(x)), o.delta)
   dx′ = @.. clamp(dx, -δ, δ)
 
   return state, dx′

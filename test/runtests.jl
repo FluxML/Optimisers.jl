@@ -51,6 +51,18 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     @test isnan(m3n.γ[3])
   end
 
+  @testset "OptimiserChain" begin
+    x = [1,10,100]; dx = [1,2,3];
+    @test Optimisers.update(Optimisers.setup(WeightDecay(0.1), x), x, dx)[2] ≈ [1-0.1-1, 10-1-2, 100-10-3]
+    @test Optimisers.update(Optimisers.setup(ClipGrad(2), x), x, dx)[2] ≈ [1-1, 10-2, 100-2]
+
+    o2 = OptimiserChain(ClipGrad(2), WeightDecay(0.1))
+    @test Optimisers.update(Optimisers.setup(o2, x), x, dx)[2] ≈ [1-0.1-1, 10-1-2, 100-10-2]
+
+    o2r = OptimiserChain(WeightDecay(0.1), ClipGrad(2))
+    @test Optimisers.update(Optimisers.setup(o2r, x), x, dx)[2] != [1-0.1-1, 10-2, 100-2]
+  end
+
   @testset "trainable subset" begin
     # Foo has an old-style tuple trainable, both elements
     mf = Foo([1,2], (a = sin, b = [3,4], c = 5))
