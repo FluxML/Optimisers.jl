@@ -1,4 +1,5 @@
-using Optimisers, Functors, StaticArrays, Zygote
+using Optimisers
+using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
 
 Random.seed!(1)
@@ -99,7 +100,7 @@ end
   end
 end
 
-@testset verbose=true "type promotion" begin
+@testset verbose=true "element types" begin
   @testset "$(name(o))" for o in RULES
     marray = (Float32[1,2], Float64[3,4], Float16[5,6])
     types = map(eltype, marray)
@@ -126,6 +127,31 @@ end
     else
       @test_broken upstatic2[1] isa SVector
     end
+  end
+end
+
+@testset "gradient types" begin
+  @testset "$(name(o))" for o in RULES
+    x = (a = ones(2,2), b = transpose(ones(2,2)))
+    s = Optimisers.setup(o, x)
+
+    _, x1 = Optimisers.update(s, x, (a = [1 2; 3 4], b = nothing))
+    @test x1.a != ones(2,2)
+    @test x1.b == ones(2,2)
+
+    _, xfill = Optimisers.update(s, x, (a = Zygote.Fill(2.0,2,2), b = Zygote.Fill(true,2,2)))
+    @test xfill.a != ones(2,2)
+    @test xfill.b != ones(2,2)
+
+    bc = Optimisers.@.. 1 + log([2 3; 4 5]) / 6
+    _, xbc = Optimisers.update(s, x, (a = bc, b = bc))
+    @test xbc.a != ones(2,2)
+    @test xbc.b != ones(2,2)
+
+    th = ChainRulesCore.@thunk @. 1 + log([2 3; 4 5]) / 6
+    _, xth = Optimisers.update(s, x, (a = bc, b = bc))
+    @test xth.a != ones(2,2)
+    @test xth.b != ones(2,2)
   end
 end
 

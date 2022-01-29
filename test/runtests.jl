@@ -1,4 +1,5 @@
-using Optimisers, Functors, StaticArrays, Zygote
+using Optimisers
+using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @..
 
