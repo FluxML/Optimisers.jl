@@ -13,6 +13,7 @@ Functors.@functor TwoThirds (a, c)
 Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
 @testset verbose=true "Optimisers.jl" begin
+@testset verbose=true "Features" begin
 
   @testset "very basics" begin
     m = ([1.0, 2.0],)
@@ -118,5 +119,8 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
   end
 
   @info "finished feature testing"
+end
+@testset verbose=true "Optimisation Rules" begin
   include("rules.jl")
+end
 end
