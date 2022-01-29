@@ -32,6 +32,24 @@ name(o::OptimiserChain) = join(name.(o.opts), " → ")
   end
 end
 
+@testset verbose=true "simple sum" begin
+  @testset "$(name(o))" for o in RULES
+    m = shuffle!(reshape(1:64, 8, 8) .+ 0.0)
+    s = Optimisers.setup(o, m)
+    for _ in 1:10^5
+      g = gradient(x -> sum(abs2, x + x'), m)[1]
+      s, m = Optimisers.update!(s, m, g)
+    end
+    # @test sum(m) < sum(1:64)
+    if sum(m) < 1
+      @test sum(m) < 1
+    else
+      @show name(o) sum(m)/sum(1:64)
+      @test_broken sum(m) < 1
+    end
+  end
+end
+
 @testset "original" begin
   @testset "$(name(o))" for o in RULES
     w′ = (α = rand(3, 3), β = rand(3, 3))
