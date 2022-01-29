@@ -20,15 +20,15 @@ name(o::OptimiserChain) = join(name.(o.opts), " → ")
   @testset "$(name(o))" for o in RULES
     w = randn(10, 10)
     w′ = randn(10, 10)
-    loss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
-    @test loss(rand(10, 10), w, w′) > 1
+    iloss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
+    @test iloss(rand(10, 10), w, w′) > 1
     st = Optimisers.setup(o, w)
     for t = 1:10^5
       x = rand(10)
-      gs = gradient(w -> loss(x, w, w′), w)
+      gs = gradient(w -> iloss(x, w, w′), w)
       st, w = Optimisers.update!(st, w, gs...)
     end
-    @test loss(rand(10, 10), w, w′) < 0.01
+    @test iloss(rand(10, 10), w, w′) < 0.01
   end
 end
 
@@ -78,22 +78,22 @@ end
     b1 = @SVector randn(10)
     W2 = @SMatrix randn(10, 10)
     model = (; W1, b1, W2, tanh)
-    loss(m, x, y) = sum(abs2, m.W2 * (m.tanh).(m.W1*x .+ m.b1) .- y)
+    s_loss(m, x, y) = sum(abs2, m.W2 * (m.tanh).(m.W1*x .+ m.b1) .- y)
     # x = @SMatrix randn(10, 10)
     # y = @SMatrix randn(10, 10)  # gives an error from sum(; dims=())
     x = @SVector randn(10)
     y = @SVector randn(10)
-    @test loss(model, x, y) > 10
+    @test s_loss(model, x, y) > 10
     state = Optimisers.setup(o, model)
     for t = 1:10^3
-      g = gradient(m -> loss(m, x, y), model)[1]
+      g = gradient(m -> s_loss(m, x, y), model)[1]
       state, model = Optimisers.update!(state, model, g)
     end
-    if o isa Union{RMSProp, ADAGrad, ADADelta, NADAM}
-      @show name(o) loss(model, x, y)
-      @test_broken loss(model, x, y) < 1
+    if o isa Union{Descent, RMSProp, ADAGrad, ADADelta, NADAM}
+      @show name(o) s_loss(model, x, y)
+      @test_broken s_loss(model, x, y) < 1
     else
-      @test loss(model, x, y) < 1
+      @test s_loss(model, x, y) < 1
     end
   end
 end
