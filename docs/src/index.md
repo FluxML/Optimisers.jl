@@ -40,17 +40,19 @@ to adjust the model:
 
 using Flux, Metalhead, Optimisers
 
+model = Metalhead.ResNet18() # define a model to train on
+image = rand(Float32, 224, 224, 3, 1); # dummy data
+@show sum(model(image)); # dummy loss function
+
 o = Optimisers.ADAM() # define an ADAM optimiser with default settings
-st = Optimisers.setup(o, m)  # initialize the optimiser before using it
+st = Optimisers.setup(o, model);  # initialize the optimiser before using it
 
-model = ResNet18() # define a model to train on
-ip = rand(Float32, 224, 224, 3, 1) # dummy data
+m̄, _ = gradient(model, image) do m, x # calculate the gradients
+  sum(m(x))
+end;
 
-m̄, _ = gradient(model, ip) do m, x # calculate the gradients
-  sum(m(x)) # dummy loss function
-end
-
-st, mnew = Optimisers.update(st, m, m̄)
+st, model = Optimisers.update(st, model, m̄);
+@show sum(model(image));
 
 ```
 
