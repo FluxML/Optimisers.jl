@@ -97,3 +97,34 @@ end
     end
   end
 end
+
+@testset verbose=true "type promotion" begin
+  @testset "$(name(o))" for o in RULES
+    marray = (f32 = Float32[1,2], f64 = Float64[3,4]) #, f16 = Float16[5,6])
+    types = map(eltype, marray)
+
+    # This is a weak test, as it copies & then does `update!`
+    uparray = Optimisers.update(Optimisers.setup(o, marray), marray, marray)[2]
+    map(eltype, uparray) == types
+
+    # Static version is truly out-of-place:
+    mstatic = (f32 = SA{Float32}[1,2], f64 = SA{Float64}[3,4]) # , f16 = SA{Float16}[5,6])  with Float16, all fail
+    upstatic = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, mstatic)[2]
+    if o isa OptimiserChain && o.opts[2] isa ADAM  # These promote to Float64
+      @test_broken map(eltype, upstatic) == types
+    else
+      @test map(eltype, upstatic) == types
+    end
+    @test upstatic[1] isa SVector
+
+    # With ordinary Array gradient, what happens?
+    upstatic2 = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, marray)[2]
+    # @test map(eltype, upstatic2) == types  # same information
+    if upstatic2[1] isa SVector
+      @test upstatic2[1] isa SVector
+    else
+      @test_broken upstatic2[1] isa SVector
+    end
+  end
+end
+
