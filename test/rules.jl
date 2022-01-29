@@ -71,3 +71,29 @@ end
   end
 end
 
+@testset verbose=true "StaticArrays" begin
+  @testset "$(name(o))" for o in RULES
+
+    W1 = @SMatrix randn(10, 10)
+    b1 = @SVector randn(10)
+    W2 = @SMatrix randn(10, 10)
+    model = (; W1, b1, W2, tanh)
+    loss(m, x, y) = sum(abs2, m.W2 * (m.tanh).(m.W1*x .+ m.b1) .- y)
+    # x = @SMatrix randn(10, 10)
+    # y = @SMatrix randn(10, 10)  # gives an error from sum(; dims=())
+    x = @SVector randn(10)
+    y = @SVector randn(10)
+    @test loss(model, x, y) > 10
+    state = Optimisers.setup(o, model)
+    for t = 1:10^3
+      g = gradient(m -> loss(m, x, y), model)[1]
+      state, model = Optimisers.update!(state, model, g)
+    end
+    if o isa Union{RMSProp, ADAGrad, ADADelta, NADAM}
+      @show name(o) loss(model, x, y)
+      @test_broken loss(model, x, y) < 1
+    else
+      @test loss(model, x, y) < 1
+    end
+  end
+end
