@@ -1,4 +1,9 @@
 
+using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero
+base(dx::Tangent) = backing(canonicalize(dx))
+base(dx) = dx
+const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
+
 struct Leaf{R,S}
   rule::R
   state::S
@@ -18,26 +23,21 @@ end
 
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
+update!(::Nothing, x, ::Zero...) = nothing, x
 update!(::Nothing, x, x̄s...) = nothing, x
 
+         update!(ℓ::Leaf, x, ::Zero...) = ℓ, x
 function update!(ℓ::Leaf, x, x̄s...)
-  if all(isnothing, x̄s)
-    return ℓ, x
-  else
-    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, x̄s...)
+    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
     return Leaf(ℓ.rule, s′), subtract!(x, x̄′)
-  end
 end
 
+         update!(tree, x, ::Zero...) = tree, x
 function update!(tree, x, x̄s...)
-  if all(isnothing, x̄s)
-    return tree, x
-  else
-    x̄s′ = map(x̄ -> functor(typeof(x), x̄)[1], x̄s)
+    x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
     x′, re = functor(typeof(x), x)
     xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
     return map(first, xtree), re(map(last, xtree))
-  end
 end
 
 function update(tree, x, x̄s...)
