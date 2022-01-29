@@ -1,4 +1,4 @@
-using Optimisers, Functors, Zygote
+using Optimisers, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @..
 
@@ -29,62 +29,6 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     s3, m3 = Optimisers.update!(s, m, g)
     @test objectid(m3[1]) == mid
     @test m3[1] ≈ [1,2] .- 0.1 .* [25, 33]
-  end
-
-  @testset "rule: $(first(string(o), 42))" for o in (
-                     Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
-                     ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
-                     ADAMW(), RADAM(), OADAM(), AdaBelief()
-                     )
-    w′ = (α = rand(3, 3), β = rand(3, 3))
-
-    # Original example
-    w = (α = 5rand(3, 3), β = rand(3, 3))
-    st = Optimisers.setup(o, w)
-    loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
-    @test loss(w, w′) > 1
-    for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), w)
-      st, w = Optimisers.update(st, w, gs...)
-    end
-    lw = loss(w, w′)
-    if o isa ADADelta
-      @test_broken lw < 0.001
-    else
-      @test lw < 0.001
-    end
-
-    # Slightly harder variant
-    m = (α = randn(3), β = transpose(5rand(3,3)), γ = (rand(2), tanh))  # issue 28
-    st = Optimisers.setup(o, m)
-    @test loss(m, w′) > 1
-    for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), m)
-      st, m = Optimisers.update!(st, m, gs...)
-    end
-    lm = loss(m, w′)
-    if lm < 0.1
-      @test lm < 0.1
-    else
-      @test_broken lm < 0.1  # @test keyword broken doesn't exist on Julia 1.6
-    end
-
-  end
-
-  @testset "OptimiserChain with $pre" for pre in (WeightDecay(), ClipGrad(), ClipNorm())
-    Random.seed!(84)
-    w = randn(10, 10)
-    w′ = randn(10, 10)
-    loss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
-    @test loss(rand(10, 10), w, w′) > 1
-    opt = OptimiserChain(pre, ADAM(0.001))
-    st = Optimisers.init(opt, w)
-    for t = 1:10^5
-      x = rand(10)
-      gs = gradient(w -> loss(x, w, w′), w)
-      st, w = Optimisers.update!(st, w, gs...)
-    end
-    @test_broken loss(rand(10, 10), w, w′) < 0.01
   end
 
   @testset "gradient clipping" begin
@@ -161,4 +105,6 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     @test_throws ArgumentError Optimisers.setup(ADAMW(), m2)
   end
 
+  @info "finished feature testing"
+  include("rules.jl")
 end
