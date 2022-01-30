@@ -227,7 +227,7 @@ end
     for idx in 1:10
       grads = loggradient(opt)(loss, model)
       state, model = Optimisers.update!(state, model, grads...)
-      if opt isa Union{Momentum, Nesterov}
+      if opt isa Union{Momentum, Nesterov} && idx > 8  # these are very flat at the end
         @test_skip loss(model) < last_loss
       else
         @test loss(model) < last_loss
@@ -246,7 +246,7 @@ end
     for idx in 1:10
       grads = gradient(static_loss, static_model)
       static_state, static_model = Optimisers.update!(static_state, static_model, grads...)
-      if opt isa Union{Momentum, Nesterov}
+      if opt isa Union{Momentum, Nesterov} && idx > 8
         @test_skip loss(static_model) < last_loss
       else
         @test loss(static_model) < last_loss
@@ -265,5 +265,8 @@ _plot!(:OADAM)
 _plot!(:RMSProp) 
 _plot!(:NADAM)
 _plot!(:ADADelta)  # barely declines
+
+_plot(:Momentum)
+_plot!(:Nesterov)  # very flat at the end
 
 =#
