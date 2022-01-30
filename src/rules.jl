@@ -270,7 +270,7 @@ struct ADAGrad{T}
 end
 ADAGrad(η = 1f-1, ϵ = eps(typeof(η))) = ADAGrad{typeof(η)}(η, ϵ)
 
-init(o::ADAGrad, x::AbstractArray) = fill!(similar(x), o.epsilon)
+init(o::ADAGrad, x::AbstractArray) = map(_ -> o.epsilon, x)
 
 function apply!(o::ADAGrad, state, x, dx)
   η, ϵ = o.eta, o.epsilon
@@ -337,7 +337,7 @@ end
 AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad{typeof(η)}(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
-  (fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon))
+  (map(_ -> o.epsilon, x), map(_ -> o.epsilon, x), map(_ -> o.epsilon, x))
 
 function apply!(o::AMSGrad, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
