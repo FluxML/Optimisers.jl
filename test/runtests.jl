@@ -31,6 +31,10 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       s3, m3 = Optimisers.update!(s, m, g)
       @test objectid(m3[1]) == mid
       @test m3[1] ≈ [1,2] .- 0.1 .* [25, 33]
+
+      g4 = Tangent{typeof(m)}(g...)
+      s4, m4 = Optimisers.update!(s, ([1.0, 2.0],), g4)
+      @test m4[1] ≈ [1,2] .- 0.1 .* [25, 33]
     end
 
     @testset "gradient clipping" begin
@@ -73,6 +77,11 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       _, mf2 = Optimisers.update(sf, mf, gf)
       @test mf2.x == [1,2]
       @test mf2.y == (a = sin, b = [2.9, 3.9], c = 5)
+
+      gf3 = Tangent{typeof(mf)}(; x = NoTangent(), y = Tangent{typeof(mf.y)}(; a = NoTangent(), b = [1,1], c = 1))
+      _, mf3 = Optimisers.update(sf, mf, gf3)  # the same, but with ChainRules types
+      @test mf3.x == [1,2]
+      @test mf3.y == (a = sin, b = [2.9, 3.9], c = 5)
 
       # TwoThirds has functor a,c only, and trainable a only
       mt = TwoThirds(Float32[1,2], Float32[3,4], Float32[5,6])
