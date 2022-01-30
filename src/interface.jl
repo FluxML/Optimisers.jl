@@ -12,12 +12,12 @@ struct Leaf{R,S}
   state::S
 end
 
-struct Tree; ties; leaves; end
+struct Tied; ties; tree; end
 
 function setup(rule, x; ties = Pair[], cache = IdDict())
   rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
   tree = _setup(rule, x, (); ties, cache)
-  isempty(ties) ? tree : Tree(ties, tree)
+  isempty(ties) ? tree : Tied(ties, tree)
 end
 
 function _setup(rule, x, addr; ties, cache)
@@ -59,8 +59,8 @@ function update!(tree, x, x̄s...)
   map(first, xtree), re(map(last, xtree))
 end
 
-update!(t::Tree, x, ::Zero) = tree, x
-function update!(t::Tree, x, x̄)
+update!(t::Tied, x, ::Zero) = t, x
+function update!(t::Tied, x, x̄)
   # accumulate tied gradients:
   for (dup, orig) in t.ties
     x̄ = place(x, x̄, orig) do x̄ᵢ
@@ -69,14 +69,14 @@ function update!(t::Tree, x, x̄)
     end
   end
   # run the optimisers:
-  t′, x′ = update!(t.leaves, x, x̄)
+  t′, x′ = update!(t.tree, x, x̄)
   # restore tied weights:
   for (dup, orig) in t.ties
     x′ = place(x′, dup) do
       pick(x′, orig)
     end
   end
-  Tree(t.ties, t′), x′
+  Tied(t.ties, t′), x′
 end
 
 function update(tree, x, x̄s...)

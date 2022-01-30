@@ -162,7 +162,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
         mtup = (twice, ([3,4], twice))
 
         stup = Optimisers.setup(Descent(0.1), mtup)
-        @test stup isa Optimisers.Tree
+        @test stup isa Optimisers.Tied
         @test stup.ties[1] == Pair((2, 2), (1,))
         gtup = ([3,3], ([5,5], [7,7]))
 
@@ -177,7 +177,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
         @test Optimisers.place(_ -> [10, 10], mtup, ([3,3], nothing), (2, 3)) == ([3, 3], (nothing, nothing))  # invalid index
 
         snew, mnew = Optimisers.update(stup, mtup, gtup)
-        @test snew isa Optimisers.Tree
+        @test snew isa Optimisers.Tied
         @test snew.ties[1] == stup.ties[1]
         @test mnew[1] ≈ [1,2] - 0.1 * ([3,3] + [7,7])  # gradient was accumulated
         @test mnew[2][2] === mnew[1]  # and tie is not broken
