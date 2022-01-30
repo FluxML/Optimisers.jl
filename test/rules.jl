@@ -5,7 +5,7 @@ using LinearAlgebra, Statistics, Test, Random
 Random.seed!(1)
 
 RULES = [
-  # All the rules at default settings
+  # All the rules at default settings:
   Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
   ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
   ADAMW(), RADAM(), OADAM(), AdaBelief(),
@@ -13,6 +13,7 @@ RULES = [
   OptimiserChain(WeightDecay(), ADAM(0.001)),
   OptimiserChain(ClipNorm(), ADAM(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
+  OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
 ]
 
 name(o) = typeof(o).name.name
@@ -112,7 +113,7 @@ end
     end
     @test upstatic[1] isa SVector
 
-    # With ordinary Array gradient, what happens?
+    # With ordinary Array gradient, what happens? Not so important!
     upstatic2 = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, marray[1:2])[2]
     # @test map(eltype, upstatic2) == types[1:2]  # same information
     if upstatic2[1] isa SVector

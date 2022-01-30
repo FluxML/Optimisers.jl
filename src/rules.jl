@@ -241,15 +241,16 @@ init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 function apply!(o::OADAM, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
-  mt, vt, βt, dx0 = state
+  mt, vt, βt, dxterm = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * dx^2
-  @.. dx0 = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  dx′ = @.. dx + 2*dx0
-  dx = @.. -dx0
 
-  return (mt, vt, βt .* β, dx0), dx′
+  # This dx broadcast is not lazy, because dxterm might get mutated:
+  dx′ = @. 2 * η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) - dxterm
+  @.. dxterm = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
+
+  return (mt, vt, βt .* β, dxterm), dx′
 end
 
 """
