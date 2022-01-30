@@ -2,6 +2,7 @@ module Optimisers
 
 using Functors: functor, fmap, isleaf
 using LinearAlgebra
+using Base: tail
 
 include("interface.jl")
 export AbstractRule

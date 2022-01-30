@@ -2,6 +2,7 @@
 using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero
 base(dx::Tangent) = backing(canonicalize(dx))
 base(dx) = dx
+base(::Nothing) = false
 const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 
 abstract type AbstractRule end
@@ -11,16 +12,31 @@ struct Leaf{R,S}
   state::S
 end
 
-function setup(rule, x; seen = Base.IdSet())
+struct Tree; ties; leaves; end
+
+function setup(rule, x; ties = Pair[], cache = IdDict())
   rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
+  tree = _setup(rule, x, (); ties, cache)
+  isempty(ties) ? tree : Tree(ties, tree)
+end
+
+function _setup(rule, x, addr; ties, cache)
+  usecache = !isbits(x) && cache !== false
   if isnumeric(x)
-    x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
-    isbits(x) || push!(seen, x)
-    return Leaf(rule, init(rule, x))
+    if usecache && haskey(cache, x)
+      push!(ties, addr => cache[x])
+      return nothing
+    else
+      if usecache
+        cache[x] = addr
+      end
+      return Leaf(rule, init(rule, x))
+    end
   elseif isleaf(x)
     return nothing
   else
-    return map(xᵢ -> setup(rule, xᵢ; seen), _trainable(x))
+    x′ = _trainable(x)
+    map((xᵢ, i) -> _setup(rule, xᵢ, (addr..., i); ties, cache), x′, ids(x′))
   end
 end
 
@@ -43,6 +59,26 @@ function update!(tree, x, x̄s...)
   map(first, xtree), re(map(last, xtree))
 end
 
+update!(t::Tree, x, ::Zero) = tree, x
+function update!(t::Tree, x, x̄)
+  # accumulate tied gradients:
+  for (dup, orig) in t.ties
+    x̄ = place(x, x̄, orig) do x̄ᵢ
+      x̄ᵢᵢ = pick(x̄, dup)
+      Broadcast.broadcasted(+, base(x̄ᵢ), base(x̄ᵢᵢ))
+    end
+  end
+  # run the optimisers:
+  t′, x′ = update!(t.leaves, x, x̄)
+  # restore tied weights:
+  for (dup, orig) in t.ties
+    x′ = place(x′, dup) do
+      pick(x′, orig)
+    end
+  end
+  Tree(t.ties, t′), x′
+end
+
 function update(tree, x, x̄s...)
   t′ = fmap(copy, tree; exclude = iswriteable)
   x′ = fmap(copy, x; exclude = iswriteable)
@@ -58,6 +94,29 @@ isnumeric(x) = false
 
 iswriteable(::DenseArray) = true  # more elaborate versions are possible, wait until needed?
 iswriteable(_) = false
+
+ids(x::NamedTuple{names}) where names = NamedTuple{names}(names)  # a map-friendly version of pairs
+ids(x::Tuple) = propertynames(x)
+
+function pick(x, addr::Tuple)  # used for both x and x̄
+  (isempty(addr) || x isa Zero) && return x
+  x′, _ = functor(x)
+  pick(get(x′, addr[1], nothing), tail(addr))
+end
+
+place(f, x, addr::Tuple{}) = f()
+function place(f, x, addr::Tuple)
+  x′, re = functor(x)
+  re(map((xᵢ, i) -> i == addr[1] ? place(f, xᵢ, tail(addr)) : xᵢ, x′, ids(x′)))
+end
+
+place(f, x, x̄, addr::Tuple{}) = f(x̄)  # placed into x̄
+# This function needs x to know how to restore missing branches of x̄
+function place(f, x, x̄, addr::Tuple)
+  x̄′, _ = functor(typeof(x), x̄ isa Zero ? map(_->nothing, x) : base(x̄))
+  x′, _ = functor(typeof(x), x)
+  map((xᵢ, x̄ᵢ, i) -> i == addr[1] ? place(f, xᵢ, x̄ᵢ, tail(addr)) : x̄ᵢ, x′, x̄′, ids(x′))
+end
 
 """
     trainable(x::Layer) -> NamedTuple

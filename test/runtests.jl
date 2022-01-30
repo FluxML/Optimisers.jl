@@ -157,13 +157,58 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
     @testset "tied weights" begin
-      ok = (1.0:3.0, sin, "abc", :abc)
-      m = (α = ok, β = rand(3), γ = ok)
-      m1 = (rand(3), m, rand(3))
-      @test Optimisers.setup(AdamW(), m1) isa Tuple
-      m2 = (rand(3), m, rand(3), m, rand(3))  # illegal
-      @test_throws ArgumentError Optimisers.setup(AdamW(), m2)
-    end
+      @testset "tuples" begin
+        twice = [1,2]
+        mtup = (twice, ([3,4], twice))
+
+        stup = Optimisers.setup(Descent(0.1), mtup)
+        @test stup isa Optimisers.Tree
+        @test stup.ties[1] == Pair((2, 2), (1,))
+        gtup = ([3,3], ([5,5], [7,7]))
+
+        @test Optimisers.pick(gtup, (2, 2)) == [7,7]
+        @test Optimisers.pick(gtup, (1,)) == [3,3]
+        @test Optimisers.pick(gtup, (2,2,17,23)) === nothing
+
+        @test Optimisers.place(x -> 10x, mtup, gtup, (2, 2)) == ([3, 3], ([5, 5], [70, 70]))
+        @test Optimisers.place(x -> 10x, mtup, gtup, (1,)) == ([30, 30], ([5, 5], [7, 7]))
+
+        @test Optimisers.place(_ -> [10, 10], mtup, ([3,3], nothing), (2, 2)) == ([3, 3], (nothing, [10, 10])) # reconstructs the branch
+        @test Optimisers.place(_ -> [10, 10], mtup, ([3,3], nothing), (2, 3)) == ([3, 3], (nothing, nothing))  # invalid index
+
+        snew, mnew = Optimisers.update(stup, mtup, gtup)
+        @test snew isa Optimisers.Tree
+        @test snew.ties[1] == stup.ties[1]
+        @test mnew[1] ≈ [1,2] - 0.1 * ([3,3] + [7,7])  # gradient was accumulated
+        @test mnew[2][2] === mnew[1]  # and tie is not broken
+
+        st3, mt3 = Optimisers.update(stup, mtup, ([3,3], nothing))
+        @test mt3[1] ≈ [1,2] - 0.1 * [3,3]
+        @test mt3[2][2] === mt3[1]
+
+        st4, mt4 = Optimisers.update(stup, mtup, (nothing, ([5,5], [7,7])))
+        @test mt4[1] ≈ [1,2] - 0.1 * [7,7]
+      end
+      @testset "named" begin
+        thrice = [3]
+        model = (a = (x = thrice, y = [4,5,6], z = true), b = ((m = (0, 1, thrice),),), c = (x = [7,8], y = thrice))
+        tree = Optimisers.setup(Momentum(0.1, 0.9), model)
+        tree.ties
+        @test model.a.x === model.b[1].m[3] == model.c.y
+
+        loss(x::Array) = sum(abs2, x)
+        loss(x::Number) = x^3
+        loss(m) = sum(2 * loss(x) for x in m)
+        gradient(loss, model)
+        _, m2 = Optimisers.update(tree, model, gradient(loss, model)...)
+        @test m2.a.x === m2.b[1].m[3] == m2.c.y
+
+        loss3(m) = sum(x isa Tuple ? 0 : 2 * loss(x) for x in m)
+        gradient(loss3, model)  # truncates the b limb
+        _, m3 = Optimisers.update(tree, model, gradient(loss3, model)...)
+        @test m3.a.x === m3.b[1].m[3] == m3.c.y
+      end
+    end # tied weights
 
   end
   @testset verbose=true "Destructure" begin
