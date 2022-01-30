@@ -246,7 +246,7 @@ function apply!(o::OADAM, state, x, dx)
   @.. vt = β[2] * vt + (1 - β[2]) * dx^2
   prev = copy(term)
   @.. term = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  dx′ = @. 2 * term - prev
+  dx′ = @.. 2 * term - prev
 
   return (mt, vt, βt .* β, term), dx′
 end
