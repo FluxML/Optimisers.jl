@@ -82,9 +82,11 @@ end
 
 Magic broadcasting macro, for use in `apply!` rules:
 * Applied to assignment `x = rhs` it is like `@.` unless `!iswriteable(x)`,
-  in which case it becomes `x = @. rhs`.
+  in which case it becomes `x = @. rhs`. Does not check the eltype before writing.
+  Does not know about `x += rhs` etc.
 * Applied to other expressions, it broadcasts like `@.` but does not materialise,
-  returning a `Broadcasted` object for later use.
+  returning a `Broadcasted` object for later use. Beware that mutation of arguments
+  will affect the result, and that if it is used in two places work will be done twice.
 """
 macro var".."(ex)
   if Meta.isexpr(ex, :(=))
