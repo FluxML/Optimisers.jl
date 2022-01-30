@@ -519,6 +519,10 @@ end
 Compose a sequence of optimisers so that each `opt` in `opts`
 updates the gradient, in the order specified.
 
+With an empty sequence, `OptimiserChain()` is the identity,
+so `update!` will subtract the full gradient from the parameters.
+This is equivalent to `Descent(1)`.
+
 # Example
 ```jldoctest
 julia> o = OptimiserChain(ClipGrad(1), Descent(0.1));
