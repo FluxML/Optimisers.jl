@@ -538,8 +538,6 @@ end
 OptimiserChain(opts...) = OptimiserChain(opts)
 
 init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
-init(o::OptimiserChain{Tuple{Any}}, x::AbstractArray) = init(o.opts[1], x)
-init(o::OptimiserChain{Tuple{}}, x::AbstractArray) = nothing
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
   new_states = similar(states)
@@ -549,8 +547,6 @@ function apply!(o::OptimiserChain, states, x, dx, dxs...)
 
   return new_states, dx
 end
-apply!(o::OptimiserChain{Tuple{Any}}, state, x, dx, dxs...) = apply!(o.opts[1], state, x, dxs...)
-apply!(o::OptimiserChain{Tuple{}}, state, x, dx, dxs...) = state, dx
 
 function Base.show(io::IO, c::OptimiserChain)
   ioc = IOContext(io, :compact => true)
