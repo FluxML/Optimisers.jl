@@ -63,13 +63,7 @@ end
       gs = gradient(x -> loss(x, w′), w)
       st, w = Optimisers.update(st, w, gs...)
     end
-    lw = loss(w, w′)
-    if o isa ADADelta
-      @show name(o) loss(w, w′)
-      @test_broken lw < 0.001
-    else
-      @test lw < 0.001
-    end
+    @test loss(w, w′) < 0.001
   end
 end
 
@@ -90,7 +84,7 @@ end
       g = gradient(m -> s_loss(m, x, y), model)[1]
       state, model = Optimisers.update!(state, model, g)
     end
-    if o isa Union{Descent, RMSProp, ADAGrad, ADADelta, NADAM}
+    if o isa Descent
       @show name(o) s_loss(model, x, y)
       @test_broken s_loss(model, x, y) < 1
     else

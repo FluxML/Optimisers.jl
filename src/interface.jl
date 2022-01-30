@@ -81,8 +81,8 @@ end
     @.. x + y / z
 
 Magic broadcasting macro, for use in `apply!` rules:
-* Applied to assignment `x = ...` it is like `@.` unless `!iswriteable(x)`,
-  in which case it ignores `x`, and applies `@.` on the right.
+* Applied to assignment `x = rhs` it is like `@.` unless `!iswriteable(x)`,
+  in which case it becomes `x = @. rhs`.
 * Applied to other expressions, it broadcasts like `@.` but does not materialise,
   returning a `Broadcasted` object for later use.
 """
@@ -90,7 +90,7 @@ macro var".."(ex)
   if Meta.isexpr(ex, :(=))
     dst = esc(ex.args[1])
     src = esc(Broadcast.__dot__(ex.args[2]))
-    :(if $iswriteable($dst)
+    :($dst = if $iswriteable($dst)
         $dst .= $src
       else
         $src

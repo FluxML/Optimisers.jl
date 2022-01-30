@@ -127,6 +127,8 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       r = 1.0:2.0  # immutable
       @test (@.. r = y * z) isa Array
       @test (@.. r = y * z) == y .* z
+      @.. r = y * z
+      @test r == y .* z  # attaches name r to result
     end
 
     @testset "tied weights" begin
