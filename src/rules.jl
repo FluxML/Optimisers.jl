@@ -549,3 +549,10 @@ function apply!(o::OptimiserChain, states, x, dx, dxs...)
 
   return new_states, dx
 end
+
+function Base.show(io::IO, c::OptimiserChain)
+  ioc = IOContext(io, :compact => true)
+  print(ioc, "OptimiserChain(")
+  join(ioc, c.opts, ", ")
+  print(io, ")")
+end
