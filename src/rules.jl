@@ -392,8 +392,8 @@ end
 """
     ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η)))
 
-[ADAMW](https://arxiv.org/abs/1711.05101) is a variant of ADAM fixing (as in repairing) its
-weight decay regularization.
+[ADAMW](https://arxiv.org/abs/1711.05101) is a variant of [ADAM](@ref) fixing 
+(as in repairing) its weight decay regularization.
 
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
@@ -405,7 +405,7 @@ weight decay regularization.
                          (no need to change default)
 """
 ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay(γ))
+  OptimiserChain(ADAM{typeof(η)}(1, β, ϵ), WeightDecay{typeof(η)}(γ), Descent(η))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
@@ -444,20 +444,24 @@ end
 """
     WeightDecay(γ = 5f-4)
 
-Decay weights by `γ`.
+Decay weights by ``γ``, that is, add `γ .* x` to the gradient `x̄` which will be
+subtracted from `x`.
+
+Typically composed  with other optimizers as the first transformation to the gradient,
+making it equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss.
 
 # Parameters
 - Weight decay (`γ`): Decay applied to weights during optimisation.
 """
 struct WeightDecay{T}
-  wd::T
+  gamma::T
 end
 WeightDecay() = WeightDecay(5f-4)
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x, dx)
-  dx′ = @.. dx + o.wd * x
+  dx′ = @.. dx + o.gamma * x
 
   return state, dx′
 end

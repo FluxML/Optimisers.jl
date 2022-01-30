@@ -80,7 +80,7 @@ plot(LOG[:ADADelta][1:100], yaxis=:log10)  # exp growth
     w = (α = 5rand(3, 3), β = rand(3, 3))
     st = Optimisers.setup(o, w)
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
-    @test loss(w, w′) > 1
+    @test loss(w, w′) > 1  # guard against accidentally having loss 0
     for i = 1:10^4
       gs = loggradient(o)(x -> loss(x, w′), w)
       st, w = Optimisers.update(st, w, gs...)
@@ -94,6 +94,11 @@ plot(LOG[:ADADelta][1:100], yaxis=:log10)  # exp growth
     end
   end
 end
+
+#=
+findfirst(isnan, LOG[:ADADelta]) # 11
+plot(LOG[:ADADelta][1:12], yaxis=:log10)
+=#
 
 @testset verbose=true "StaticArrays" begin
   empty!(LOG)
