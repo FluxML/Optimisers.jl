@@ -28,16 +28,16 @@ update!(::Nothing, x, x̄s...) = nothing, x
 
          update!(ℓ::Leaf, x, ::Zero...) = ℓ, x
 function update!(ℓ::Leaf, x, x̄s...)
-    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
-    return Leaf(ℓ.rule, s′), subtract!(x, x̄′)
+  s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
+  Leaf(ℓ.rule, s′), subtract!(x, x̄′)
 end
 
          update!(tree, x, ::Zero...) = tree, x
 function update!(tree, x, x̄s...)
-    x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
-    x′, re = functor(typeof(x), x)
-    xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
-    return map(first, xtree), re(map(last, xtree))
+  x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
+  x′, re = functor(typeof(x), x)
+  xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
+  map(first, xtree), re(map(last, xtree))
 end
 
 function update(tree, x, x̄s...)
