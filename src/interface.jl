@@ -64,7 +64,7 @@ function update!(t::Tied, x, x̄)
   # accumulate tied gradients:
   for (dup, orig) in t.ties
     x̄ = place(x, x̄, orig) do x̄ᵢ
-      x̄ᵢᵢ = pick(x̄, dup)
+      x̄ᵢᵢ = pick(x, x̄, dup)
       Broadcast.broadcasted(+, base(x̄ᵢ), base(x̄ᵢᵢ))
     end
   end
@@ -98,7 +98,7 @@ iswriteable(_) = false
 ids(x::NamedTuple{names}) where names = NamedTuple{names}(names)  # a map-friendly version of pairs
 ids(x::Tuple) = propertynames(x)
 
-function pick(x, addr::Tuple)  # used for both x and x̄
+function pick(x, addr::Tuple)
   (isempty(addr) || x isa Zero) && return x
   x′, _ = functor(x)
   pick(get(x′, addr[1], nothing), tail(addr))
@@ -108,6 +108,14 @@ place(f, x, addr::Tuple{}) = f()
 function place(f, x, addr::Tuple)
   x′, re = functor(x)
   re(map((xᵢ, i) -> i == addr[1] ? place(f, xᵢ, tail(addr)) : xᵢ, x′, ids(x′)))
+end
+
+# This function needs to see x::Transpose to handle x̄::Matrix, etc.
+function pick(x, x̄, addr::Tuple)
+  (isempty(addr) || x̄ isa Zero) && return x̄
+  x̄′, _ = functor(typeof(x), base(x̄))
+  x′, _ = functor(typeof(x), x)
+  pick(get(x′, addr[1], nothing), get(x̄′, addr[1], nothing), tail(addr))
 end
 
 place(f, x, x̄, addr::Tuple{}) = f(x̄)  # placed into x̄

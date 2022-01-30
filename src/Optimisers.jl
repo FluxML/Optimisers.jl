@@ -15,6 +15,29 @@ export Descent, Adam, Momentum, Nesterov, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain
 
+import Functors: functor
+# This is https://github.com/FluxML/Functors.jl/pull/33, put here just to simplify trying it out.
+begin
+  using LinearAlgebra
+  # The reason for these is to let W and W' be seen as tied weights in Flux models.
+  # Can't treat ReshapedArray very well, as its type doesn't include enough details for reconstruction.
+
+  functor(::Type{<:Adjoint}, x) = (parent = _adjoint(x),), y -> adjoint(only(y))
+
+  _adjoint(x) = adjoint(x)  # _adjoint is the inverse, and also understands more types:
+  _adjoint(x::NamedTuple{(:parent,)}) = x.parent  # "structural" gradient, and lazy broadcast used by Optimisers:
+  _adjoint(bc::Broadcast.Broadcasted{S}) where S = Broadcast.Broadcasted{S}(_conjugate(bc.f, adjoint), _adjoint.(bc.args))
+
+  functor(::Type{<:Transpose}, x) = (parent = _transpose(x),), y -> transpose(only(y))
+
+  _transpose(x) = transpose(x)
+  _transpose(x::NamedTuple{(:parent,)}) = x.parent
+  _transpose(bc::Broadcast.Broadcasted{S}) where S = Broadcast.Broadcasted{S}(_conjugate(bc.f, transpose), _transpose.(bc.args))
+
+  _conjugate(f::F, ::typeof(identity)) where F = f
+  _conjugate(f::F, op::Union{typeof(transpose), typeof(adjoint)}) where F = (xs...,) -> op(f(op.(xs)...))
+end
+
 """
     Optimisers.apply!(rule::RuleType, state, parameters, gradient) -> (state, gradient)
 

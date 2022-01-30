@@ -208,6 +208,37 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
         _, m3 = Optimisers.update(tree, model, gradient(loss3, model)...)
         @test m3.a.x === m3.b[1].m[3] == m3.c.y
       end
+      @testset "transpose" begin
+        mat = [1 2 3; 4 5 6.0]
+        bidir = (m = mat, f = log, t = transpose(mat), v = [7, 8, 9.0])
+        bigrad, _ = gradient((m, x) -> sum(abs2, m.m * (m.f).(m.t*x .+ m.v)), bidir, [1, 0.1])
+        @test bigrad.t isa Matrix  # not a Transpose, that's the point here
+
+        state = Optimisers.setup(Descent(0.1), bidir)
+        @test state isa Optimisers.Tied  # sees duplication within Transpose
+        @test state.tree.t == (parent = nothing,)  # no state for the 2nd
+
+        s2, b2 = Optimisers.update(state, bidir, bigrad)
+        @test b2.t.parent === b2.m  # tie restored
+        @test b2.m ≈ bidir.m - 0.1 * (bigrad.m + transpose(bigrad.t))  # grad accumulated
+
+        state = Optimisers.setup(OptimiserChain(ClipGrad(10), Descent(0.1), ClipGrad(10)), bidir)
+        s2, b2 = Optimisers.update(state, bidir, bigrad)
+        @test b2.t.parent === b2.m 
+        @test b2.m ≈ bidir.m - 0.1 * clamp.((bigrad.m + transpose(bigrad.t)), -10, 10) 
+
+        # Similar, but now "primary" field is the transposed one:
+        tri = (a = transpose(mat), b = mat, c = transpose(mat), d = 4.0)
+        trigrad = gradient(m -> sum(abs2, m.a * (m.b * (m.c * [0.1, 1] .+ m.d) .- m.d)), tri)[1]
+        stri = Optimisers.setup(Descent(0.1), tri)
+        @test length(stri.ties) == 2
+        s3, t3 = Optimisers.update(stri, tri, trigrad)
+        @test t3.a.parent === t3.b === t3.c.parent
+        @test t3.a ≈ tri.a - 0.1 * (trigrad.a + trigrad.b' + trigrad.c)
+
+        g4 = (a = Broadcast.broadcasted(+, mat', 1), b = nothing, c = @thunk(mat' .+ 1), d = nothing)
+        s4, t4 = Optimisers.update(stri, tri, g4)
+      end
     end # tied weights
 
   end
