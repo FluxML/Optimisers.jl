@@ -171,7 +171,7 @@ function apply!(o::RADAM, state, x, dx)
   mt, vt, βt, t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
   ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2])
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
@@ -277,7 +277,7 @@ function apply!(o::ADAGrad, state, x, dx)
   η, ϵ = o.eta, o.epsilon
   acc = state
 
-  @.. acc = acc + dx^2
+  @.. acc = acc + abs2(dx)
   dx′ = @lazy dx * η / (sqrt(acc) + ϵ)
 
   return acc, dx′
@@ -307,10 +307,10 @@ function apply!(o::ADADelta, state, x, dx)
   ρ, ϵ = o.rho, o.epsilon
   acc, Δacc = state
 
-  @.. acc = ρ * acc + (1 - ρ) * dx^2
+  @.. acc = ρ * acc + (1 - ρ) * abs2(dx)
   # DON'T remove epsilon from numerator or even out of the square roots!
   dx′ = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)  # Cannot be lazy as this needs the old Δacc
-  @.. Δacc = ρ * Δacc + (1 - ρ) * dx′^2
+  @.. Δacc = ρ * Δacc + (1 - ρ) * abs2(dx′)
   
   return (acc, Δacc), dx′
 end
@@ -344,7 +344,7 @@ function apply!(o::AMSGrad, state, x, dx)
   mt, vt, v̂t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
+  @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
   @.. v̂t = max(v̂t, vt)
   dx′ = @lazy η * mt / (sqrt(v̂t) + ϵ)
 
@@ -380,7 +380,7 @@ function apply!(o::NADAM, state, x, dx)
   mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
   dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
@@ -433,7 +433,7 @@ function apply!(o::AdaBelief, state, x, dx)
   mt, st = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
+  @.. st = β[2] * st + (1 - β[2]) * abs2(dx - mt)
   dx′ = @lazy η * mt / (sqrt(st) + ϵ)
   
   return (mt, st), dx′

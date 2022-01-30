@@ -64,10 +64,14 @@ end
 end
 
 #=
-plot(LOG[:ADAGrad])  # decline
+using Plots
+_plot(s; kw...) = (plot(); _plot!(s; kw...))
+_plot!(s; kw...) = plot!(LOG[s]; label=string(s), yguide="loss", xguide="iter", kw...)
+
+_plot(:ADAGrad)  # decline
 LOG[:ADAGrad][end]  # 3869.4075f0
 
-plot(LOG[:AMSGrad])  # decline
+_plot!(:AMSGrad)  # decline
 LOG[:AMSGrad][end]  # 2742.004f0
 
 findfirst(isnan, LOG[:ADADelta]) # 182
@@ -197,3 +201,62 @@ end
   end
 end
 
+@testset "with complex numebers: Flux#1776" begin
+  empty!(LOG)
+  @testset "$(name(f(1e-2)))" for f in [
+              ADAM, RMSProp, RADAM, OADAM, ADAGrad, ADADelta, NADAM, AdaBelief,
+              Descent, Momentum, Nesterov, ADAMW, # not in Flux PR
+              ]
+    # Our "model" is just a complex number
+    model = (w = zeros(ComplexF64, 1),)
+
+    # Our model attempts to learn `f(x) = conj(x)` where `f(x) = w*x`
+    function loss(m)
+      # Deterministic training data is the best training data
+      x = ones(1, 1) + 1im*ones(1, 1)
+      # Manually implement `mse()` to allow demonstration of brokenness
+      # on older Flux builds that don't have a fixed `mse()`
+      return sum(abs2.(m.w * x .- conj(x)))
+    end
+
+    opt = f(1e-2)
+    state = Optimisers.setup(opt, model)
+
+    # Train for 10 iterations, enforcing that loss is monotonically decreasing
+    last_loss = Inf
+    for idx in 1:10
+      grads = loggradient(opt)(loss, model)
+      state, model = Optimisers.update!(state, model, grads...)
+      @test loss(model) < last_loss
+      last_loss = loss(model)
+    end
+
+    # Repeat with StaticArrays
+    static_model = (w = SA[1.0 + 0im],)
+    static_state = Optimisers.setup(opt, static_model)
+    function static_loss(m)
+      x = hcat(SA[1.0 + im])
+      sum(abs2.(m.w * x .- conj(x)))
+    end
+    last_loss = Inf
+    for idx in 1:10
+      grads = gradient(static_loss, static_model)
+      static_state, static_model = Optimisers.update!(static_state, static_model, grads...)
+      @test loss(static_model) < last_loss
+      last_loss = loss(static_model)
+    end
+  end
+end
+
+#=
+
+_plot(:ADAM)  # nice
+_plot!(:RADAM)
+_plot!(:OADAM)  # stays at 2 for one iteration, then down.
+
+_plot(:RMSProp)  # immediately to 10^11
+_plot!(:NADAM)
+
+_plot(:ADADelta, yaxis=:log10) # exp growth
+
+=#
