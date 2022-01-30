@@ -103,7 +103,7 @@ init(o::RMSProp, x::AbstractArray) = zero(x)
 function apply!(o::RMSProp, state, x, dx)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
 
-  @.. acc = ρ * acc + (1 - ρ) * dx^2
+  @.. acc = ρ * acc + (1 - ρ) * abs2(dx)
   dx′ = @lazy dx * (η / (sqrt(acc) + ϵ))
   
   return acc, dx′
@@ -136,7 +136,7 @@ function apply!(o::ADAM, state, x, dx)
   mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
+  @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
   dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η
 
   return (mt, vt, βt .* β), dx′
