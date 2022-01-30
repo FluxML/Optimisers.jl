@@ -18,7 +18,16 @@ RULES = [
 name(o) = typeof(o).name.name
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
 
+LOG = Dict()
+
+loggradient(o) = (f, xs...) -> begin
+  y, dxs = Zygote.withgradient(f, xs...)
+  push!(get!(() -> Float32[], LOG, name(o)), y)
+  dxs  # save the loss, return the gradient
+end
+
 @testset "independence" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     w = randn(10, 10)
     w′ = randn(10, 10)
@@ -27,7 +36,7 @@ name(o::OptimiserChain) = join(name.(o.opts), " → ")
     st = Optimisers.setup(o, w)
     for t = 1:10^5
       x = rand(10)
-      gs = gradient(w -> iloss(x, w, w′), w)
+      gs = loggradient(o)(w -> iloss(x, w, w′), w)
       st, w = Optimisers.update!(st, w, gs...)
     end
     @test iloss(rand(10, 10), w, w′) < 0.01
@@ -35,11 +44,12 @@ name(o::OptimiserChain) = join(name.(o.opts), " → ")
 end
 
 @testset verbose=true "simple sum" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     m = shuffle!(reshape(1:64, 8, 8) .+ 0.0)
     s = Optimisers.setup(o, m)
     for _ in 1:10^5
-      g = gradient(x -> sum(abs2, x + x'), m)[1]
+      g = loggradient(o)(x -> sum(abs2, x + x'), m)[1]
       s, m = Optimisers.update!(s, m, g)
     end
     # @test sum(m) < sum(1:64)
@@ -52,7 +62,19 @@ end
   end
 end
 
+#=
+plot(LOG[:ADAGrad])  # decline
+LOG[:ADAGrad][end]  # 3869.4075f0
+
+plot(LOG[:AMSGrad])  # decline
+LOG[:AMSGrad][end]  # 2742.004f0
+
+findfirst(isnan, LOG[:ADADelta]) # 182
+plot(LOG[:ADADelta][1:100], yaxis=:log10)  # exp growth
+=#
+
 @testset "original" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     w′ = (α = rand(3, 3), β = rand(3, 3))
     w = (α = 5rand(3, 3), β = rand(3, 3))
@@ -60,7 +82,7 @@ end
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
     @test loss(w, w′) > 1
     for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), w)
+      gs = loggradient(o)(x -> loss(x, w′), w)
       st, w = Optimisers.update(st, w, gs...)
     end
     lw = loss(w, w′)
@@ -74,6 +96,7 @@ end
 end
 
 @testset verbose=true "StaticArrays" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     W1 = @SMatrix randn(10, 10)
     b1 = @SVector randn(10)
@@ -87,7 +110,7 @@ end
     @test s_loss(model, x, y) > 10
     state = Optimisers.setup(o, model)
     for t = 1:10^3
-      g = gradient(m -> s_loss(m, x, y), model)[1]
+      g = loggradient(o)(m -> s_loss(m, x, y), model)[1]
       state, model = Optimisers.update!(state, model, g)
     end
     if o isa Union{Descent, RMSProp, ADAGrad, ADADelta, NADAM}
@@ -98,6 +121,14 @@ end
     end
   end
 end
+
+#=
+plot(LOG[:Descent])  # decline
+plot(LOG[:RMSProp])  # const 10^11
+plot(LOG[:ADAGrad])  # const 10^8
+plot(LOG[:ADADelta][1:30], yaxis=:log10)  # exp growth
+plot(LOG[name(NADAM())])  # stuck at 10^11
+=#
 
 @testset verbose=true "element types" begin
   @testset "$(name(o))" for o in RULES
