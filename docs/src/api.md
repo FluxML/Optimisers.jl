@@ -48,4 +48,5 @@ Optimisers.trainable
 Optimisers.apply!
 Optimisers.init
 Optimisers.@..
+Optimisers.@lazy
 ```

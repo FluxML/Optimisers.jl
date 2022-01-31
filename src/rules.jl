@@ -18,7 +18,7 @@ init(o::Descent, x::AbstractArray) = nothing
 function apply!(o::Descent, state, x, dx)
   η = convert(float(eltype(x)), o.eta)
   
-  return state, @.. dx * η
+  return state, @lazy dx * η  # @lazy creates a Broadcasted, will later fuse with x .= x .- dx
 end
 
 """
@@ -41,10 +41,10 @@ Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply!(o::Momentum, state, x, dx)
-  η, ρ, v = o.eta, o.rho, state
-  @.. v = ρ * v - η * dx  # Here @.. writes into v if it can, else @. of rhs.
+  η, ρ, mv = o.eta, o.rho, state
+  @.. mv = - ρ * mv + η * dx  # Macro @.. broadcasts into v if it can, else @. of rhs.
   
-  return v, @.. -v  # Here @.. creates a lazy broadcast, will fuse with x .= x .- dx
+  return mv, mv
 end
 
 """
@@ -102,8 +102,9 @@ init(o::RMSProp, x::AbstractArray) = zero(x)
 
 function apply!(o::RMSProp, state, x, dx)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
+
   @.. acc = ρ * acc + (1 - ρ) * dx^2
-  dx′ = @.. dx * (η / (sqrt(acc) + ϵ))
+  dx′ = @lazy dx * (η / (sqrt(acc) + ϵ))
   
   return acc, dx′
 end
@@ -134,9 +135,9 @@ function apply!(o::ADAM{T}, state, x, dx) where T
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
-  @.. mt = β[1] * mt + (one(T) - β[1]) * dx
-  @.. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
-  dx′ = @.. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
+  dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η
 
   return (mt, vt, βt .* β), dx′
 end
@@ -174,9 +175,9 @@ function apply!(o::RADAM, state, x, dx)
   ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2])
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
-    dx′ = @.. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
+    dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
   else
-    dx′ = @.. mt / (1 - βt[1]) * η
+    dx′ = @lazy mt / (1 - βt[1]) * η
   end
 
   return (mt, vt, βt .* β, t + 1), dx′
@@ -206,12 +207,11 @@ init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 function apply!(o::AdaMax, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
-
   mt, ut, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. ut = max(β[2] * ut, abs(dx))
-  dx′ = @.. (η/(1 - βt[1])) * mt/(ut + ϵ)
+  dx′ = @lazy (η/(1 - βt[1])) * mt/(ut + ϵ)
 
   return (mt, ut, βt .* β), dx′
 end
@@ -247,7 +247,7 @@ function apply!(o::OADAM, state, x, dx)
   @.. vt = β[2] * vt + (1 - β[2]) * dx^2
   prev = copy(term)
   @.. term = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  dx′ = @.. 2 * term - prev
+  dx′ = @lazy 2 * term - prev
 
   return (mt, vt, βt .* β, term), dx′
 end
@@ -278,7 +278,7 @@ function apply!(o::ADAGrad, state, x, dx)
   acc = state
 
   @.. acc = acc + dx^2
-  dx′ = @.. dx * η / (sqrt(acc) + ϵ)
+  dx′ = @lazy dx * η / (sqrt(acc) + ϵ)
 
   return acc, dx′
 end
@@ -341,13 +341,12 @@ init(o::AMSGrad, x::AbstractArray) =
 
 function apply!(o::AMSGrad, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
-
   mt, vt, v̂t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
   @.. v̂t = max(v̂t, vt)
-  dx′ = @.. η * mt / (sqrt(v̂t) + ϵ)
+  dx′ = @lazy η * mt / (sqrt(v̂t) + ϵ)
 
   return (mt, vt, v̂t), dx′
 end
@@ -382,7 +381,7 @@ function apply!(o::NADAM, state, x, dx)
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * dx^2
-  dx′ = @.. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
+  dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
   return (mt, vt, βt .* β), dx′
@@ -435,7 +434,7 @@ function apply!(o::AdaBelief, state, x, dx)
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
-  dx′ = @.. η * mt / (sqrt(st) + ϵ)
+  dx′ = @lazy η * mt / (sqrt(st) + ϵ)
   
   return (mt, st), dx′
 end
@@ -456,7 +455,7 @@ WeightDecay() = WeightDecay(5f-4)
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x, dx)
-  dx′ = @.. dx + o.wd * x
+  dx′ = @lazy dx + o.wd * x
 
   return state, dx′
 end
@@ -477,7 +476,7 @@ init(o::ClipGrad, x::AbstractArray) = nothing
 
 function apply!(o::ClipGrad, state, x, dx)
   δ = convert(float(eltype(x)), o.delta)
-  dx′ = @.. clamp(dx, -δ, δ)
+  dx′ = @lazy clamp(dx, -δ, δ)
 
   return state, dx′
 end
@@ -509,7 +508,7 @@ function apply!(o::ClipNorm, state, x, dx)
   end
   λ = min(o.omega / nrm, 1)
 
-  return state, @.. dx * λ
+  return state, @lazy dx * λ
 end
 
 """

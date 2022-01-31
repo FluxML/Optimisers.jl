@@ -1,7 +1,7 @@
 using Optimisers
 using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
-using Optimisers: @..
+using Optimisers: @.., @lazy
 
 Random.seed!(1)
 
@@ -116,10 +116,10 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test Optimisers.update!(s, m, g...)[2] isa Foo
     end
 
-    @testset "broadcasting macro" begin
+    @testset "broadcasting macros" begin
       x = [1.0, 2.0]; y = [3,4]; z = [5,6]
-      @test (@.. x + y * z) isa Broadcast.Broadcasted
-      bc = @.. x + y * z
+      @test (@lazy x + y * z) isa Broadcast.Broadcasted
+      bc = @lazy x + y * z
       @test (y .+ 2 .* bc) == [35,56]
 
       @test (@.. x = y * z) isa Array

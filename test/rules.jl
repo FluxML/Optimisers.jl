@@ -137,7 +137,7 @@ end
     @test xfill.a != ones(2,2)
     @test xfill.b != ones(2,2)
 
-    bc = Optimisers.@.. 1 + log([2 3; 4 5]) / 6
+    bc = Optimisers.@lazy 1 + log([2 3; 4 5]) / 6
     _, xbc = Optimisers.update(s, x, (a = bc, b = bc))
     @test xbc.a != ones(2,2)
     @test xbc.b != ones(2,2)
