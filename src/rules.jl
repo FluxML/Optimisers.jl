@@ -41,10 +41,10 @@ Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply!(o::Momentum, state, x, dx)
-  η, ρ, mv = o.eta, o.rho, state
-  @.. mv = - ρ * mv + η * dx  # Macro @.. broadcasts into v if it can, else @. of rhs.
+  η, ρ, mvel = o.eta, o.rho, state
+  @.. mvel = ρ * mvel + η * dx  # Macro @.. broadcasts into mvel if it can, else @. of rhs.
   
-  return mv, mv
+  return mvel, mvel
 end
 
 """
@@ -67,12 +67,12 @@ Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov{typeof(η)}(η, ρ)
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
 function apply!(o::Nesterov, state, x, dx)
-  η, ρ, v = o.eta, o.rho, state
+  η, ρ, vel = o.eta, o.rho, state
 
-  d = @. - ρ^2 * v + (1+ρ) * η * dx  # Cannot be lazy as this needs the old v
-  @.. v = ρ * v - η * dx
+  md = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
+  @.. vel = ρ * vel - η * dx
   
-  return v, d
+  return vel, md
 end
 
 """
@@ -403,7 +403,7 @@ weight decay regularization.
                          (no need to change default)
 """
 ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay(γ))
+  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
