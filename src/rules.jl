@@ -69,10 +69,10 @@ init(o::Nesterov, x::AbstractArray) = zero(x)
 function apply!(o::Nesterov, state, x, dx)
   η, ρ, vel = o.eta, o.rho, state
 
-  md = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
+  newdx = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
   @.. vel = ρ * vel - η * dx
   
-  return vel, md
+  return vel, newdx
 end
 
 """
