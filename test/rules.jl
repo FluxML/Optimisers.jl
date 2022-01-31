@@ -149,3 +149,20 @@ end
   end
 end
 
+@testset verbose=true "mutation check" begin
+  # If @lazy captures a matrix which is later mutated, the results won't agree here:
+  @testset "$(name(o))" for o in RULES
+    model = Float64.(rand(Int8, 8))
+    s_model = SVector{8}(model)
+    grads = [Float64.(rand(Int8, 8)) for t in 1:13]
+    s_grads = [SVector{8}(x) for x in grads]
+    state = Optimisers.setup(o, model)
+    s_state = Optimisers.setup(o, s_model)
+    for t in 1:13
+      state, model = Optimisers.update!(state, model, grads[t])
+      s_state, s_model = Optimisers.update!(s_state, s_model, s_grads[t])
+    end
+    @test model == s_model
+  end
+end
+
