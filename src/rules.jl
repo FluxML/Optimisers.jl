@@ -42,9 +42,9 @@ init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply!(o::Momentum, state, x, dx)
   η, ρ, v = o.eta, o.rho, state
-  @.. v = ρ * v - η * dx
+  @.. v = ρ * v - η * dx  # Here @.. writes into v if it can, else @. of rhs.
   
-  return v, @.. -v
+  return v, @.. -v  # Here @.. creates a lazy broadcast, will fuse with x .= x .- dx
 end
 
 """
@@ -68,10 +68,11 @@ init(o::Nesterov, x::AbstractArray) = zero(x)
 
 function apply!(o::Nesterov, state, x, dx)
   η, ρ, v = o.eta, o.rho, state
-  d = @.. ρ^2 * v - (1+ρ) * η * dx
+
+  d = @. - ρ^2 * v + (1+ρ) * η * dx  # Cannot be lazy as this needs the old v
   @.. v = ρ * v - η * dx
   
-  return v, @.. -d
+  return v, d
 end
 
 """
@@ -307,9 +308,8 @@ function apply!(o::ADADelta, state, x, dx)
   acc, Δacc = state
 
   @.. acc = ρ * acc + (1 - ρ) * dx^2
-  # DON'T remove epsilon from numerator
-  # or even out of the square roots
-  dx′ = @.. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
+  # DON'T remove epsilon from numerator or even out of the square roots!
+  dx′ = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)  # Cannot be lazy as this needs the old Δacc
   @.. Δacc = ρ * Δacc + (1 - ρ) * dx′^2
   
   return (acc, Δacc), dx′
