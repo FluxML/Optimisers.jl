@@ -78,33 +78,41 @@ end
 
 """
     @.. x = x + y
-    @.. x + y / z
 
-Magic broadcasting macro, for use in `apply!` rules:
-* Applied to assignment `x = ...` it is like `@.` unless `!iswriteable(x)`,
-  in which case it ignores `x`, and applies `@.` on the right.
-* Applied to other expressions, it broadcasts like `@.` but does not materialise,
-  returning a `Broadcasted` object for later use.
+Sometimes in-place broadcasting macro, for use in `apply!` rules.
+If `iswriteable(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`.
 """
 macro var".."(ex)
-  if Meta.isexpr(ex, :(=))
-    dst = esc(ex.args[1])
-    src = esc(Broadcast.__dot__(ex.args[2]))
-    :(if $iswriteable($dst)
-        $dst .= $src
-      else
-        $src
-      end)
-  else
-    bc = esc(Broadcast.__dot__(ex))
-    :($lazy.($bc))
-  end
+  Meta.isexpr(ex, :(=)) || throw("the macro @.. only accepts assignment, like @.. x = y + z")
+  dst = esc(ex.args[1])
+  src = esc(Broadcast.__dot__(ex.args[2]))
+  :($dst = if $iswriteable($dst)
+      $dst .= $src
+    else
+      $src
+    end)
+end
+
+"""
+    x = @lazy y + z
+
+Lazy broadcasting macro, for use in `apply!` rules. It broadcasts like `@.`
+but does not materialise, returning a `Broadcasted` object for later use.
+Beware that mutation of arguments will affect the result,
+and that if it is used in two places, work will be done twice.
+"""
+macro lazy(ex)
+  bc = esc(Broadcast.__dot__(ex))
+  :($lazy.($bc))
 end
 
 function lazy end
 Broadcast.broadcasted(::typeof(lazy), x) = Lazy(x)
 struct Lazy{T}; bc::T; end
 Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
+
+onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
+onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 
 function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
   ioc = IOContext(io, :compact => true)

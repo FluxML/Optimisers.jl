@@ -18,7 +18,7 @@ init(o::Descent, x::AbstractArray) = nothing
 function apply!(o::Descent, state, x, dx)
   η = convert(float(eltype(x)), o.eta)
   
-  return state, @.. dx * η
+  return state, @lazy dx * η  # @lazy creates a Broadcasted, will later fuse with x .= x .- dx
 end
 
 """
@@ -41,10 +41,10 @@ Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply!(o::Momentum, state, x, dx)
-  η, ρ, v = o.eta, o.rho, state
-  v′ = @.. v = ρ * v - η * dx
+  η, ρ, mvel = o.eta, o.rho, state
+  @.. mvel = ρ * mvel + η * dx  # Macro @.. broadcasts into mvel if it can, else @. of rhs.
   
-  return v′, @.. -v′
+  return mvel, mvel
 end
 
 """
@@ -67,11 +67,12 @@ Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov{typeof(η)}(η, ρ)
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
 function apply!(o::Nesterov, state, x, dx)
-  η, ρ, v = o.eta, o.rho, state
-  d = @.. ρ^2 * v - (1+ρ) * η * dx
-  v′ = @.. v = ρ * v - η * dx
+  η, ρ, vel = o.eta, o.rho, state
+
+  newdx = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
+  @.. vel = ρ * vel - η * dx
   
-  return v′, @.. -d
+  return vel, newdx
 end
 
 """
@@ -101,10 +102,11 @@ init(o::RMSProp, x::AbstractArray) = zero(x)
 
 function apply!(o::RMSProp, state, x, dx)
   η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
-  acc′ = @.. acc = ρ * acc + (1 - ρ) * dx^2
-  dx′ = @.. dx * (η / (sqrt(acc) + ϵ))
+
+  @.. acc = ρ * acc + (1 - ρ) * dx^2
+  dx′ = @lazy dx * (η / (sqrt(acc) + ϵ))
   
-  return acc′, dx′
+  return acc, dx′
 end
 
 """
@@ -129,15 +131,15 @@ ADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = ADAM{typeof(η)}(�
 
 init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
-function apply!(o::ADAM{T}, state, x, dx) where T
+function apply!(o::ADAM, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
-  mt′ = @.. mt = β[1] * mt + (one(T) - β[1]) * dx
-  vt′ = @.. vt = β[2] * vt + (one(T) - β[2]) * dx ^ 2
-  dx′ = @.. mt / (one(T) - βt[1]) / (sqrt(vt / (one(T) - βt[2])) + ϵ) * η
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
+  dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η
 
-  return (mt′, vt′, βt .* β), dx′
+  return (mt, vt, βt .* β), dx′
 end
 
 """
@@ -168,17 +170,17 @@ function apply!(o::RADAM, state, x, dx)
 
   mt, vt, βt, t = state
 
-  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
-  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * dx^2
   ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2])
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
-    dx′ = @.. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
+    dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
   else
-    dx′ = @.. mt / (1 - βt[1]) * η
+    dx′ = @lazy mt / (1 - βt[1]) * η
   end
 
-  return (mt′, vt′, βt .* β, t + 1), dx′
+  return (mt, vt, βt .* β, t + 1), dx′
 end
 
 """
@@ -205,14 +207,13 @@ init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 function apply!(o::AdaMax, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
-
   mt, ut, βt = state
 
-  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
-  ut′ = @.. ut = max(β[2] * ut, abs(dx))
-  dx′ = @.. (η/(1 - βt[1])) * mt/(ut + ϵ)
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. ut = max(β[2] * ut, abs(dx))
+  dx′ = @lazy (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return (mt′, ut′, βt .* β), dx′
+  return (mt, ut, βt .* β), dx′
 end
 
 """
@@ -240,16 +241,15 @@ init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
 function apply!(o::OADAM, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
+  mt, vt, βt, term = state
 
-  mt, vt, βt, dx_ = state
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  prev = copy(term)
+  @.. term = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
+  dx′ = @lazy 2 * term - prev
 
-  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
-  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx^2
-  dx = @.. -dx_
-  dx_′ = @.. dx_ = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  dx′ = @.. dx + 2*dx_
-
-  return (mt′, vt′, βt .* β, dx_′), dx′
+  return (mt, vt, βt .* β, term), dx′
 end
 
 """
@@ -271,16 +271,16 @@ struct ADAGrad{T}
 end
 ADAGrad(η = 1f-1, ϵ = eps(typeof(η))) = ADAGrad{typeof(η)}(η, ϵ)
 
-init(o::ADAGrad, x::AbstractArray) = fill!(similar(x), o.epsilon)
+init(o::ADAGrad, x::AbstractArray) = onevalue(o.epsilon, x)
 
 function apply!(o::ADAGrad, state, x, dx)
   η, ϵ = o.eta, o.epsilon
   acc = state
 
-  acc′ = @.. acc = acc + dx^2
-  dx′ = @.. dx * η / (sqrt(acc) + ϵ)
+  @.. acc = acc + dx^2
+  dx′ = @lazy dx * η / (sqrt(acc) + ϵ)
 
-  return acc′, dx′
+  return acc, dx′
 end
 
 """
@@ -307,13 +307,12 @@ function apply!(o::ADADelta, state, x, dx)
   ρ, ϵ = o.rho, o.epsilon
   acc, Δacc = state
 
-  acc′ = @.. acc = ρ * acc + (1 - ρ) * dx^2
-  # DON'T remove epsilon from numerator
-  # or even out of the square roots
-  dx′ = @.. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)
-  Δacc′ = @.. Δacc = ρ * Δacc + (1 - ρ) * dx^2
+  @.. acc = ρ * acc + (1 - ρ) * dx^2
+  # DON'T remove epsilon from numerator or even out of the square roots!
+  dx′ = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)  # Cannot be lazy as this needs the old Δacc
+  @.. Δacc = ρ * Δacc + (1 - ρ) * dx′^2
   
-  return (acc′, Δacc′), dx′
+  return (acc, Δacc), dx′
 end
 
 """
@@ -338,19 +337,18 @@ end
 AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad{typeof(η)}(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
-  (fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon), fill!(similar(x), o.epsilon))
+  (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
 
 function apply!(o::AMSGrad, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
-
   mt, vt, v̂t = state
 
-  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
-  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
-  v̂t′ = @.. v̂t = max(v̂t, vt)
-  dx′ = @.. η * mt / (sqrt(v̂t) + ϵ)
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * dx ^ 2
+  @.. v̂t = max(v̂t, vt)
+  dx′ = @lazy η * mt / (sqrt(v̂t) + ϵ)
 
-  return (mt′, vt′, v̂t′), dx′
+  return (mt, vt, v̂t), dx′
 end
 
 """
@@ -381,12 +379,12 @@ function apply!(o::NADAM, state, x, dx)
 
   mt, vt, βt = state
 
-  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
-  vt′ = @.. vt = β[2] * vt + (1 - β[2]) * dx^2
-  dx′ = @.. (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * dx^2
+  dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
-  return (mt′, vt′, βt .* β), dx′
+  return (mt, vt, βt .* β), dx′
 end
 
 """
@@ -405,7 +403,7 @@ weight decay regularization.
                          (no need to change default)
 """
 ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay(γ))
+  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
@@ -434,11 +432,11 @@ function apply!(o::AdaBelief, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, st = state
 
-  mt′ = @.. mt = β[1] * mt + (1 - β[1]) * dx
-  st′ = @.. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
-  dx′ = @.. η * mt / (sqrt(st) + ϵ)
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. st = β[2] * st + (1 - β[2]) * (dx - mt)^2
+  dx′ = @lazy η * mt / (sqrt(st) + ϵ)
   
-  return (mt′, st′), dx′
+  return (mt, st), dx′
 end
 
 """
@@ -457,7 +455,7 @@ WeightDecay() = WeightDecay(5f-4)
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x, dx)
-  dx′ = @.. dx + o.wd * x
+  dx′ = @lazy dx + o.wd * x
 
   return state, dx′
 end
@@ -478,7 +476,7 @@ init(o::ClipGrad, x::AbstractArray) = nothing
 
 function apply!(o::ClipGrad, state, x, dx)
   δ = convert(float(eltype(x)), o.delta)
-  dx′ = @.. clamp(dx, -δ, δ)
+  dx′ = @lazy clamp(dx, -δ, δ)
 
   return state, dx′
 end
@@ -510,7 +508,7 @@ function apply!(o::ClipNorm, state, x, dx)
   end
   λ = min(o.omega / nrm, 1)
 
-  return state, @.. dx * λ
+  return state, @lazy dx * λ
 end
 
 """

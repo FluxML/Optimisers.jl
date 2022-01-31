@@ -5,7 +5,7 @@ using LinearAlgebra, Statistics, Test, Random
 Random.seed!(1)
 
 RULES = [
-  # All the rules at default settings
+  # All the rules at default settings:
   Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
   ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
   ADAMW(), RADAM(), OADAM(), AdaBelief(),
@@ -13,6 +13,7 @@ RULES = [
   OptimiserChain(WeightDecay(), ADAM(0.001)),
   OptimiserChain(ClipNorm(), ADAM(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
+  OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
 ]
 
 name(o) = typeof(o).name.name
@@ -63,13 +64,7 @@ end
       gs = gradient(x -> loss(x, w′), w)
       st, w = Optimisers.update(st, w, gs...)
     end
-    lw = loss(w, w′)
-    if o isa ADADelta
-      @show name(o) loss(w, w′)
-      @test_broken lw < 0.001
-    else
-      @test lw < 0.001
-    end
+    @test loss(w, w′) < 0.001
   end
 end
 
@@ -90,7 +85,7 @@ end
       g = gradient(m -> s_loss(m, x, y), model)[1]
       state, model = Optimisers.update!(state, model, g)
     end
-    if o isa Union{Descent, RMSProp, ADAGrad, ADADelta, NADAM}
+    if o isa Descent
       @show name(o) s_loss(model, x, y)
       @test_broken s_loss(model, x, y) < 1
     else
@@ -118,7 +113,7 @@ end
     end
     @test upstatic[1] isa SVector
 
-    # With ordinary Array gradient, what happens?
+    # With ordinary Array gradient, what happens? Not so important!
     upstatic2 = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, marray[1:2])[2]
     # @test map(eltype, upstatic2) == types[1:2]  # same information
     if upstatic2[1] isa SVector
@@ -142,7 +137,7 @@ end
     @test xfill.a != ones(2,2)
     @test xfill.b != ones(2,2)
 
-    bc = Optimisers.@.. 1 + log([2 3; 4 5]) / 6
+    bc = Optimisers.@lazy 1 + log([2 3; 4 5]) / 6
     _, xbc = Optimisers.update(s, x, (a = bc, b = bc))
     @test xbc.a != ones(2,2)
     @test xbc.b != ones(2,2)
@@ -151,6 +146,23 @@ end
     _, xth = Optimisers.update(s, x, (a = bc, b = bc))
     @test xth.a != ones(2,2)
     @test xth.b != ones(2,2)
+  end
+end
+
+@testset verbose=true "mutation check" begin
+  # If @lazy captures a matrix which is later mutated, the results won't agree here:
+  @testset "$(name(o))" for o in RULES
+    model = Float64.(rand(Int8, 8))
+    s_model = SVector{8}(model)
+    grads = [Float64.(rand(Int8, 8)) for t in 1:13]
+    s_grads = [SVector{8}(x) for x in grads]
+    state = Optimisers.setup(o, model)
+    s_state = Optimisers.setup(o, s_model)
+    for t in 1:13
+      state, model = Optimisers.update!(state, model, grads[t])
+      s_state, s_model = Optimisers.update!(s_state, s_model, s_grads[t])
+    end
+    @test model == s_model
   end
 end
 
