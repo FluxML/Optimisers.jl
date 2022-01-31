@@ -111,8 +111,8 @@ Broadcast.broadcasted(::typeof(lazy), x) = Lazy(x)
 struct Lazy{T}; bc::T; end
 Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 
-constantlike(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
-constantlike(λ, x::AbstractArray{T}) where T = constantlike(convert(float(T), λ), x)
+onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
+onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 
 function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
   ioc = IOContext(io, :compact => true)
