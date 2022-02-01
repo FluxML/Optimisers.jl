@@ -59,25 +59,26 @@ function update!(tree, x, x̄s...)
   map(first, xtree), re(map(last, xtree))
 end
 
-update!(t::Tied, x, ::Zero) = t, x
+update!(t::Tied, x, ::Zero, ::Zero...) = t, x
 function update!(t::Tied, x, x̄)
   # accumulate tied gradients:
-  for (dup, orig) in t.ties
-    x̄ = place(x, x̄, orig) do x̄ᵢ
-      x̄ᵢᵢ = pick(x, x̄, dup)
-      Broadcast.broadcasted(+, base(x̄ᵢ), base(x̄ᵢᵢ))
+  for (β, α) in t.ties
+    x̄ = place(x, x̄, α) do x̄ₐ
+      x̄ᵦ = pick(x, x̄, β)
+      Broadcast.broadcasted(+, base(x̄ₐ), base(x̄ᵦ))
     end
   end
   # run the optimisers:
   t′, x′ = update!(t.tree, x, x̄)
   # restore tied weights:
-  for (dup, orig) in t.ties
-    x′ = place(x′, dup) do
-      pick(x′, orig)
+  for (β, α) in t.ties
+    x′ = place(x′, β) do
+      pick(x′, α)
     end
   end
   Tied(t.ties, t′), x′
 end
+update!(t::Tied, x, x̄, x̄̄s...) = error("can't use tied weights and multiple derivatives together, sorry")
 
 function update(tree, x, x̄s...)
   t′ = fmap(copy, tree; exclude = iswriteable)
@@ -111,15 +112,15 @@ function place(f, x, addr::Tuple)
 end
 
 # This function needs to see x::Transpose to handle x̄::Matrix, etc.
-function pick(x, x̄, addr::Tuple)
+function pick(x, x̄, addr::Tuple)  # pick from x̄
   (isempty(addr) || x̄ isa Zero) && return x̄
   x̄′, _ = functor(typeof(x), base(x̄))
   x′, _ = functor(typeof(x), x)
   pick(get(x′, addr[1], nothing), get(x̄′, addr[1], nothing), tail(addr))
 end
 
-place(f, x, x̄, addr::Tuple{}) = f(x̄)  # placed into x̄
 # This function needs x to know how to restore missing branches of x̄
+place(f, x, x̄, addr::Tuple{}) = f(x̄)  # place into x̄
 function place(f, x, x̄, addr::Tuple)
   x̄′, _ = functor(typeof(x), x̄ isa Zero ? map(_->nothing, x) : base(x̄))
   x′, _ = functor(typeof(x), x)
@@ -148,7 +149,7 @@ function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tu
 end
 
 """
-    @.. x = x + y
+    @.. x = 1 + y / z
 
 Sometimes in-place broadcasting macro, for use in `apply!` rules.
 If `iswriteable(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`.
@@ -165,12 +166,12 @@ macro var".."(ex)
 end
 
 """
-    x = @lazy y + z
+    x = @lazy 1 + y / z
 
 Lazy broadcasting macro, for use in `apply!` rules. It broadcasts like `@.`
 but does not materialise, returning a `Broadcasted` object for later use.
 Beware that mutation of arguments will affect the result,
-and that if it is used in two places, work will be done twice.
+and that if `x` is used in two places, work will be done twice.
 """
 macro lazy(ex)
   bc = esc(Broadcast.__dot__(ex))
