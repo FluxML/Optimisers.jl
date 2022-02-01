@@ -7,13 +7,14 @@ const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 struct Leaf{R,S}
   rule::R
   state::S
+  frozen::Bool
 end
 
 function setup(rule, x; seen = Base.IdSet())
   if isnumeric(x)
     x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
     isbits(x) || push!(seen, x)
-    return Leaf(rule, init(rule, x))
+    return Leaf(rule, init(rule, x), false)
   elseif isleaf(x)
     return nothing
   else
@@ -28,8 +29,9 @@ update!(::Nothing, x, x̄s...) = nothing, x
 
 update!(ℓ::Leaf, x, ::Zero...) = ℓ, x
 function update!(ℓ::Leaf, x, x̄s...)
+  ℓ.frozen && return ℓ, x
   s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
-  Leaf(ℓ.rule, s′), subtract!(x, x̄′)
+  Leaf(ℓ.rule, s′, ℓ.frozen), subtract!(x, x̄′)
 end
 
 update!(tree, x, ::Zero...) = tree, x
@@ -55,6 +57,40 @@ isnumeric(x) = false
 
 iswriteable(::DenseArray{<:AbstractFloat}) = true  # more elaborate versions are possible, wait until needed?
 iswriteable(_) = false
+
+ids(x::NamedTuple{names}) where names = NamedTuple{names}(names)  # a map-friendly version of pairs
+ids(x::Tuple) = propertynames(x)
+
+"""
+    freeze(state, branches = ()) -> state
+    thaw(state, branches = ())
+
+Disable training of a specified part of the model, by modifying the state returned by `setup`.
+Specifying `:encoder` will shield all nodes within `model.encoder` from `update`,
+specifying a tuple `(1, :first, 3)` will disable `model[1].first[3]`,
+and a vector `[:enc, (:dec, 2), (:dec, 3)]` will disable all the given parts.
+"""
+freeze(ℓ::Leaf, addr::Tuple{}, b=true) = Leaf(ℓ.rule, ℓ.state, b)
+freeze(::Nothing, addr::Tuple{}, b=true) = nothing
+
+function freeze(tree, addr::Tuple, b=true)
+  isempty(addr) && return map(t -> freeze(t, addr, b), tree)
+  addr[1] in ids(tree) || throw("invalid index")  # sanity check since address is user-provided?
+  map((t,i) -> i==addr[1] ? freeze(t, tail(addr), b) : t, tree, ids(tree))
+end
+
+# freeze(t::Tied, addr::Tuple, b=true) = Tied(t.ties, freeze(t.tree, addr, b))  # for PR42
+# freeze(t::Tied, addr::Tuple{}=(), b=true) = Tied(t.ties, freeze(t.tree, addr, b))  # ambiguity?
+
+freeze(tree, addr::Union{Symbol, Integer}, b=true) = freeze(tree, (addr,), b)
+function freeze(tree, addr::Vector, b=true)  # allows freeze(state, [:x, (2, 3)])
+  for a in addr
+    tree = freeze(tree, a, b)
+  end
+  tree
+end
+
+thaw(tree, addr=()) = freeze(tree, addr, false)
 
 """
     trainable(x::Layer) -> NamedTuple
@@ -118,6 +154,5 @@ function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long 
   ioc = IOContext(io, :compact => true)
   print(ioc, "Leaf(", ℓ.rule, ", ")
   show(ioc, ℓ.state)
-  print(io, ")")
+  print(io, ", ", ℓ.frozen, ")")
 end
-
