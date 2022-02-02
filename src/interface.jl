@@ -61,29 +61,21 @@ iswriteable(_) = false
 ids(x::NamedTuple{names}) where names = NamedTuple{names}(names)  # a map-friendly version of pairs
 ids(x::Tuple) = propertynames(x)
 
-"""
-    freeze(state, branches = ()) -> state
-    thaw(state, branches = ())
-
-Disable training of a specified part of the model, by modifying the state returned by `setup`.
-Specifying `:encoder` will shield all nodes within `model.encoder` from `update`,
-specifying a tuple `(1, :first, 3)` will disable `model[1].first[3]`,
-and a vector `[:enc, (:dec, 2), (:dec, 3)]` will disable all the given parts.
-"""
 freeze(ℓ::Leaf, addr::Tuple{}, b=true) = Leaf(ℓ.rule, ℓ.state, b)
 freeze(::Nothing, addr::Tuple{}, b=true) = nothing
+freeze(::Union{Leaf, Nothing}, addr::Tuple, b=true) = error("invalid index $(repr(addr[1])) at leaf node")
 
 function freeze(tree, addr::Tuple, b=true)
+  isleaf(tree) && return error("Expected Leaf or Nothing, this is not a valid state tree. Perhaps you called freeze on the model?")
   isempty(addr) && return map(t -> freeze(t, addr, b), tree)
-  addr[1] in ids(tree) || throw("invalid index")  # sanity check since address is user-provided?
+  addr[1] in ids(tree) || error("invalid index $(repr(addr[1])) ∉ $(propertynames(tree))")
   map((t,i) -> i==addr[1] ? freeze(t, tail(addr), b) : t, tree, ids(tree))
 end
 
 # freeze(t::Tied, addr::Tuple, b=true) = Tied(t.ties, freeze(t.tree, addr, b))  # for PR42
-# freeze(t::Tied, addr::Tuple{}=(), b=true) = Tied(t.ties, freeze(t.tree, addr, b))  # ambiguity?
 
-freeze(tree, addr::Union{Symbol, Integer}, b=true) = freeze(tree, (addr,), b)
-function freeze(tree, addr::Vector, b=true)  # allows freeze(state, [:x, (2, 3)])
+freeze(tree, addr::Union{Integer, Symbol}, b=true) = freeze(tree, (addr,), b)
+function freeze(tree, addr::Vector, b=true)
   for a in addr
     tree = freeze(tree, a, b)
   end

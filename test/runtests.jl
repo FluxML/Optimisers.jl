@@ -140,6 +140,23 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test_throws ArgumentError Optimisers.setup(ADAMW(), m2)
     end
 
+    @testset "freeze/thaw" begin
+      m = (x=[1,2], y=([3,4], sin));
+      st = Optimisers.setup(Descent(0.1), m);
+      st = Optimisers.freeze(st, :y)
+      st, m = Optimisers.update(st, m, (x=[1,10], y=([100,1000], nothing)));
+      @test m.x ≈ [0.9, 1.0]
+      @test m.y[1] == [3, 4]
+      st = Optimisers.thaw(st)
+      st, m = Optimisers.update(st, m, (x=[1,10], y=([100,1000], nothing)));
+      @test m.y[1] ≈ [-7.0, -96.0]
+      @test Optimisers.freeze(st, :y) == Optimisers.freeze(st, (:y, 1))
+
+      @test_throws Exception Optimisers.freeze(st, :z)  # no such key
+      @test_throws Exception Optimisers.freeze(st, (:x, 1))  # too long
+      @test_throws Exception Optimisers.freeze(m, :x)  # model not state
+    end
+
     @info "finished feature testing"
   end
   @testset verbose=true "Optimisation Rules" begin

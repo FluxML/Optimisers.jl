@@ -104,4 +104,25 @@ arrays within the old model (and the old state), it will be faster for models of
 """
 update!
 
+"""
+    Optimisers.freeze(tree, branches) -> tree
+
+Disable training of part of the model, by modifying the optimiser states
+returned by [`setup`](@ref). Which branches to alter is specified by:
+* a symbol `:encoder` to shield all nodes within `model.encoder` from `update`,
+* a tuple `(:layers, 1, :enc, 3)` to fix all nodes within `model.layers[1].enc[3]`, and
+* a vector `[:enc, (:dec, 2), (:dec, 3)]` to act on all the given parts.
+
+The reverse is [`thaw`](@ref), which by default acts on all nodes.
+"""
+freeze
+
+"""
+    Optimisers.thaw(tree, branches = ()) -> tree
+
+Removes the restrictions placed by [`freeze`](@ref). By default walks over the complete
+tree of optimisers states, but can also be applied to only some branches.
+"""
+thaw
+
 end # module

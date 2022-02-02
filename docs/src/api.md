@@ -33,6 +33,8 @@ Optimisers.OptimiserChain
 Optimisers.setup
 Optimisers.update
 Optimisers.update!
+Optimisers.freeze
+Optimisers.thaw
 ```
 
 Calling `Functors.@functor` on your model's layer types by default causes the
