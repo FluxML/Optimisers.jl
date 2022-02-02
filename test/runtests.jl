@@ -116,6 +116,16 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test Optimisers.update!(s, m, g...)[2] isa Foo
     end
 
+    @testset "forgotten gradient" begin
+      x = [1.0, 2.0]
+      sx = Optimisers.setup(Descent(), x)
+      @test_throws MethodError Optimisers.update(sx, x)
+
+      m = (x = x, y = sin)
+      sm = Optimisers.setup(Descent(), m)
+      @test_throws MethodError Optimisers.update(sm, m)
+    end
+
     @testset "broadcasting macros" begin
       x = [1.0, 2.0]; y = [3,4]; z = [5,6]
       @test (@lazy x + y * z) isa Broadcast.Broadcasted

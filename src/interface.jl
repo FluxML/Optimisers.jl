@@ -23,16 +23,16 @@ end
 
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
 
-update!(::Nothing, x, ::Zero...) = nothing, x
+update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
 update!(::Nothing, x, x̄s...) = nothing, x
 
-update!(ℓ::Leaf, x, ::Zero...) = ℓ, x
+update!(ℓ::Leaf, x, ::Zero, ::Zero...) = ℓ, x
 function update!(ℓ::Leaf, x, x̄s...)
   s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
   Leaf(ℓ.rule, s′), subtract!(x, x̄′)
 end
 
-update!(tree, x, ::Zero...) = tree, x
+update!(tree, x, ::Zero, ::Zero...) = tree, x
 function update!(tree, x, x̄s...)
   x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
   x′, re = functor(typeof(x), x)
