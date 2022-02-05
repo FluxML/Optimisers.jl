@@ -120,8 +120,11 @@ onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 
 function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
   ioc = IOContext(io, :compact => true)
-  print(ioc, "Leaf(", ℓ.rule, ", ")
-  show(ioc, ℓ.state)
-  print(io, ")")
+  printstyled(io, "Leaf("; color = :green)
+  show(ioc, ℓ.rule)
+  printstyled(", "; color = :green)
+  str = sprint(show, ℓ.state; context = ioc)
+  print(io, length(str) < 70 ? str : first(str, 50) * " … ")
+  printstyled(io, ")"; color = :green)
 end
 
