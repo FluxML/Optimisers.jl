@@ -16,10 +16,10 @@ RULES = [
   OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
 ]
 
-name(o) = typeof(o).name.name
+name(o) = typeof(o).name.name  # just for printing testset headings
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
 
-LOG = Dict()
+LOG = Dict()  # for debugging these testsets, this makes it easy to plot each optimiser's loss
 
 loggradient(o) = (f, xs...) -> begin
   y, dxs = Zygote.withgradient(f, xs...)
