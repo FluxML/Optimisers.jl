@@ -84,7 +84,7 @@ function apply!(o::Nesterov, state, x, dx)
 end
 
 """
-    RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)))
+    RMSProp(η = 1f-3, ρ = 9f-1, c::Bool, ϵ = eps(typeof(η)))
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -102,19 +102,24 @@ generally don't need tuning.
 struct RMSProp{T}
   eta::T
   rho::T
+  centre::Bool
   epsilon::T
 end
-RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η))) = RMSProp{typeof(η)}(η, ρ, ϵ)
+RMSProp(η = 1f-3, ρ = 9f-1, c::Bool = false, ϵ = eps(typeof(η))) = RMSProp{typeof(η)}(η, ρ, c, ϵ)
 
-init(o::RMSProp, x::AbstractArray) = zero(x)
+init(o::RMSProp, x::AbstractArray) = (zero(x), o.centre ? zero(x) : false)
 
 function apply!(o::RMSProp, state, x, dx)
-  η, ρ, ϵ, acc = o.eta, o.rho, o.epsilon, state
+  η, ρ, ϵ = o.eta, o.rho, o.epsilon
+  quad, lin = state
 
-  @.. acc = ρ * acc + (1 - ρ) * abs2(dx)
-  dx′ = @lazy dx * (η / (sqrt(acc) + ϵ))
+  @.. quad = ρ * quad + (1 - ρ) * abs2(dx)
+  if o.centre
+    @.. lin = ρ * lin + (1 - ρ) * dx
+  end
+  dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
   
-  return acc, dx′
+  return (quad, lin), dx′
 end
 
 """

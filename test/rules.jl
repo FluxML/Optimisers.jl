@@ -14,6 +14,8 @@ RULES = [
   OptimiserChain(ClipNorm(), Adam(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
+  # Not default
+  RMSProp(1f-3, 9f-1, true),
 ]
 
 name(o) = typeof(o).name.name  # just for printing testset headings
