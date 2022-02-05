@@ -16,10 +16,19 @@ RULES = [
   OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
 ]
 
-name(o) = typeof(o).name.name
+name(o) = typeof(o).name.name  # just for printing testset headings
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
 
+LOG = Dict()  # for debugging these testsets, this makes it easy to plot each optimiser's loss
+
+loggradient(o) = (f, xs...) -> begin
+  y, dxs = Zygote.withgradient(f, xs...)
+  push!(get!(() -> Float32[], LOG, name(o)), y)
+  dxs  # save the loss, return the gradient
+end
+
 @testset "independence" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     w = randn(10, 10)
     w′ = randn(10, 10)
@@ -28,7 +37,7 @@ name(o::OptimiserChain) = join(name.(o.opts), " → ")
     st = Optimisers.setup(o, w)
     for t = 1:10^5
       x = rand(10)
-      gs = gradient(w -> iloss(x, w, w′), w)
+      gs = loggradient(o)(w -> iloss(x, w, w′), w)
       st, w = Optimisers.update!(st, w, gs...)
     end
     @test iloss(rand(10, 10), w, w′) < 0.01
@@ -36,14 +45,15 @@ name(o::OptimiserChain) = join(name.(o.opts), " → ")
 end
 
 @testset verbose=true "simple sum" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     m = shuffle!(reshape(1:64, 8, 8) .+ 0.0)
     s = Optimisers.setup(o, m)
     for _ in 1:10^5
-      g = gradient(x -> sum(abs2, x + x'), m)[1]
+      g = loggradient(o)(x -> sum(abs2, x + x'), m)[1]
       s, m = Optimisers.update!(s, m, g)
     end
-    # @test sum(m) < sum(1:64)
+    @test sum(m) < sum(1:64)
     if sum(m) < 1
       @test sum(m) < 1
     else
@@ -54,6 +64,7 @@ end
 end
 
 @testset "original" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     w′ = (α = rand(3, 3), β = rand(3, 3))
     w = (α = 5rand(3, 3), β = rand(3, 3))
@@ -61,7 +72,7 @@ end
     loss(x, y) = mean((x.α .* x.β .- y.α .* y.β) .^ 2)
     @test loss(w, w′) > 1
     for i = 1:10^4
-      gs = gradient(x -> loss(x, w′), w)
+      gs = loggradient(o)(x -> loss(x, w′), w)
       st, w = Optimisers.update(st, w, gs...)
     end
     @test loss(w, w′) < 0.001
@@ -69,6 +80,7 @@ end
 end
 
 @testset verbose=true "StaticArrays" begin
+  empty!(LOG)
   @testset "$(name(o))" for o in RULES
     W1 = @SMatrix randn(10, 10)
     b1 = @SVector randn(10)
@@ -82,7 +94,7 @@ end
     @test s_loss(model, x, y) > 10
     state = Optimisers.setup(o, model)
     for t = 1:10^3
-      g = gradient(m -> s_loss(m, x, y), model)[1]
+      g = loggradient(o)(m -> s_loss(m, x, y), model)[1]
       state, model = Optimisers.update!(state, model, g)
     end
     if o isa Descent
@@ -94,7 +106,7 @@ end
   end
 end
 
-@testset verbose=true "element types" begin
+@testset "element types" begin
   @testset "$(name(o))" for o in RULES
     marray = (Float32[1,2], Float64[3,4], Float16[5,6])
     types = map(eltype, marray)
@@ -166,3 +178,55 @@ end
   end
 end
 
+@testset "with complex numebers: Flux#1776" begin
+  empty!(LOG)
+  @testset "$(name(opt))" for opt in [
+              # The Flux PR had 1e-2 for all. But ADADelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
+              ADAM(1e-2), RMSProp(1e-2), RADAM(1e-2), OADAM(1e-2), ADAGrad(1e-2), ADADelta(0.9, 1e-5), NADAM(1e-2), AdaBelief(1e-2),
+              # These weren't in Flux PR:
+              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), ADAMW(1e-2), 
+              ]
+    # Our "model" is just a complex number
+    model = (w = zeros(ComplexF64, 1),)
+
+    # Our model attempts to learn `f(x) = conj(x)` where `f(x) = w*x`
+    function loss(m)
+      # Deterministic training data is the best training data
+      x = ones(1, 1) + 1im*ones(1, 1)
+      # Manually implement `mse()` to allow demonstration of brokenness
+      # on older Flux builds that don't have a fixed `mse()`
+      return sum(abs2.(m.w * x .- conj(x)))
+    end
+    @test loss(model) ≈ 2.0
+
+    state = Optimisers.setup(opt, model)
+
+    # Train for 10 iterations, enforcing that loss is monotonically decreasing
+    last_loss = Inf
+    for idx in 1:10
+      grads = loggradient(opt)(loss, model)
+      state, model = Optimisers.update!(state, model, grads...)
+      opt isa Union{Momentum, Nesterov} && idx > 8 && continue  # these are very flat at the end
+      @test loss(model) < last_loss
+      last_loss = loss(model)
+    end
+    @test loss(model) < 1.9
+
+    # Repeat with StaticArrays
+    static_model = (w = SA[0.0 + 0im],)
+    static_state = Optimisers.setup(opt, static_model)
+    function static_loss(m)
+      x = hcat(SA[1.0 + im])
+      sum(abs2.(m.w * x .- conj(x)))
+    end
+    last_loss = Inf
+    for idx in 1:10
+      grads = gradient(static_loss, static_model)
+      static_state, static_model = Optimisers.update!(static_state, static_model, grads...)
+      opt isa Union{Momentum, Nesterov} && idx > 8 && continue
+      @test static_loss(static_model) < last_loss
+      last_loss = static_loss(static_model)
+    end
+    @test static_loss(static_model) < 1.9 
+  end
+end
