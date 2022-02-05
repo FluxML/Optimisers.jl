@@ -16,10 +16,13 @@ RULES = [
   OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
   # Not default
   RMSProp(1f-3, 9f-1, true),
+  # Not the default:
+  RMSProp(centred = true),
 ]
 
 name(o) = typeof(o).name.name  # just for printing testset headings
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
+name(o::RMSProp) = o.centre ? "RMSProp(centre = true)" : :RMSProp
 
 LOG = Dict()  # for debugging these testsets, this makes it easy to plot each optimiser's loss
 

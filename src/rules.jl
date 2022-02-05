@@ -84,7 +84,7 @@ function apply!(o::Nesterov, state, x, dx)
 end
 
 """
-    RMSProp(η = 1f-3, ρ = 9f-1, c::Bool, ϵ = eps(typeof(η)))
+    RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centre = false)
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -102,10 +102,11 @@ generally don't need tuning.
 struct RMSProp{T}
   eta::T
   rho::T
-  centre::Bool
   epsilon::T
+  centre::Bool
 end
-RMSProp(η = 1f-3, ρ = 9f-1, c::Bool = false, ϵ = eps(typeof(η))) = RMSProp{typeof(η)}(η, ρ, c, ϵ)
+RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centre = false, center = false) =
+  RMSProp{typeof(η)}(η, ρ, ϵ, centre | center)
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centre ? zero(x) : false)
 
