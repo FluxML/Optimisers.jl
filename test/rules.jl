@@ -53,7 +53,7 @@ end
       g = loggradient(o)(x -> sum(abs2, x + x'), m)[1]
       s, m = Optimisers.update!(s, m, g)
     end
-    # @test sum(m) < sum(1:64)
+    @test sum(m) < sum(1:64)
     if sum(m) < 1
       @test sum(m) < 1
     else
