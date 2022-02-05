@@ -63,21 +63,6 @@ end
   end
 end
 
-#=
-using Plots
-_plot(s; kw...) = (plot(); _plot!(s; kw...))
-_plot!(s; kw...) = plot!(LOG[s]; label=string(s), yguide="loss", xguide="iter", kw...)
-
-_plot(:ADAGrad)  # decline
-LOG[:ADAGrad][end]  # 3869.4075f0
-
-_plot!(:AMSGrad)  # decline
-LOG[:AMSGrad][end]  # 2742.004f0
-
-findfirst(isnan, LOG[:ADADelta]) # 182
-plot(LOG[:ADADelta][1:100], yaxis=:log10)  # exp growth
-=#
-
 @testset "original" begin
   empty!(LOG)
   @testset "$(name(o))" for o in RULES
@@ -120,14 +105,6 @@ end
     end
   end
 end
-
-#=
-plot(LOG[:Descent])  # decline
-plot(LOG[:RMSProp])  # const 10^11
-plot(LOG[:ADAGrad])  # const 10^8
-plot(LOG[:ADADelta][1:30], yaxis=:log10)  # exp growth
-plot(LOG[name(NADAM())])  # stuck at 10^11
-=#
 
 @testset "element types" begin
   @testset "$(name(o))" for o in RULES
@@ -253,18 +230,3 @@ end
     @test static_loss(static_model) < 1.9 
   end
 end
-
-#=
-
-_plot(:ADAM)  # nice
-_plot!(:RADAM)
-_plot!(:OADAM)
-
-_plot!(:RMSProp) 
-_plot!(:NADAM)
-_plot!(:ADADelta)
-
-_plot(:Momentum)
-_plot!(:Nesterov)  # very flat at the end
-
-=#
