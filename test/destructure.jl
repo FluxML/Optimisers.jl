@@ -82,3 +82,33 @@ end
   @test gradient(x -> re7(x).b[2][2], rand(3))[1] == [0,0,0]
   @test gradient(x -> re7(x).c[2][1], rand(3))[1] == [0,0,0]
 end
+
+@testset "Flux issue 1826" begin
+  v, re = destructure((x=[1,2.0], y=[3,4,5.0]))
+  @test gradient(zero(v)) do w
+    m = re(w)
+    5 * sum(m.x) + 7 * sum(m[2])  # uses both x and y
+  end == ([5.0, 5.0, 7.0, 7.0, 7.0],)
+  # This, using only x, was broken on Flux:
+  @test gradient(w -> sum(re(w).x), zero(v)) == ([1.0, 1.0, 0.0, 0.0, 0.0],)
+
+  sh = [7,7.0];
+  v, re = destructure((x=sh, y=[3.0,4.0], z=sh))  # shared array in the model
+  @test v == [7, 7, 3, 4]
+  @test re([1,10,100,1000]) == (x = [1, 10], y = [100, 1000], z = [1, 10])
+
+  @test gradient(zero(v)) do w
+    m = re(w)
+    3 * sum(m.x) + 13 * sum(m.z)  # no dependence on y, but two distinct gradient arrays
+  end == ([16, 16, 0, 0],)  # Flux gave ([3.0, 3.0, 13.0, 13.0],)
+
+  @test gradient(zero(v)) do w
+    m = re(w)
+    4(sum(m.x) + sum(m.z))  # now two gradients are ===, so it eliminates one
+  end == ([8,8,0,0],)
+
+  @test gradient(zero(v)) do w
+    m = re(w)
+    4(sum(m.x) + sum(m.y)) + 13*sum(m.z)  # again two gradients are ===, so it eliminates one
+  end == ([17,17,4,4],)  # Flux gave ([4.0, 4.0, 13.0, 13.0],)
+end
