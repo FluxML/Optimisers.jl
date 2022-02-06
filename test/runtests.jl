@@ -164,8 +164,11 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test_throws ArgumentError Optimisers.setup(ADAMW(), m2)
     end
 
-    @info "finished feature testing"
   end
+  @testset verbose=true "Optimisation Rules" begin
+    include("destructure.jl")
+  end
+  @info "finished feature testing"
   @testset verbose=true "Optimisation Rules" begin
     include("rules.jl")
   end

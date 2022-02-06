@@ -70,7 +70,7 @@ trainable(x) = functor(x)[1]
 
 _trainable(x) = _trainable(functor(x)[1], trainable(x))
 _trainable(ch::NamedTuple, tr::NamedTuple) = merge(map(_ -> nothing, ch), tr)
-_trainable(ch::Tuple, tr::Tuple) = tr
+_trainable(ch::Tuple{Vararg{Any,N}}, tr::Tuple{Vararg{Any,N}}) where N = tr
 function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tuple
   @warn "trainable(x) should now return a NamedTuple with the field names, not a Tuple"
   map(c -> c in tr ? c : nothing, ch)

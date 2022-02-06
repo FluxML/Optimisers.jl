@@ -42,6 +42,12 @@ optimiser to act on all suitable fields. To restrict this, define `trainable`:
 Optimisers.trainable
 ```
 
+Such restrictions are also obeyed by this function for flattening a model:
+
+```@docs
+Optimisers.destructure
+```
+
 ## Rule Definition
 
 ```@docs
