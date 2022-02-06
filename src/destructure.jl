@@ -8,11 +8,18 @@ const NoT = NoTangent()
 Copies all [`trainable`](@ref), [`isnumeric`](@ref) parameters in the model
 to a `Vector{T}`, and returns also a function which reverses this transformation.
 Differentiable.
+
+# Example
+```jldoctest
+julia> v, re = destructure((x=[1.0, 2.0], y=(sin, [3.0])))
+([1.0, 2.0, 3.0], Restructure(NamedTuple, ..., 3))
+
+julia> re([10,20,30])
+(x = [10.0, 20.0], y = (sin, [30.0]))
+```
 """
 function destructure(::Type{T}, x) where T
-  flat, off = alpha!(x, T[])
-  len = length(flat)
-  # flat, newflat -> beta(x, off, newflat; len)
+  flat, off, len = alpha!(x, T[])
   flat, Restucture(x, off, len)
 end
 
@@ -32,14 +39,13 @@ function alpha!(x, flat::AbstractVector)
     append!(flat, y)
     length(flat) - length(y)
   end
-  flat, off
+  flat, off, length(flat)
 end
 
 function ChainRulesCore.rrule(::typeof(alpha!), x, flat)
-  flat′, off = alpha!(x, flat)
-  len = length(flat′)
+  flat′, off, len = alpha!(x, flat)
   alpha_back((dflat, _)) = (NoT, beta(x, off, dflat; walk = _Tangent_biwalk, prune = NoT, len), NoT)
-  (flat′, off), alpha_back
+  (flat, off, len), alpha_back
 end
 
 # This reconstructs either a model like x, or a gradient for it:
@@ -73,7 +79,6 @@ function _Tangent_biwalk(f, x, aux)  # use with prune = true
   y isa Tuple{} && return NoT
   Tangent{typeof(x), typeof(y)}(y)
 end
-# _Tangent_biwalk(f, x::Tuple{}, aux) = NoT
 
 function ChainRulesCore.rrule(::typeof(beta), x, off, flat; len)
   dflat = map!(zero, similar(flat, float(eltype(flat))), flat)
