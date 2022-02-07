@@ -165,7 +165,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
   end
-  @testset verbose=true "Optimisation Rules" begin
+  @testset verbose=true "Destructure" begin
     include("destructure.jl")
   end
   @info "finished feature testing"
