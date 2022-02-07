@@ -163,3 +163,22 @@ flat, re = destructure(params)
 end
 ```
 
+## Tied Parameters
+
+If the same array appears twice (or more) in the model, [Functors.jl](https://fluxml.ai/Functors.jl) should recognise this.
+Within Optimisers.jl, `setup` will initialise once, `update` will accumulate the gradient
+from both, and the updated model returned will have the tie maintained.
+
+```julia
+using Flux, Optimisers
+
+enc = Chain(Dense(40 => 20, tanh), Dense(20 => 10));
+dec = Chain(Dense(enc[1].weight', true, tanh), Dense(enc[2].weight', true, tanh));
+model = Chain(; enc, dec)
+
+st = Optimisers.setup(Optimisers.Adam(), model)  # contains (:dec, 1, :weight, :parent) => (:enc, 1, :weight)
+```
+
+This identification relies on `===`, and will work for ordinary `Array`s and `CuArray`s.
+It will not at present work for `reshape`d arrays, nor for immutable arrays such as those
+from StaticArrays.jl.
