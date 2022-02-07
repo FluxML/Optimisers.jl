@@ -6,24 +6,23 @@ A new optimiser must overload two functions, [`apply!`](@ref) and [`init`](@ref)
 These act on one array of parameters:
 
 ```julia
-# Define a container to hold any optimiser specific parameters (if any):
+# Define a container to hold any optimiser specific parameters:
 struct DecayDescent{T} <: Optimisers.AbstractRule
-  η::T
+  eta::T
 end
 
-# Define an `apply!` rule which encodes how the gradients will be used to
-# update the parameters:
-function Optimisers.apply!(o::DecayDescent, state, x, x̄)
-  newx̄ = (o.η / √state) .* x̄
+# Define an `apply!` rule which encodes how the gradient will be adjusted:
+function Optimisers.apply!(o::DecayDescent, state, x, dx)
+  newdx = (o.eta / √state) .* dx
   nextstate = state + 1
-  return nextstate, newx̄
+  return nextstate, newdx
 end
 
 # Define the function which sets up the initial state (if any):
 Optimisers.init(o::DecayDescent, x::AbstractArray) = 1
 ```
 
-The parameters will be immediately updated to `x .- newx̄`, while `nextstate` is
+The parameters will be immediately updated to `x .- newdx`, while `nextstate` is
 caried to the next iteration.
 
 Notice that the state is handled separately from the optimiser itself. This
