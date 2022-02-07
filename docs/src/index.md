@@ -163,6 +163,32 @@ flat, re = destructure(params)
 end
 ```
 
+## Non-`trainable` Parameters
+
+In order for this [Functors.jl](https://fluxml.ai/Functors.jl) walk to get inside the `struct`s making up the model,
+they must be annotated `@functor Type`. Then by default optimisation will alter all
+numeric arrays. If some arrays of a particular layer should not be treated this way,
+you can define a method for `trainable`
+
+```julia
+struct Layer{T}
+  alpha::T
+  beta::T
+  length::Int
+end
+Layer(n::Int) = Layer(randn(n), zeros(n), n)
+
+Functors.@functor Layer
+
+# Both array fields will be, for example, moved to the GPU:
+Functors.children(Layer(3))  # (alpha = [...], beta = [...], length)
+
+Optimisers.trainable(x::Layer) = (; alpha = x.alpha)  # must be a subset of chidlren
+
+# Only the first field will be optimised:
+st = Optimisers.setup(DecayDescent(0.1), Layer(3))
+```
+
 ## Tied Parameters
 
 If the same array appears twice (or more) in the model, [Functors.jl](https://fluxml.ai/Functors.jl) should recognise this.
