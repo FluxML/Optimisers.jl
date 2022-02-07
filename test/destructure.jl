@@ -8,9 +8,7 @@ m6 = (a = m1, b = [4.0 + im], c = m1)
 m7 = TwoThirds((sin, collect(1:3.0)), (cos, collect(4:6.0)), (tan, collect(7:9.0)))
 
 @testset "flatten & restore" begin
-  @test destructure(Int, m1)[1] isa Vector{Int}
   @test destructure(m1)[1] isa Vector{Float64}
-
   @test destructure(m1)[1] == 1:3
   @test destructure(m2)[1] == 1:6
   @test destructure(m3)[1] == 1:6
