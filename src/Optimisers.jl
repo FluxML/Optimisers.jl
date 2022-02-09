@@ -4,8 +4,9 @@ using Functors: functor, fmap, isleaf
 using LinearAlgebra
 
 include("interface.jl")
+
 include("destructure.jl")
-export destructure
+export destructure, total, total2
 
 include("rules.jl")
 export Descent, ADAM, Momentum, Nesterov, RMSProp,
