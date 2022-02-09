@@ -24,11 +24,11 @@ The initial state is `init(rule::RuleType, parameters)`.
 
 # Example
 ```jldoctest
-julia> Optimisers.init(Descent(0.1), [1,2,3]) === nothing
+julia> Optimisers.init(Descent(0.1), Float32[1,2,3]) === nothing
 true
 
-julia> Optimisers.apply!(Descent(0.1), nothing, [1,2,3], [4,5,6])
-(nothing, Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}}(*, ([4, 5, 6], 0.1)))
+julia> Optimisers.apply!(Descent(0.1), nothing, Float32[1,2,3], [4,5,6])
+(nothing, Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}}(*, ([4, 5, 6], 0.1f0)))
 ```
 """
 apply!
@@ -41,7 +41,7 @@ This and [`apply!`](@ref) are the two functions which any new optimisation rule 
 
 # Examples
 ```jldoctest
-julia> Optimisers.init(Descent(), [1,2,3])  # is `nothing`
+julia> Optimisers.init(Descent(), Float32[1,2,3])  # is `nothing`
 
 julia> Optimisers.init(Momentum(), [1.0, 2.0])
 2-element Vector{Float64}:
