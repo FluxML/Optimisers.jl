@@ -118,11 +118,7 @@ end
     # Static version is truly out-of-place:
     mstatic = (SA{Float32}[1,2], SA{Float64}[3,4]) # , SA{Float16}[5,6])  with Float16, all fail
     upstatic = Optimisers.update(Optimisers.setup(o, mstatic), mstatic, mstatic)[2]
-    if o isa OptimiserChain && o.opts[2] isa ADAM  # These promote to Float64
-      @test_broken map(eltype, upstatic) == types[1:2]
-    else
-      @test map(eltype, upstatic) == types[1:2]
-    end
+    @test map(eltype, upstatic) == types[1:2]
     @test upstatic[1] isa SVector
 
     # With ordinary Array gradient, what happens? Not so important!

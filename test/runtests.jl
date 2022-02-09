@@ -38,7 +38,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
     @testset "gradient clipping" begin
-      m = (α = ([0], sin), γ = rand(3))
+      m = (α = ([0.0], sin), γ = rand(3))
       s1 = Optimisers.setup(ClipGrad(13), m)
       _, m1 = Optimisers.update(s1, m, (α = nothing, γ = [1,10,100],))
       @test m.γ .- m1.γ ≈ [1, 10, 13]
@@ -58,7 +58,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
     @testset "OptimiserChain" begin
-      x = [1,10,100]; dx = [1,2,3];
+      x = [1, 10, 100.0]; dx = [1, 2, 3.0];
       @test Optimisers.update(Optimisers.setup(WeightDecay(0.1), x), x, dx)[2] ≈ [1-0.1-1, 10-1-2, 100-10-3]
       @test Optimisers.update(Optimisers.setup(ClipGrad(2), x), x, dx)[2] ≈ [1-1, 10-2, 100-2]
 
@@ -81,7 +81,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
     @testset "trainable subset" begin
       # Foo has an old-style tuple trainable, both elements
-      mf = Foo([1,2], (a = sin, b = [3,4], c = 5))
+      mf = Foo([1.0, 2.0], (a = sin, b = [3.0, 4.0], c = 5))
       sf = Optimisers.setup(Descent(0.1), mf)
       gf = (x = nothing, y = (a = nothing, b = [1,1], c = 1))
       _, mf2 = Optimisers.update(sf, mf, gf)
@@ -114,6 +114,20 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       s = Optimisers.setup(Momentum(0.1, 0.9), m)
       g = gradient(m -> sum(abs2, m.x.a.y) + m.x.b^2 + log(m.y.c.q), m)
       @test Optimisers.update!(s, m, g...)[2] isa Foo
+    end
+
+    @testset "eltype preservation" begin
+      m = (Float16[1,2], Float32[3,4])
+      s1 = Optimisers.setup(Descent(0.1), m)
+      s2, m2 = Optimisers.update(s1, m, m)
+      @test eltype(m2[1]) == Float16  # because update copies & calls update!
+      @test eltype(m2[2]) == Float32
+
+      staticm = (SA{Float16}[1,2], SA{Float32}[3,4])
+      s3 = Optimisers.setup(Descent(0.1), staticm)
+      s4, m4 = Optimisers.update(s3, staticm, staticm)
+      @test eltype(m4[1]) == Float16  # because of explicit broadcast in subtract!
+      @test eltype(m4[2]) == Float32
     end
 
     @testset "forgotten gradient" begin

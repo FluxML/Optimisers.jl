@@ -21,7 +21,7 @@ function setup(rule, x; seen = Base.IdSet())
   end
 end
 
-subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : (x .- x̄)
+subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
 update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
 update!(::Nothing, x, x̄s...) = nothing, x
@@ -50,10 +50,10 @@ end
 apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
 
 isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
-isnumeric(x::AbstractArray{<:Bool}) = false  # convention of ChainRules is that Bool is non-differentiable
+isnumeric(x::AbstractArray{<:Integer}) = false
 isnumeric(x) = false
 
-iswriteable(::DenseArray{<:AbstractFloat}) = true  # more elaborate versions are possible, wait until needed?
+iswriteable(::DenseArray) = true  # more elaborate versions are possible, wait until needed?
 iswriteable(_) = false
 
 """
