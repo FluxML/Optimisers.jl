@@ -56,6 +56,11 @@ end
   @test g6.a == [0,0,0]
   @test g6.a isa Vector{Float64}
   @test g6.b == [0+im]
+
+  # Second derivative -- no method matching rrule(::typeof(Optimisers._rebuild), ...?
+  @test_broken gradient([1,2,3]) do v
+    sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (v, [4,5,6]))[1][1])
+  end[1] ≈ [8,16,24]
 end
 
 @testset "gradient of rebuild" begin
@@ -79,6 +84,11 @@ end
   @test gradient(x -> re7(x).a[2][3], rand(3))[1] == [0,0,1]
   @test gradient(x -> re7(x).b[2][2], rand(3))[1] == [0,0,0]
   @test gradient(x -> re7(x).c[2][1], rand(3))[1] == [0,0,0]
+
+  # Second derivative -- error from _tryaxes(x::Tangent) in Zygote's map rule
+  @test_broken gradient(collect(1:6)) do y
+    sum(abs2, gradient(x -> sum(abs2, re2(x)[1]), y)[1])
+  end[1] ≈ [8,16,24,0,0,0]
 end
 
 @testset "Flux issue 1826" begin
