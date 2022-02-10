@@ -125,6 +125,11 @@ function _grad!(x, dx, off::Integer, flat::AbstractVector)
   @views flat[off .+ (1:length(x))] .+= dx  # must visit all tied nodes
   flat
 end
-_grad!(x, dx::Zero, off, flat::AbstractVector) = nothing
-_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = nothing  # ambiguity
+_grad!(x, dx::Zero, off, flat::AbstractVector) = dx
+_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = dx  # ambiguity
 
+function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)
+  println("grad! fwd ", length(flat))
+  _grad_back(dflat) = (NoT, NoT, _rebuild(x, off, unthunk(dflat); walk = _Tangent_biwalk, prune = NoT), NoT, NoT)
+  _grad!(x, dx, off, flat), _grad_back
+end
