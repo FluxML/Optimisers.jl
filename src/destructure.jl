@@ -1,5 +1,5 @@
 
-using ChainRulesCore: ChainRulesCore, NoTangent, ProjectTo
+using ChainRulesCore: ChainRulesCore, NoTangent, ProjectTo, unthunk
 const NoT = NoTangent()
 
 """
@@ -11,11 +11,11 @@ Differentiable.
 
 # Example
 ```jldoctest
-julia> v, re = destructure((x=[1.0, 2.0], y=(sin, [3.0])))
-([1.0, 2.0, 3.0], Restructure(NamedTuple, ..., 3))
+julia> v, re = destructure((x=[1.0, 2.0], y=(sin, [3 + 4im])))
+(ComplexF64[1.0 + 0.0im, 2.0 + 0.0im, 3.0 + 4.0im], Restructure(NamedTuple, ..., 3))
 
-julia> re([10,20,30])
-(x = [10.0, 20.0], y = (sin, [30.0]))
+julia> re([3, 5-im, 7+11im])
+(x = [3.0, 5.0], y = (sin, ComplexF64[7.0 + 11.0im]))
 ```
 """
 function destructure(x)
@@ -27,7 +27,7 @@ end
     Restructure(Model, ..., length)
 
 This is what [`destructure`](@ref) returns, and `re(p)` will re-build the model with
-new parameters from vector `p`. If the model is callable, then `re(x, p)` .
+new parameters from vector `p`. If the model is callable, then `re(x, p) == re(p)(x)`.
 
 # Example
 ```julia
@@ -107,22 +107,22 @@ end
 
 function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat; len)
   dflat = map!(zero, similar(flat, float(eltype(flat))), flat)
-  _rebuild_back(dx) = (NoT, NoT, NoT, _accumulate!(x, dx, off, dflat))
+  _rebuild_back(dx) = (NoT, NoT, NoT, _grad!(x, unthunk(dx), off, dflat))
   _rebuild(x, off, flat; len), _rebuild_back
 end
 
 # This is the gradient of model reconstruction, accumulating duplicates:
-function _accumulate!(x, dx, off, flat::AbstractVector)
+function _grad!(x, dx, off, flat::AbstractVector)
   x′, _ = functor(typeof(x), x)
   dx′, _ = functor(typeof(x), dx)
   off′, _ = functor(typeof(x), off)
-  foreach((xᵢ, dxᵢ, oᵢ) -> _accumulate!(xᵢ, dxᵢ, oᵢ, flat), x′, dx′, off′)
+  foreach((xᵢ, dxᵢ, oᵢ) -> _grad!(xᵢ, dxᵢ, oᵢ, flat), x′, dx′, off′)
   flat
 end
-function _accumulate!(x, dx, off::Integer, flat::AbstractVector)
+function _grad!(x, dx, off::Integer, flat::AbstractVector)
   @views flat[off .+ (1:length(x))] .+= dx  # must visit all tied nodes
   flat
 end
-_accumulate!(x, dx::Zero, off, flat::AbstractVector) = nothing
-_accumulate!(x, dx::Zero, off::Integer, flat::AbstractVector) = nothing  # ambiguity
+_grad!(x, dx::Zero, off, flat::AbstractVector) = nothing
+_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = nothing  # ambiguity
 
