@@ -102,7 +102,12 @@ function _Tangent_biwalk(f, x, aux)  # use with prune = NoT
   au, _ = functor(typeof(x), aux)
   y = _trainmap(f, ch, _trainable(x), au)
   y isa Tuple{} && return NoT
-  Tangent{typeof(x), typeof(y)}(y)
+  p = ProjectTo(x)
+  if p isa ProjectTo  # e.g. Array, NamedTuple
+    p(y)
+  else  # p === identity for unknown structs
+    Tangent{typeof(x), typeof(y)}(y)
+  end
 end
 
 function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat, len; kw...)
