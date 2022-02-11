@@ -2,9 +2,6 @@
 using ChainRulesCore: ChainRulesCore, NoTangent, ProjectTo, unthunk
 const NoT = NoTangent()
 
-base(dx::Tangent{<:Tangent}) = backing(dx).backing  # might be needed for gradient(gradient(destructure))
-base(dx::Tangent{Any, <:NamedTuple{(:backing,)}}) = base(backing(dx).backing)  # Zygote version
-
 """
     destructure(model) -> vector, reconstructor
 
@@ -75,6 +72,7 @@ _vec(x::AbstractArray) = vec(x)
 
 function ChainRulesCore.rrule(::typeof(_flatten), x)
   flat, off, len = _flatten(x)
+  _maybewarn()
   _flatten_back((dflat, _, _)) = (NoT, _rebuild(x, off, unthunk(dflat), len; walk = _Tangent_biwalk, prune = NoT))
   (flat, off, len), _flatten_back
 end
@@ -139,7 +137,16 @@ end
 _grad!(x, dx::Zero, off, flat::AbstractVector) = dx
 _grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = dx  # ambiguity
 
+# These are only needed for 2nd derivatives:
 function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)
+  @warn "second derivatives of Restructure may not work yet, sorry!" maxlog=3
   _grad_back(dflat) = (NoT, NoT, _rebuild(x, off, unthunk(dflat); walk = _Tangent_biwalk, prune = NoT), NoT, NoT)
   _grad!(x, dx, off, flat), _grad_back
+end
+base(dx::Tangent{<:Tangent}) = backing(dx).backing  # might be needed for gradient(gradient(destructure))
+base(dx::Tangent{Any, <:NamedTuple{(:backing,)}}) = base(backing(dx).backing)  # Zygote version
+_maybewarn() = nothing
+function ChainRulesCore.rrule(::typeof(_maybewarn))
+  @warn "second derivatives of destructure may not work yet, sorry!" maxlog=3
+  nothing, _ -> (NoT,)
 end

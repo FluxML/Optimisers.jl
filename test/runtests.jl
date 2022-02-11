@@ -80,6 +80,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
     @testset "trainable subset" begin
+      @info "ignore these warnings about trainable, testing the old path"
       # Foo has an old-style tuple trainable, both elements
       mf = Foo([1.0, 2.0], (a = sin, b = [3.0, 4.0], c = 5))
       sf = Optimisers.setup(Descent(0.1), mf)
