@@ -2,7 +2,7 @@
 m1 = collect(1:3.0)
 m2 = (collect(1:3.0), collect(4:6.0))
 m3 = (x = m1, y = sin, z = collect(4:6.0))
-m4 = (x = m1, y = m1, z = collect(4:6.0))
+m4 = (x = m1, y = m1, z = collect(4:6.0))  # tied
 m5 = (a = (m3, true), b = (m1, false), c = (m4, true))
 m6 = (a = m1, b = [4.0 + im], c = m1)
 m7 = TwoThirds((sin, collect(1:3.0)), (cos, collect(4:6.0)), (tan, collect(7:9.0)))
@@ -72,13 +72,24 @@ end
   @test g8[3] == [[10.0]]
 
   @testset "second derivative" begin
-    @test_broken gradient([1,2,3.0]) do v
+    @test gradient([1,2,3.0]) do v
       sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (v, [4,5,6.0]))[1][1])
     end[1] ≈ [8,16,24]
+    # With Diffractor, non-leaf _grad!(x, dx, off, flat::AbstractVector) gets double-wrapped dx:
+    # off = (0, 3), dx = Tangent{Tangent{Tuple{Vector{Float64}, Vector{Float64}}, ...
+    # until you add explicit double-unwrap: base(dx::Tangent{<:Tangent}) = backing(dx).backing
+    # With Zygote, instead:
+    # dx = Tangent{Any}(backing = Tangent{Any}([4.0, 8.0, 12.0], ZeroTangent()),)
 
-    @test_skip gradient([1,2,3.0]) do v
-      sum(gradient(m -> sum(destructure(m)[1]), (v, [4,5,6.0]))[1][1])
-    end
+    @test gradient([1,2,3.0]) do v
+      sum(gradient(m -> sum(destructure(m)[1])^3, (v, [4,5,6.0]))[1][1])
+    end[1] == [378, 378, 378]
+
+    @test_broken gradient([1,2,3.0]) do v
+      sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (x = v, y = sin, z = [4,5,6.0]))[1][1])
+    end[1] ≈ [8,16,24]
+    # Zygote error in (::typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple{(:x, :y, :z)
+    # Diffractor error in perform_optic_transform
   end
 end
 
@@ -109,15 +120,17 @@ end
   @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
 
   @testset "second derivative" begin
-    # ERROR: Need an adjoint for constructor ChainRulesCore.Tangent{Any, Tuple{Vector{Float64}, ChainRulesCore.ZeroTangent}}. Gradient is of type Tuple{Vector{Float64}, Vector{Float64}}
     @test_broken gradient(collect(1:6.0)) do y
       sum(abs2, gradient(x -> sum(abs2, re2(x)[1]), y)[1])
     end[1] ≈ [8,16,24,0,0,0]
-    # This fixes it!
+    # ERROR: Need an adjoint for constructor ChainRulesCore.Tangent{Any, Tuple{Vector{Float64}, ChainRulesCore.ZeroTangent}}. Gradient is of type Tuple{Vector{Float64}, Vector{Float64}}
+    # with Zygote, which can be fixed by:
     # Zygote.@adjoint Tangent{T,B}(x::Tuple) where {T,B<:Tuple} = Tangent{T,B}(x), dx -> (dx,)
-    @test_skip gradient(collect(1:6.0)) do y
+
+    @test_broken gradient(collect(1:6.0)) do y
       sum(abs2, gradient(x -> sum(abs2, re3(x).z), y)[1])
-    end[1]
+    end[1] ≈ [0,0,0,32,40,48]
+    # Not fixed by this:
     # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
   end
 end

@@ -2,6 +2,9 @@
 using ChainRulesCore: ChainRulesCore, NoTangent, ProjectTo, unthunk
 const NoT = NoTangent()
 
+base(dx::Tangent{<:Tangent}) = backing(dx).backing  # might be needed for gradient(gradient(destructure))
+base(dx::Tangent{Any, <:NamedTuple{(:backing,)}}) = base(backing(dx).backing)  # Zygote version
+
 """
     destructure(model) -> vector, reconstructor
 
@@ -55,11 +58,11 @@ Base.length(re::Restructure) = re.length
 
 # This flattens a model, and returns a web of offsets for later use:
 function _flatten(x)
-  isnumeric(x) && return vcat(vec(x)), 0, length(x)  # trivial case
+  isnumeric(x) && return vcat(_vec(x)), 0, length(x)  # trivial case
   arrays = AbstractVector[]
   len = Ref(0)
   off = fmap(x; exclude = isnumeric, walk = (f, z) -> map(f, _trainable(z))) do y
-    push!(arrays, vec(y))
+    push!(arrays, _vec(y))
     o = len[]
     len[] = o + length(y)
     o
@@ -67,9 +70,12 @@ function _flatten(x)
   reduce(vcat, arrays), off, len[]
 end
 
+_vec(x::Number) = LinRange(x,x,1)
+_vec(x::AbstractArray) = vec(x)
+
 function ChainRulesCore.rrule(::typeof(_flatten), x)
   flat, off, len = _flatten(x)
-  _flatten_back((dflat, _, _)) = (NoT, _rebuild(x, off, dflat, len; walk = _Tangent_biwalk, prune = NoT))
+  _flatten_back((dflat, _, _)) = (NoT, _rebuild(x, off, unthunk(dflat), len; walk = _Tangent_biwalk, prune = NoT))
   (flat, off, len), _flatten_back
 end
 
@@ -92,7 +98,7 @@ function _trainable_biwalk(f, x, aux)
 end
 
 function _trainmap(f, ch, tr, aux)
-  map(ch, tr, aux) do c, t, a  # isnothing(t) indicates non-trainable field, safe given isnumeric(c)??
+  map(ch, tr, aux) do c, t, a  # isnothing(t) indicates non-trainable field, safe given isnumeric(c)
     isnothing(t) ? c : f(t, a)
   end
 end
@@ -121,7 +127,7 @@ ChainRulesCore.@non_differentiable _zero(x)
 # This is the gradient of model reconstruction, accumulating duplicates:
 function _grad!(x, dx, off, flat::AbstractVector)
   x′, _ = functor(typeof(x), x)
-  dx′, _ = functor(typeof(x), dx)
+  dx′, _ = functor(typeof(x), base(dx))
   off′, _ = functor(typeof(x), off)
   foreach((xᵢ, dxᵢ, oᵢ) -> _grad!(xᵢ, dxᵢ, oᵢ, flat), x′, dx′, off′)
   flat
@@ -134,7 +140,6 @@ _grad!(x, dx::Zero, off, flat::AbstractVector) = dx
 _grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = dx  # ambiguity
 
 function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)
-  println("grad! fwd ", length(flat))
   _grad_back(dflat) = (NoT, NoT, _rebuild(x, off, unthunk(dflat); walk = _Tangent_biwalk, prune = NoT), NoT, NoT)
   _grad!(x, dx, off, flat), _grad_back
 end
