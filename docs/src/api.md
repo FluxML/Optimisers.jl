@@ -52,11 +52,13 @@ Optimisers.trainable
 Optimisers.isnumeric
 ```
 
-Such restrictions are also obeyed by this function for flattening a model:
+Such restrictions are also obeyed by this function for flattening a model,
+and one for applying a function to every parameter:
 
 ```@docs
 Optimisers.destructure
 Optimisers.Restructure
+Optimisers.total
 ```
 
 ## Rule Definition

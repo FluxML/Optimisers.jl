@@ -9,7 +9,7 @@ export AbstractRule
 include("adjust.jl")
 
 include("destructure.jl")
-export destructure
+export destructure, total
 
 include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,

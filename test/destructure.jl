@@ -296,3 +296,26 @@ tmp1
     y, bk = Zygote.pullback(x -> sum(destructure(x)[1]), (3, 4))
     @test bk(1.0) == (nothing,)
 end
+
+@testset "total" begin
+  @test total(sum, m1) == sum(1:3)
+  @test total(prod, m2) == prod(1:3) + prod(4:6)
+  @test total(sum, m3) == sum(1:6)
+  @test total(sum, m4) == sum(1:6)  # shared only counts once
+  @test total(sum, m6) == 6 + 4 + im
+
+  @test gradient(m -> total(sum, m), m1) == ([1,1,1],)
+  @test gradient(m -> total(sum, m), m3)[1] == (x = [1,1,1], y = nothing, z = [1,1,1])
+  @test gradient(m -> total(sum, m), m4)[1] == (x = [1,1,1], y = nothing, z = [1,1,1])
+  g6 = gradient(m -> abs2(total(sum, m)), m6)[1]
+  @test g6.a isa Vector{Float64}
+
+  @test gradient(λ -> total(x -> sum(x.*λ), m3), 1.0) == (21.0,)
+  @test gradient(λ -> total(x -> sum(x.*λ), m4), 1.0) == (21.0,)
+
+  @testset "second derivatives" begin
+    f3 = v -> total(norm, (x=v, y=sin, z=[4,5,6.0]))
+    @test_broken Zygote.hessian_reverse(f3, [1,2,3.0]) ≈ Zygote.hessian_dual(f3, [1,2,3.0])
+    # typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple...
+  end
+end
