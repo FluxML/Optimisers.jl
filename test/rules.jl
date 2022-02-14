@@ -44,7 +44,7 @@ end
   end
 end
 
-@testset verbose=true "simple sum" begin
+@testset "simple sum" begin
   empty!(LOG)
   @testset "$(name(o))" for o in RULES
     m = shuffle!(reshape(1:64, 8, 8) .+ 0.0)
@@ -79,7 +79,7 @@ end
   end
 end
 
-@testset verbose=true "StaticArrays" begin
+@testset "StaticArrays" begin
   empty!(LOG)
   @testset "$(name(o))" for o in RULES
     W1 = @SMatrix randn(10, 10)
@@ -157,7 +157,7 @@ end
   end
 end
 
-@testset verbose=true "mutation check" begin
+@testset "mutation check" begin
   # If @lazy captures a matrix which is later mutated, the results won't agree here:
   @testset "$(name(o))" for o in RULES
     model = Float64.(rand(Int8, 8))
@@ -174,7 +174,7 @@ end
   end
 end
 
-@testset "with complex numebers: Flux#1776" begin
+@testset "with complex numbers: Flux#1776" begin
   empty!(LOG)
   @testset "$(name(opt))" for opt in [
               # The Flux PR had 1e-2 for all. But ADADelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
