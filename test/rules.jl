@@ -226,3 +226,28 @@ end
     @test static_loss(static_model) < 1.9 
   end
 end
+
+@testset "zero-dim arrays" begin
+  empty!(LOG)
+  @testset "$(name(o))" for o in RULES
+    m = (a = fill(1.0), b = SArray{Tuple{}}(fill(1.0)), c = PermutedDimsArray(fill(1.0), ()))
+    s = Optimisers.setup(o, m)
+    for _ in 1:10^3
+      g = loggradient(o)(x -> abs2(first(x.a) + first(x.b) + first(x.c)), m)[1]
+      s, m = Optimisers.update(s, m, g)
+    end
+    # The main point here is that broadcasting should not accidentally make a scalar,
+    # but `m.a` is mutated, and `m.b .+ 1` is an array, so only `m.c` is a real test.
+    @test m.a isa Array{Float64, 0}
+    @test m.b isa AbstractArray{Float64, 0}
+    @test_broken m.c isa AbstractArray{Float64, 0}
+    if o isa RADAM
+      @test sum(m.a) < 0.7
+      @test_broken sum(m.a) < 0.3
+    else
+      @test sum(m.a) < 0.3
+      @test sum(m.b) < 0.3
+      @test sum(m.c) < 0.3
+    end
+  end
+end
