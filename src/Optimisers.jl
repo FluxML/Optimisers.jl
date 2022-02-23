@@ -2,6 +2,7 @@ module Optimisers
 
 using Functors: functor, fmap, isleaf
 using LinearAlgebra
+using Base.Broadcast: broadcast_preserving_zero_d, broadcasted
 
 include("interface.jl")
 

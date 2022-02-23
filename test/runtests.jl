@@ -80,7 +80,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
     @testset "trainable subset" begin
-      @info "ignore these warnings about trainable, testing the old path"
+      @info "ignore these warnings about `trainable`, they are testing the path for old-style methods"
       # Foo has an old-style tuple trainable, both elements
       mf = Foo([1.0, 2.0], (a = sin, b = [3.0, 4.0], c = 5))
       sf = Optimisers.setup(Descent(0.1), mf)
@@ -129,6 +129,30 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       s4, m4 = Optimisers.update(s3, staticm, staticm)
       @test eltype(m4[1]) == Float16  # because of explicit broadcast in subtract!
       @test eltype(m4[2]) == Float32
+    end
+
+    @testset "zero dimension" begin
+      # Mutable Array{T,0}
+      m = fill(1.0)
+      s = Optimisers.setup(Descent(0.1), m)
+      s2, m2 = Optimisers.update!(s, m, fill(2.0))
+      @test m2 === m
+      @test only(m) ≈ 0.8
+
+      # "Immutable" zero-array, takes out-of-place path:
+      m3 = PermutedDimsArray(fill(1.0), ())
+      @test !Optimisers.iswriteable(m3)  # note that there's Base.iswritable, it seems I can't spell
+      s3 = Optimisers.setup(Descent(0.1), m3)
+      s4, m4 = Optimisers.update!(s3, m3, fill(2.0))
+      @test m4 !== m3
+      @test only(m4) ≈ 0.8
+
+      # Ref, should this be regarded as holding a parameter? At present it's not:
+      m5 = Ref(1.0)
+      s5 = Optimisers.setup(Descent(0.1), m5)
+      g5 = gradient(m -> m[]^2, m5)[1]  # (x = 2.0,)
+      s6, m6 = Optimisers.update!(s5, m5, g5)
+      @test_broken m6[] ≈ 0.8
     end
 
     @testset "forgotten gradient" begin

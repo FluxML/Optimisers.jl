@@ -230,24 +230,27 @@ end
 @testset "zero-dim arrays" begin
   empty!(LOG)
   @testset "$(name(o))" for o in RULES
-    m = (a = fill(1.0), b = SArray{Tuple{}}(fill(1.0)), c = PermutedDimsArray(fill(1.0), ()))
+    m = (; arr = fill(1.0), pda = PermutedDimsArray(fill(1.0), ()), ref = Ref(1.0))
+    # The point of PermutedDimsArray here is to test the out-of-place path, so check:
+    @test Optimisers.iswriteable(m.arr)
+    @test !Optimisers.iswriteable(m.pda)
     s = Optimisers.setup(o, m)
     for _ in 1:10^3
-      g = loggradient(o)(x -> abs2(first(x.a) + first(x.b) + first(x.c)), m)[1]
+      g = loggradient(o)(x -> abs2(first(x.arr) + first(x.pda) + first(x.ref)), m)[1]
       s, m = Optimisers.update(s, m, g)
     end
-    # The main point here is that broadcasting should not accidentally make a scalar,
-    # but `m.a` is mutated, and `m.b .+ 1` is an array, so only `m.c` is a real test.
-    @test m.a isa Array{Float64, 0}
-    @test m.b isa AbstractArray{Float64, 0}
-    @test_broken m.c isa AbstractArray{Float64, 0}
+    # Goal is to check that broadcasting does not accidentally make a scalar,
+    # but `m.arr` iscopied &  mutated, so only `m.pda` is a real test:
+    @test m.arr isa Array{Float64, 0}
+    @test m.pda isa AbstractArray{Float64, 0}
+    @test m.ref isa Ref  # because it's mutated, broadcast_preserving_zero_d would make an array
     if o isa RADAM
-      @test sum(m.a) < 0.7
-      @test_broken sum(m.a) < 0.3
+      @test sum(m.arr) < 0.7
+      @test_broken sum(m.arr) < 0.3
     else
-      @test sum(m.a) < 0.3
-      @test sum(m.b) < 0.3
-      @test sum(m.c) < 0.3
+      @test sum(m.arr) < 0.3
+      @test sum(m.pda) < 0.3
     end
+    @test_broken only(m.ref) < 0.3  # not currently regarded as trainable
   end
 end

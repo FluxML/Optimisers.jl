@@ -21,7 +21,13 @@ function setup(rule, x; seen = Base.IdSet())
   end
 end
 
-subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
+function subtract!(x, x̄)
+  if iswriteable(x)
+    x .= x .- x̄
+  else
+    broadcast_preserving_zero_d(eltype(x), broadcasted(-, x, x̄))
+  end
+end
 
 update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
 update!(::Nothing, x, x̄s...) = nothing, x
