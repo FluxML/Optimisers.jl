@@ -17,7 +17,7 @@ function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long 
   print(io, ")")
 end
 
-struct Tied; ties; tree; end
+struct Tied; ties; tree; end  # nothing about shared parameters is type-stable
 
 function setup(rule, x; ties = Pair[], cache = IdDict())
   rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
@@ -26,15 +26,12 @@ function setup(rule, x; ties = Pair[], cache = IdDict())
 end
 
 function _setup(rule, x, addr; ties, cache)
-  usecache = !isbits(x) && cache !== false
   if isnumeric(x)
-    if usecache && haskey(cache, x)
+    if haskey(cache, x)
       push!(ties, addr => cache[x])
       return nothing
     else
-      if usecache
-        cache[x] = addr
-      end
+      cache[x] = addr  # unlike the Functors cache, this one is only used for isnumeric objects
       return Leaf(rule, init(rule, x))
     end
   elseif isleaf(x)
