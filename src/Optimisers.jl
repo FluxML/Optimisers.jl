@@ -1,6 +1,8 @@
 module Optimisers
 
 using Functors: functor, fmap, isleaf
+using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero
+
 using LinearAlgebra
 using Base: tail
 
@@ -37,6 +39,11 @@ begin
   _conjugate(f::F, ::typeof(identity)) where F = f
   _conjugate(f::F, op::Union{typeof(transpose), typeof(adjoint)}) where F = (xs...,) -> op(f(op.(xs)...))
 end
+
+
+###
+### Docstrings for main interface
+###
 
 """
     Optimisers.apply!(rule::RuleType, state, parameters, gradient) -> (state, gradient)

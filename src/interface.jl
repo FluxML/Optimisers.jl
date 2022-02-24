@@ -1,15 +1,20 @@
 
-using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero
-base(dx::Tangent) = backing(canonicalize(dx))
-base(dx) = dx
-base(::Nothing) = false
-const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
+###
+### Initialisation
+###
 
 abstract type AbstractRule end
 
 struct Leaf{R,S}
   rule::R
   state::S
+end
+
+function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
+  ioc = IOContext(io, :compact => true)
+  print(ioc, "Leaf(", ℓ.rule, ", ")
+  show(ioc, ℓ.state)
+  print(io, ")")
 end
 
 struct Tied; ties; tree; end
@@ -40,6 +45,18 @@ function _setup(rule, x, addr; ties, cache)
   end
 end
 
+ids(x::NamedTuple{names}) where names = NamedTuple{names}(names)  # a map-friendly version of pairs
+ids(x::Tuple) = propertynames(x)
+
+###
+### Training loop
+###
+
+const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
+base(dx::Tangent) = backing(canonicalize(dx))
+base(dx) = dx
+base(::Nothing) = false
+
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
 update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
@@ -58,6 +75,19 @@ function update!(tree, x, x̄s...)
   xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
   map(first, xtree), re(map(last, xtree))
 end
+
+function update(tree, x, x̄s...)
+  t′ = fmap(copy, tree; exclude = iswriteable)
+  x′ = fmap(copy, x; exclude = iswriteable)
+  update!(t′, x′, x̄s...)
+end
+
+# If no matching higher-order rule, call the first-order one:
+apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
+
+###
+### Shared parameters
+###
 
 update!(t::Tied, x, ::Zero, ::Zero...) = t, x
 function update!(t::Tied, x, x̄)
@@ -79,25 +109,6 @@ function update!(t::Tied, x, x̄)
   Tied(t.ties, t′), x′
 end
 update!(t::Tied, x, x̄, x̄̄s...) = error("can't use tied weights and multiple derivatives together, sorry")
-
-function update(tree, x, x̄s...)
-  t′ = fmap(copy, tree; exclude = iswriteable)
-  x′ = fmap(copy, x; exclude = iswriteable)
-  update!(t′, x′, x̄s...)
-end
-
-# default all rules to first order calls
-apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
-
-isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
-isnumeric(x::AbstractArray{<:Integer}) = false
-isnumeric(x) = false
-
-iswriteable(::DenseArray) = true  # more elaborate versions are possible, wait until needed?
-iswriteable(_) = false
-
-ids(x::NamedTuple{names}) where names = NamedTuple{names}(names)  # a map-friendly version of pairs
-ids(x::Tuple) = propertynames(x)
 
 function pick(x, addr::Tuple)
   (isempty(addr) || x isa Zero) && return x
@@ -127,6 +138,17 @@ function place(f, x, x̄, addr::Tuple)
   map((xᵢ, x̄ᵢ, i) -> i == addr[1] ? place(f, xᵢ, x̄ᵢ, tail(addr)) : x̄ᵢ, x′, x̄′, ids(x′))
 end
 
+###
+### Node properties
+###
+
+isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
+isnumeric(x::AbstractArray{<:Integer}) = false
+isnumeric(x) = false
+
+iswriteable(::DenseArray) = true  # more elaborate versions are possible, wait until needed?
+iswriteable(_) = false
+
 """
     trainable(x::Layer) -> NamedTuple
 
@@ -147,6 +169,10 @@ function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tu
   @warn "trainable(x) should now return a NamedTuple with the field names, not a Tuple" maxlog=3
   map(c -> c in tr ? c : nothing, ch)
 end
+
+###
+### Rule helpers
+###
 
 """
     @.. x = 1 + y / z
@@ -185,11 +211,3 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
-
-function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
-  ioc = IOContext(io, :compact => true)
-  print(ioc, "Leaf(", ℓ.rule, ", ")
-  show(ioc, ℓ.state)
-  print(io, ")")
-end
-
