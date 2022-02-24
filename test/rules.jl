@@ -251,6 +251,6 @@ end
       @test sum(m.arr) < 0.3
       @test sum(m.pda) < 0.3
     end
-    @test_broken only(m.ref) < 0.3  # not currently regarded as trainable
+    @test only(m.ref) ≈ 1  # not currently regarded as trainable
   end
 end

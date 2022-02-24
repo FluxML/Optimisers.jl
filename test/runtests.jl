@@ -152,7 +152,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       s5 = Optimisers.setup(Descent(0.1), m5)
       g5 = gradient(m -> m[]^2, m5)[1]  # (x = 2.0,)
       s6, m6 = Optimisers.update!(s5, m5, g5)
-      @test_broken m6[] ≈ 0.8
+      @test m6[] ≈ 1
     end
 
     @testset "forgotten gradient" begin
