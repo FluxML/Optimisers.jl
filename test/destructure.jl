@@ -2,11 +2,16 @@
 m1 = collect(1:3.0)
 m2 = (collect(1:3.0), collect(4:6.0))
 m3 = (x = m1, y = sin, z = collect(4:6.0))
+
 m4 = (x = m1, y = m1, z = collect(4:6.0))  # tied
 m5 = (a = (m3, true), b = (m1, false), c = (m4, true))
 m6 = (a = m1, b = [4.0 + im], c = m1)
+
 m7 = TwoThirds((sin, collect(1:3.0)), (cos, collect(4:6.0)), (tan, collect(7:9.0)))
 m8 = [Foo(m1, m1), (a = true, b = Foo([4.0], false), c = ()), [[5.0]]]
+
+mat = Float32[4 6; 5 7]
+m9 = (a = m1, b = mat, c = [mat, m1])
 
 @testset "flatten & rebuild" begin
   @test destructure(m1)[1] isa Vector{Float64}
@@ -16,6 +21,7 @@ m8 = [Foo(m1, m1), (a = true, b = Foo([4.0], false), c = ()), [[5.0]]]
   @test destructure(m4)[1] == 1:6
   @test destructure(m5)[1] == vcat(1:6, 4:6)
   @test destructure(m6)[1] == vcat(1:3, 4 + im)
+  @test destructure(m9)[1] == 1:7
 
   @test destructure(m1)[2](7:9) == [7,8,9]
   @test destructure(m2)[2](4:9) == ([4,5,6], [7,8,9])
@@ -45,6 +51,10 @@ m8 = [Foo(m1, m1), (a = true, b = Foo([4.0], false), c = ()), [[5.0]]]
   @test m8′[2].b.y === false
   @test m8′[3][1] == [5.0]
 
+  m9′ = destructure(m9)[2](10:10:70)
+  @test m9′.b === m9′.c[1]
+  @test m9′.b isa Matrix{Float32}
+
   # errors
   @test_throws Exception destructure(m7)[2]([10,20])
   @test_throws Exception destructure(m7)[2]([10,20,30,40])
@@ -70,6 +80,9 @@ end
   @test g8[1].x == [2,4,6]
   @test g8[2].b.x == [8]
   @test g8[3] == [[10.0]]
+
+  g9 = gradient(m -> sum(sqrt, destructure(m)[1]), m9)[1]
+  @test g9.c === nothing
 
   @testset "second derivative" begin
     @test gradient([1,2,3.0]) do v
@@ -118,6 +131,9 @@ end
   v8, re8 = destructure(m8)
   @test gradient(x -> sum(abs2, re8(x)[1].y), v8)[1] == [2,4,6,0,0]
   @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
+
+  re9 = destructure(m9)[2]
+  @test gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
 
   @testset "second derivative" begin
     @test_broken gradient(collect(1:6.0)) do y
