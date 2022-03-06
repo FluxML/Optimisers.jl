@@ -131,7 +131,7 @@ function _grad!(x, dx, off, flat::AbstractVector)
   flat
 end
 function _grad!(x, dx, off::Integer, flat::AbstractVector)
-  @views flat[off .+ (1:length(x))] .+= dx  # must visit all tied nodes
+  @views flat[off .+ (1:length(x))] .+= vec(dx)  # must visit all tied nodes
   flat
 end
 _grad!(x, dx::Zero, off, flat::AbstractVector) = dx
