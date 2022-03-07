@@ -442,20 +442,24 @@ end
 """
     WeightDecay(γ = 5f-4)
 
-Decay weights by `γ`.
+Decay weights by ``γ``, that is, add `γ .* x` to the gradient `x̄` which will be
+subtracted from `x`.
+
+Typically composed  with other optimisers as the first transformation in an [`OptimiserChain`](@ref).
+This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss.
 
 # Parameters
 - Weight decay (`γ`): Decay applied to weights during optimisation.
 """
 struct WeightDecay{T}
-  wd::T
+  gamma::T
 end
 WeightDecay() = WeightDecay(5f-4)
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x, dx)
-  dx′ = @lazy dx + o.wd * x
+  dx′ = @lazy dx + o.gamma * x
 
   return state, dx′
 end
