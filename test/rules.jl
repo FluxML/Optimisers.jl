@@ -15,7 +15,7 @@ RULES = [
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
   # Lookahead
-  Lookahead(), Lookahead(0.5, 5, ADAMW(0.001))
+  Lookahead(), Lookahead(ADAMW(0.003), 5, 0.7)
 ]
 
 name(o) = typeof(o).name.name  # just for printing testset headings
