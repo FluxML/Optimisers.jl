@@ -14,10 +14,13 @@ RULES = [
   OptimiserChain(ClipNorm(), ADAM(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
+  # Lookahead
+  Lookahead(), Lookahead(0.5, 5, ADAMW(0.001))
 ]
 
 name(o) = typeof(o).name.name  # just for printing testset headings
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
+name(o::Lookahead) = string("LookAhead(", name(o.inner), ")")
 
 LOG = Dict()  # for debugging these testsets, this makes it easy to plot each optimiser's loss
 

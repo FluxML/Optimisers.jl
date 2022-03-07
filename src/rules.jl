@@ -555,3 +555,55 @@ function Base.show(io::IO, c::OptimiserChain)
   join(io, c.opts, ", ")
   print(io, ")")
 end
+
+"""
+    Lookahead(α = 0.5, k = 10, opt = Momentum())
+
+
+The [Lookahead](https://arxiv.org/abs/1907.08610) optimiser
+keeps a "slow" copy of the parameters, initially `y = copy(x)`.
+Most steps update only the "fast" parameters `x` as usual,
+using the given `opt`, but every `k`th step updates the slow 
+parameters, and then resets the fast ones to match:
+
+    @. y = α * x + (1-α) * y
+    @. x = y
+
+# Parameters
+- Slow weight step size (`α`): Proportion of the change to fast weights which is kept.
+- Synchronization period (`k`): Number of fast steps between slow steps.
+- Optimiser (`opt`): Used at each fast step.
+"""
+struct Lookahead{T<:Real, O}
+  alpha::T
+  steps::Int
+  inner::O
+end
+Lookahead(α::Real = 5f-1, k::Int = 10, opt = Momentum()) = Lookahead{typeof(α), typeof(opt)}(α, k, opt)
+
+init(o::Lookahead, x::AbstractArray) = (copy(x), 1, init(o.inner, x))
+
+update!(ℓ::Leaf{<:Lookahead}, x, ::Zero, ::Zero...) = ℓ, x
+function update!(ℓ::Leaf{<:Lookahead}, x, x̄s...)
+  α = ℓ.rule.alpha
+  k = ℓ.rule.steps
+  y, n, instate = ℓ.state
+
+  is′, x̄′ = apply!(ℓ.rule.inner, instate, x, base.(x̄s)...)
+
+  if n % k != 0
+    return Leaf(ℓ.rule, (y, n + 1, is′)), subtract!(x, x̄′)
+  else
+    @.. y = α * (x - x̄′) + (1 - α) * y
+    @.. x = y
+    return Leaf(ℓ.rule, (y, n + 1, is′)), x
+  end
+end
+
+function Base.show(io::IO, o::Lookahead)
+  print(io, "Lookahead(")
+  show(io, o.alpha)
+  print(io, ", ", o.steps, ", ")
+  show(io, o.inner)
+  print(io, ")")
+end
