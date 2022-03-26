@@ -49,7 +49,7 @@ m9 = (a = m1, b = mat, c = [mat, m1])
   m8′ = destructure(m8)[2](1:5)
   @test m8′[1].x === m8′[1].y
   @test m8′[2].b.y === false
-  @test m8′[3][1] == [5.0]
+  @test m8′[3][1] == [5.0] # broken
 
   m9′ = destructure(m9)[2](10:10:70)
   @test m9′.b === m9′.c[1]
@@ -79,7 +79,7 @@ end
   g8 = gradient(m -> sum(abs2, destructure(m)[1]), m8)[1]
   @test g8[1].x == [2,4,6]
   @test g8[2].b.x == [8]
-  @test g8[3] == [[10.0]]
+  @test g8[3] == [[10.0]]  # fails
 
   g9 = gradient(m -> sum(sqrt, destructure(m)[1]), m9)[1]
   @test g9.c === nothing
@@ -130,7 +130,7 @@ end
 
   v8, re8 = destructure(m8)
   @test gradient(x -> sum(abs2, re8(x)[1].y), v8)[1] == [2,4,6,0,0]
-  @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
+  @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]  # fails
 
   re9 = destructure(m9)[2]
   @test gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
@@ -179,4 +179,45 @@ end
     m = re(w)
     4(sum(m.x) + sum(m.y)) + 13*sum(m.z)  # again two gradients are ===, so it eliminates one
   end == ([17,17,4,4],)  # Flux gave ([4.0, 4.0, 13.0, 13.0],)
+end
+
+@testset "issue 62" begin
+  # Flux.Chain used to have children which aren't its own fields, which Skip immitates.
+
+  sk = Skip([1.0, 2.0], (x=3, y=[4.0, 5.0]))
+  @test fmap(identity, sk) == sk
+
+  gk = gradient(x -> sum(x[2].y), sk)[1]
+  @test fmap(Zygote.accum, sk, gk) isa Skip  # this relies on functor(typeof(x), dx)
+
+  st = fmapstructure(identity, sk)
+  @test st isa Tuple{Vector, NamedTuple}
+  @test_throws Exception fmap(+, sk, st)  # this fails because of functor(typeof(x), dx)
+
+  v, re = destructure(sk)
+  @test v == [1,2,4,5]
+  @test re(10v) isa Skip
+  @test re(10v)[1] == [10, 20]
+
+  @test gradient(zero(v)) do w
+    re(w)[2].y[1]
+  end == ([0,0,1,0],)
+
+  # gradient(sk) do x
+  #   w, _ = destructure(x)
+  #   w[1]
+  # end
+#=
+
+ERROR: ArgumentError: Tangent for the primal Skip{Tuple{Vector{Float64}, NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}}} should be backed by a NamedTuple type, not by Tuple{Vector{Float64}, ChainRulesCore.Tangent{NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}, NamedTuple{(:x, :y), Tuple{ChainRulesCore.NoTangent, Vector{Float64}}}}}.
+Stacktrace:
+  [1] _backing_error(P::Type, G::Type, E::Type)
+    @ ChainRulesCore ~/.julia/packages/ChainRulesCore/RbX5a/src/tangent_types/tangent.jl:62
+  [2] ChainRulesCore.Tangent{Skip{Tuple{Vector{Float64}, NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}}}, Tuple{Vector{Float64}, ChainRulesCore.Tangent{NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}, NamedTuple{(:x, :y), Tuple{ChainRulesCore.NoTangent, Vector{Float64}}}}}}(backing::Tuple{Vector{Float64}, ChainRulesCore.Tangent{NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}, NamedTuple{(:x, :y), Tuple{ChainRulesCore.NoTangent, Vector{Float64}}}}})
+    @ ChainRulesCore ~/.julia/packages/ChainRulesCore/RbX5a/src/tangent_types/tangent.jl:36
+  [3] _Tangent_biwalk(f::Function, x::Skip{Tuple{Vector{Float64}, NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}}}, aux::Tuple{Int64, NamedTuple{(:x, :y), Tuple{Tuple{}, Int64}}})
+    @ Optimisers ~/.julia/dev/Optimisers/src/destructure.jl:116
+
+=#
+
 end

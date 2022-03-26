@@ -91,7 +91,7 @@ _getat(y::AbstractArray, o::Int, flat::AbstractVector) =
 
 function _trainable_biwalk(f, x, aux)
   ch, re = functor(typeof(x), x)
-  au, _ = functor(typeof(x), aux)
+  au, _ = functor(aux) 
   _trainmap(f, ch, _trainable(x), au) |> re
 end
 
@@ -103,7 +103,7 @@ end
 
 function _Tangent_biwalk(f, x, aux)  # use with prune = NoT
   ch, re = functor(typeof(x), x)
-  au, _ = functor(typeof(x), aux)
+  au, _ = functor(aux)
   y = _trainmap(f, ch, _trainable(x), au)
   y isa Tuple{} && return NoT
   p = ProjectTo(x)
@@ -126,7 +126,7 @@ ChainRulesCore.@non_differentiable _zero(x)
 function _grad!(x, dx, off, flat::AbstractVector)
   x′, _ = functor(typeof(x), x)
   dx′, _ = functor(typeof(x), base(dx))
-  off′, _ = functor(typeof(x), off)
+  off′, _ = functor(off)
   foreach((xᵢ, dxᵢ, oᵢ) -> _grad!(xᵢ, dxᵢ, oᵢ, flat), x′, dx′, off′)
   flat
 end
