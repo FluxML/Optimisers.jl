@@ -49,7 +49,7 @@ m9 = (a = m1, b = mat, c = [mat, m1])
   m8′ = destructure(m8)[2](1:5)
   @test m8′[1].x === m8′[1].y
   @test m8′[2].b.y === false
-  @test m8′[3][1] == [5.0] # broken
+  @test m8′[3][1] == [5.0]
 
   m9′ = destructure(m9)[2](10:10:70)
   @test m9′.b === m9′.c[1]
@@ -130,7 +130,7 @@ end
 
   v8, re8 = destructure(m8)
   @test gradient(x -> sum(abs2, re8(x)[1].y), v8)[1] == [2,4,6,0,0]
-  @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]  # fails
+  @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
 
   re9 = destructure(m9)[2]
   @test gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
@@ -203,10 +203,10 @@ end
     re(w)[2].y[1]
   end == ([0,0,1,0],)
 
-  # gradient(sk) do x
-  #   w, _ = destructure(x)
-  #   w[1]
-  # end
+  gradient(sk) do x
+    w, _ = destructure(x)
+    w[1]
+  end
 #=
 
 ERROR: ArgumentError: Tangent for the primal Skip{Tuple{Vector{Float64}, NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}}} should be backed by a NamedTuple type, not by Tuple{Vector{Float64}, ChainRulesCore.Tangent{NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}, NamedTuple{(:x, :y), Tuple{ChainRulesCore.NoTangent, Vector{Float64}}}}}.
