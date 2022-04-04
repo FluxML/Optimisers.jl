@@ -1,6 +1,6 @@
 # Optimisers.jl
 
-[![][docs-stable-img]][docs-stable-url]
+<!-- [![][docs-stable-img]][docs-stable-url] -->
 [![][docs-dev-img]][docs-dev-url]
 [![][action-img]][action-url]
 [![][coverage-img]][coverage-url] 
@@ -17,9 +17,10 @@
 [coverage-img]: https://codecov.io/gh/FluxML/Optimisers.jl/branch/master/graph/badge.svg
 [coverage-url]: https://codecov.io/gh/FluxML/Optimisers.jl
 
-Optimisers.jl defines many standard optimisers and utilities for learning loops.
+Optimisers.jl defines many standard optimisers, and some utilities for learning loops.
 
-The API for defining an optimiser, and using it is simple.
+This is the future of training for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
+but can be used separately on anything understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
 
 ## Installation
 
