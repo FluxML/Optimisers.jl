@@ -17,7 +17,7 @@
 [coverage-img]: https://codecov.io/gh/FluxML/Optimisers.jl/branch/master/graph/badge.svg
 [coverage-url]: https://codecov.io/gh/FluxML/Optimisers.jl
 
-Optimisers.jl defines many standard optimisers, and tools for applying them to deeply nested models.
+Optimisers.jl defines many standard gradient-based optimisation rules, and tools for applying them to deeply nested models.
 
 This is the future of training for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
 but it can be used separately on anything understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
