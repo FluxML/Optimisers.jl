@@ -180,3 +180,42 @@ end
     4(sum(m.x) + sum(m.y)) + 13*sum(m.z)  # again two gradients are ===, so it eliminates one
   end == ([17,17,4,4],)  # Flux gave ([4.0, 4.0, 13.0, 13.0],)
 end
+
+@testset "DiffEqFlux issue 699" begin
+  # The gradient of `re` is a vector into which we accumulate contributions, and the issue
+  # is that one contribution may have a wider type than `v`, especially for `Dual` numbers.
+  v, re = destructure((x=[1,2.0], y=[3,4,5.0]))
+  _, bk = Zygote.pullback(re, ones(5))
+  # Testing with `Complex` isn't ideal, but this was an error on 0.2.1.
+  # If some upgrade inserts ProjectTo, this will fail, and can be changed:
+  @test bk((x=[1.0,im], y=nothing)) == ([1,im,0,0,0],)
+  
+  @test bk((x=nothing, y=[10,20,30]))[1] isa Vector{Float64}  # despite some ZeroTangent
+  @test bk((x=nothing, y=nothing)) == (nothing,)  # don't reduce over empty list of eltypes
+  @test bk((x=nothing, y=@thunk [1,2,3.0] .* 10)) == ([0,0,10,20,30],)
+end
+
+#=
+
+# Adapted from https://github.com/SciML/DiffEqFlux.jl/pull/699#issuecomment-1092846657
+using ForwardDiff, Zygote, Flux, Optimisers, Test
+
+y = Float32[0.8564646, 0.21083355]
+p = randn(Float32, 252);
+t = 1.5f0
+λ = [ForwardDiff.Dual{ForwardDiff.Tag{Nothing,Float32}}(0.87135935, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), ForwardDiff.Dual{ForwardDiff.Tag{Nothing,Float32}}(1.5225363, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)]
+
+model = Chain(x -> x .^ 3,
+    Dense(2 => 50, tanh),
+    Dense(50 => 2))
+
+p,re = Optimisers.destructure(model)
+f(u, p, t) = re(p)(u)
+_dy, back = Zygote.pullback(y, p) do u, p
+    vec(f(u, p, t))
+end
+tmp1, tmp2 = back(λ);
+tmp1
+@test tmp2 isa Vector{<:ForwardDiff.Dual}
+
+=#
