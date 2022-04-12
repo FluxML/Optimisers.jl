@@ -127,15 +127,22 @@ function _grad!(x, dx, off, flat::AbstractVector)
   x′, _ = functor(typeof(x), x)
   dx′, _ = functor(typeof(x), base(dx))
   off′, _ = functor(typeof(x), off)
-  foreach((xᵢ, dxᵢ, oᵢ) -> _grad!(xᵢ, dxᵢ, oᵢ, flat), x′, dx′, off′)
+  for (xᵢ, dxᵢ, oᵢ) in zip(x′, dx′, off′)
+    flat = _grad!(xᵢ, dxᵢ, oᵢ, flat)
+  end
   flat
 end
-function _grad!(x, dx, off::Integer, flat::AbstractVector)
-  @views flat[off .+ (1:length(x))] .+= vec(dx)  # must visit all tied nodes
+function _grad!(x, dx, off::Integer, flat::AbstractVector{T}) where T
+  dx_un = unthunk(dx)
+  T2 = promote_type(T, eltype(dx_un))
+  if T != T2  # then we must widen the type
+    flat = copyto!(similar(flat, T2), flat)
+  end
+  @views flat[off .+ (1:length(x))] .+= vec(dx_un)  # must visit all tied nodes
   flat
 end
-_grad!(x, dx::Zero, off, flat::AbstractVector) = dx
-_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = dx  # ambiguity
+_grad!(x, dx::Zero, off, flat::AbstractVector) = flat
+_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = flat  # ambiguity
 
 # These are only needed for 2nd derivatives:
 function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)
