@@ -203,10 +203,10 @@ end
     re(w)[2].y[1]
   end == ([0,0,1,0],)
 
-  gradient(sk) do x
+  @test gradient(sk) do x
     w, _ = destructure(x)
-    w[1]
-  end
+    w[1] + w[4]
+  end == ((layers = ([1.0, 0.0], (x = nothing, y = [0.0, 1.0])),),)
 #=
 
 ERROR: ArgumentError: Tangent for the primal Skip{Tuple{Vector{Float64}, NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}}} should be backed by a NamedTuple type, not by Tuple{Vector{Float64}, ChainRulesCore.Tangent{NamedTuple{(:x, :y), Tuple{Int64, Vector{Float64}}}, NamedTuple{(:x, :y), Tuple{ChainRulesCore.NoTangent, Vector{Float64}}}}}.
