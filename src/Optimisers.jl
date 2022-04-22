@@ -6,7 +6,7 @@ using LinearAlgebra
 include("interface.jl")
 
 include("destructure.jl")
-export destructure, total, total2
+export destructure
 
 include("rules.jl")
 export Descent, ADAM, Momentum, Nesterov, RMSProp,
