@@ -220,3 +220,24 @@ tmp1
 @test tmp2 isa Vector{<:ForwardDiff.Dual}
 
 =#
+
+@testset "empty, issue 67" begin
+    m0 = (nothing, missing, isempty)
+    @test destructure(m0)[1] isa Vector{<:AbstractFloat}
+    v0, re0 = destructure(m0)
+    @test re0(Float32[]) === m0
+    @test_throws DimensionMismatch re0([1])
+
+    # This is an elaborate way of saying that Float16[] is right, as it doesn't cause promotions:
+    m01 = [(x=nothing, y=0), (x=Float16[1, 2], y=Float16[3])]
+    v01, _ = destructure(m01)
+    v012 = vcat(destructure(m01[1])[1], destructure(m01[2])[1])
+    @test v01 == v012
+    @test v012 isa Vector{Float16}
+
+    y, bk = Zygote.pullback(x -> sum(destructure(x)[1]), ("a", :beta))
+    @test bk(1.0) == (nothing,)
+    # Zygote regards 3,4 as differentiable, but Optimisers does not regard them as parameters:
+    y, bk = Zygote.pullback(x -> sum(destructure(x)[1]), (3, 4))
+    @test bk(1.0) == ((nothing, nothing),)
+end

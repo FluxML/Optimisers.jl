@@ -64,6 +64,7 @@ function _flatten(x)
     len[] = o + length(y)
     o
   end
+  isempty(arrays) && return Float16[], off, 0
   reduce(vcat, arrays), off, len[]
 end
 
