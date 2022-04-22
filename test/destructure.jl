@@ -79,7 +79,7 @@ end
   g8 = gradient(m -> sum(abs2, destructure(m)[1]), m8)[1]
   @test g8[1].x == [2,4,6]
   @test g8[2].b.x == [8]
-  @test g8[3] == [[10.0]]  # fails
+  @test g8[3] == [[10.0]]
 
   g9 = gradient(m -> sum(sqrt, destructure(m)[1]), m9)[1]
   @test g9.c === nothing
