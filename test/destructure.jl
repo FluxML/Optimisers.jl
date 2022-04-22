@@ -223,12 +223,12 @@ tmp1
 
 @testset "empty, issue 67" begin
     m0 = (nothing, missing, isempty)
-    @test destructure(m0)[1] isa Vector{<:AbstractFloat}
+    @test destructure(m0)[1] isa Vector{<:Real}
     v0, re0 = destructure(m0)
     @test re0(Float32[]) === m0
     @test_throws DimensionMismatch re0([1])
 
-    # This is an elaborate way of saying that Float16[] is right, as it doesn't cause promotions:
+    # This is an elaborate way of checking that it doesn't cause promotions, even of small floats:
     m01 = [(x=nothing, y=0), (x=Float16[1, 2], y=Float16[3])]
     v01, _ = destructure(m01)
     v012 = vcat(destructure(m01[1])[1], destructure(m01[2])[1])
@@ -239,5 +239,5 @@ tmp1
     @test bk(1.0) == (nothing,)
     # Zygote regards 3,4 as differentiable, but Optimisers does not regard them as parameters:
     y, bk = Zygote.pullback(x -> sum(destructure(x)[1]), (3, 4))
-    @test bk(1.0) == ((nothing, nothing),)
+    @test bk(1.0) == (nothing,)
 end
