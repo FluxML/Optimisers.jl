@@ -205,8 +205,14 @@ end
 
   @test gradient(sk) do x
     w, _ = destructure(x)
-    w[1] + w[4]
-  end == ((layers = ([1.0, 0.0], (x = nothing, y = [0.0, 1.0])),),)
+    w[1]^2 + w[4]^2
+  end == ((layers = ([2.0, 0.0], (x = nothing, y = [0.0, 10.0])),),)
+
+  ac = TwoThirds([1.0, 2.0], [3.0], [4.0, 5.0])  # a,c are functor-ed, and only a is trainable
+  @test gradient(ac) do x
+    w2, _ = destructure(x)
+    w2[2]^2
+  end == ((a = [0.0, 4.0], b = nothing, c = nothing),)
 end
 
 @testset "DiffEqFlux issue 699" begin

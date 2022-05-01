@@ -108,13 +108,19 @@ end
 function _Tangent_biwalk(f, x, aux)  # use with prune = NoT
   ch, re = functor(typeof(x), x)
   au, _ = functor(aux)
-  y = _trainmap(f, ch, _trainable(x), au)
+  y = map(ch, _trainable(x), au) do c, t, a  # isnothing(t) indicates non-trainable field, safe given isnumeric(c)
+    isnothing(t) ? NoT : f(t, a)
+  end
   y isa Tuple{} && return NoT
   p = ProjectTo(x)
   if p isa ProjectTo  # e.g. Array, NamedTuple
     p(y)
   else  # p === identity for unknown structs
-    y = backing(re(y)) # extract NamedTuple backing from re(y); required if x has children which aren't its own fields
+    y = map(backing(x), backing(re(y))) do c, t
+      # backing(re(y)) extracts NamedTuple backing from re(y); required if x has children which aren't its own fields
+      # however, re(y) will repopulate primal field values from x which weren't functor-ed; these gradients should be NoT
+      c === t ? NoT : t
+    end
     Tangent{typeof(x), typeof(y)}(y)
   end
 end
