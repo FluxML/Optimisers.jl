@@ -43,7 +43,7 @@ state, model = Optimisers.update(state, model, grad)  # at every step
 
 For models with deeply nested layers containing the parameters (like [Flux.jl](https://github.com/FluxML/Flux.jl) models),
 this state is an similar tree.
-The function `destructure` collects them all the trainable parameters into one vector,
+The function `destructure` collects all the trainable parameters into one vector,
 and returns this along with a function to re-build a similar model:
 
 ```julia
@@ -53,4 +53,4 @@ model2 = re(2 .* vector)
 ```
 
 [The documentation](https://fluxml.ai/Optimisers.jl/dev/) explains in more detail,
-describes all the optimsation rules, and shows how to define new optimisation ones.
+describes all the optimsation rules, and shows how to define new ones.
