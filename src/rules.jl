@@ -406,7 +406,7 @@ ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
   OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
 
 """
-    AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1e-16)
 
 The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the well-known
 ADAM optimiser.
@@ -424,19 +424,19 @@ struct AdaBelief{T}
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaBelief{typeof(η)}(η, β, ϵ)
+AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = oftype(η, 1e-16)) = AdaBelief{typeof(η)}(η, β, ϵ)
 
-init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x))
+init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 function apply!(o::AdaBelief, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
-  mt, st = state
+  mt, st, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. st = β[2] * st + (1 - β[2]) * abs2(dx - mt)
-  dx′ = @lazy η * mt / (sqrt(st) + ϵ)
+  @.. st = β[2] * st + (1 - β[2]) * abs2(dx - mt) + ϵ
+  dx′ = @lazy η * mt / (1 - βt[1]) / (sqrt(st / (1 - βt[2])) + ϵ)
   
-  return (mt, st), dx′
+  return (mt, st, βt .* β), dx′
 end
 
 """
