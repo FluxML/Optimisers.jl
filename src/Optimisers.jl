@@ -11,7 +11,7 @@ export destructure
 include("rules.jl")
 export Descent, ADAM, Momentum, Nesterov, RMSProp,
        ADAGrad, AdaMax, ADADelta, AMSGrad, NADAM, ADAMW, RADAM, OADAM, AdaBelief,
-       WeightDecay, ClipGrad, ClipNorm, OptimiserChain
+       WeightDecay, ClipGrad, ClipNorm, OptimiserChain, Lookahead
 
 """
     Optimisers.apply!(rule::RuleType, state, parameters, gradient) -> (state, gradient)

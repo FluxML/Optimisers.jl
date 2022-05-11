@@ -559,3 +559,71 @@ function Base.show(io::IO, c::OptimiserChain)
   join(io, c.opts, ", ")
   print(io, ")")
 end
+
+"""
+    Lookahead(opt = Momentum(), k = 10, α = 0.5)
+
+The [Lookahead](https://arxiv.org/abs/1907.08610) optimiser
+keeps a "slow" copy of the parameters, `y`.
+Most steps update only the "fast" parameters `x` as usual,
+using the given `opt`, but every `k`th step updates the slow 
+parameters, and then resets the fast ones to match:
+
+    @. y = α * x + (1-α) * y
+    @. x = y
+
+# Parameters
+- Optimiser (`opt`): Used at each fast step.
+- Synchronization period (`k`): Number of fast steps between slow steps.
+- Slow weight step size (`α`): Proportion of the change to fast weights which is kept.
+
+# Example
+```jldoctest
+julia> x = [10.0]; o = Lookahead(Descent(0.5), 4); s = Optimisers.setup(o, x);
+
+julia> for t in 1:8
+         s, x = Optimisers.update!(s, x, [1])
+         y = s.state[3]
+         @show x, y
+       end
+(x, y) = ([9.5], [10.0])
+(x, y) = ([9.0], [10.0])
+(x, y) = ([8.5], [10.0])
+(x, y) = ([9.0], [9.0])
+(x, y) = ([8.5], [9.0])
+(x, y) = ([8.0], [9.0])
+(x, y) = ([7.5], [9.0])
+(x, y) = ([8.0], [8.0])
+```
+"""
+struct Lookahead{O, T<:Real}
+  inner::O
+  k::Int
+  alpha::T
+end
+Lookahead(opt = Momentum(), k::Int = 10, α = 5f-1) = Lookahead{typeof(opt),typeof(α)}(Momentum(), k, α)
+
+init(o::Lookahead, x::AbstractArray) = (init(o.inner, x), 1, copy(x))
+
+update!(ℓ::Leaf{<:Lookahead}, x, ::Zero, ::Zero...) = ℓ, x
+function update!(ℓ::Leaf{<:Lookahead}, x, x̄s...)
+  instate, n, y = ℓ.state
+  is′, x̄′ = apply!(ℓ.rule.inner, instate, x, base.(x̄s)...)
+
+  if n % (ℓ.rule.k) != 0
+    return Leaf(ℓ.rule, (is′, n+1, y)), subtract!(x, x̄′)
+  else
+    α = ℓ.rule.alpha
+    @.. y = α * (x - x̄′) + (1 - α) * y
+    @.. x = y
+    return Leaf(ℓ.rule, (is′, n+1, y)), x
+  end
+end
+
+function Base.show(io::IO, o::Lookahead)
+  print(io, "Lookahead(")
+  show(io, o.inner)
+  print(io, ", ", o.k, ", ")
+  show(io, o.alpha)
+  print(io, ")")
+end

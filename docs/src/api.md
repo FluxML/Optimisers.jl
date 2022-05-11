@@ -25,6 +25,7 @@ Optimisers.ClipGrad
 Optimisers.ClipNorm
 Optimisers.WeightDecay
 Optimisers.OptimiserChain
+Optimisers.Lookahead
 ```
 
 ## Model Interface
