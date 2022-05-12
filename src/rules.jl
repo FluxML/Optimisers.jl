@@ -91,6 +91,9 @@ Optimizer using the
 algorithm. Often a good choice for recurrent networks. Parameters other than learning rate
 generally don't need tuning.
 
+[Centred RMSProp](http://arxiv.org/abs/1308.08500) is a variant which normalises
+gradients by an estimate their variance, instead of their second moment.
+
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
                        the weights.
@@ -98,6 +101,8 @@ generally don't need tuning.
                   prominent direction, in effect dampening oscillations.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
+- Keyword `centre` (or `center`): Indicates whether to use centred variant
+                                  of the algorithm.
 """
 struct RMSProp{T}
   eta::T
@@ -121,6 +126,13 @@ function apply!(o::RMSProp, state, x, dx)
   dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
   
   return (quad, lin), dx′
+end
+
+function Base.show(io::IO, o::RMSProp)
+    show(io, typeof(o))
+    print(io, "(")
+    join(io, [o.eta, o.rho, o.epsilon], ", ")
+    print(io, "; centre = ", o.centre, ")")
 end
 
 """
