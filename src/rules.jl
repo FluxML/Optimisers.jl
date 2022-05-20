@@ -1,3 +1,11 @@
+@deprecate ADAM Adam
+@deprecate NADAM NAdam
+@deprecate ADAMW AdamW
+@deprecate RADAM RAdam
+@deprecate OADAM OAdam
+@deprecate ADAGrad AdaGrad
+@deprecate ADADelta AdaDelta
+
 """
     Descent(η = 1f-1)
 
@@ -110,9 +118,9 @@ function apply!(o::RMSProp, state, x, dx)
 end
 
 """
-    ADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
-[ADAM](https://arxiv.org/abs/1412.6980) optimiser.
+[Adam](https://arxiv.org/abs/1412.6980) optimiser.
 
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
@@ -122,16 +130,18 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct ADAM{T}
+struct Adam{T}
   eta::T
   beta::Tuple{T, T}
   epsilon::T
 end
-ADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = ADAM{typeof(η)}(η, β, ϵ)
+Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = Adam{typeof(η)}(η, β, ϵ)
 
-init(o::ADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
+const Adam = Adam
 
-function apply!(o::ADAM, state, x, dx)
+init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
+
+function apply!(o::Adam, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt = state
 
@@ -143,9 +153,9 @@ function apply!(o::ADAM, state, x, dx)
 end
 
 """
-    RADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
-[Rectified ADAM](https://arxiv.org/abs/1908.03265) optimizer.
+[Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
 
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
@@ -155,16 +165,16 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct RADAM{T}
+struct RAdam{T}
   eta::T
   beta::Tuple{T, T}
   epsilon::T
 end
-RADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = RADAM{typeof(η)}(η, β, ϵ)
+RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = RAdam{typeof(η)}(η, β, ϵ)
 
-init(o::RADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
+init(o::RAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
-function apply!(o::RADAM, state, x, dx)
+function apply!(o::RAdam, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   ρ∞ = 2/(1-β[2])-1
 
@@ -186,7 +196,7 @@ end
 """
     AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
-[AdaMax](https://arxiv.org/abs/1412.6980) is a variant of ADAM based on the ∞-norm.
+[AdaMax](https://arxiv.org/abs/1412.6980) is a variant of Adam based on the ∞-norm.
 
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
@@ -217,10 +227,10 @@ function apply!(o::AdaMax, state, x, dx)
 end
 
 """
-    OADAM(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η)))
+    OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η)))
 
-[OADAM](https://arxiv.org/abs/1711.00141) (Optimistic ADAM)
-is a variant of ADAM adding an "optimistic" term suitable for adversarial training.
+[OAdam](https://arxiv.org/abs/1711.00141) (Optimistic Adam)
+is a variant of Adam adding an "optimistic" term suitable for adversarial training.
 
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
@@ -230,16 +240,16 @@ is a variant of ADAM adding an "optimistic" term suitable for adversarial traini
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct OADAM{T}
+struct OAdam{T}
   eta::T
   beta::Tuple{T, T}
   epsilon::T
 end
-OADAM(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η))) = OADAM{typeof(η)}(η, β, ϵ)
+OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η))) = OAdam{typeof(η)}(η, β, ϵ)
 
-init(o::OADAM, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
+init(o::OAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
-function apply!(o::OADAM, state, x, dx)
+function apply!(o::OAdam, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
   mt, vt, βt, term = state
 
@@ -253,9 +263,9 @@ function apply!(o::OADAM, state, x, dx)
 end
 
 """
-    ADAGrad(η = 1f-1, ϵ = eps(typeof(η)))
+    AdaGrad(η = 1f-1, ϵ = eps(typeof(η)))
 
-[ADAGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) optimizer. It has
+[AdaGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) optimizer. It has
 parameter specific learning rates based on how frequently it is updated.
 Parameters don't need tuning.
 
@@ -265,15 +275,15 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct ADAGrad{T}
+struct AdaGrad{T}
   eta::T
   epsilon::T
 end
-ADAGrad(η = 1f-1, ϵ = eps(typeof(η))) = ADAGrad{typeof(η)}(η, ϵ)
+AdaGrad(η = 1f-1, ϵ = eps(typeof(η))) = AdaGrad{typeof(η)}(η, ϵ)
 
-init(o::ADAGrad, x::AbstractArray) = onevalue(o.epsilon, x)
+init(o::AdaGrad, x::AbstractArray) = onevalue(o.epsilon, x)
 
-function apply!(o::ADAGrad, state, x, dx)
+function apply!(o::AdaGrad, state, x, dx)
   η, ϵ = o.eta, o.epsilon
   acc = state
 
@@ -284,9 +294,9 @@ function apply!(o::ADAGrad, state, x, dx)
 end
 
 """
-    ADADelta(ρ = 9f-1, ϵ = eps(typeof(ρ)))
+    AdaDelta(ρ = 9f-1, ϵ = eps(typeof(ρ)))
 
-[ADADelta](https://arxiv.org/abs/1212.5701) is a version of ADAGrad adapting its learning
+[AdaDelta](https://arxiv.org/abs/1212.5701) is a version of AdaGrad adapting its learning
 rate based on a window of past gradient updates.
 Parameters don't need tuning.
 
@@ -295,15 +305,15 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct ADADelta{T}
+struct AdaDelta{T}
   rho::T
   epsilon::T
 end
-ADADelta(ρ = 9f-1, ϵ = eps(typeof(ρ))) = ADADelta{typeof(ρ)}(ρ, ϵ)
+AdaDelta(ρ = 9f-1, ϵ = eps(typeof(ρ))) = AdaDelta{typeof(ρ)}(ρ, ϵ)
 
-init(o::ADADelta, x::AbstractArray) = (zero(x), zero(x))
+init(o::AdaDelta, x::AbstractArray) = (zero(x), zero(x))
 
-function apply!(o::ADADelta, state, x, dx)
+function apply!(o::AdaDelta, state, x, dx)
   ρ, ϵ = o.rho, o.epsilon
   acc, Δacc = state
 
@@ -318,7 +328,7 @@ end
 """
     AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
-The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the ADAM
+The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
 
 # Parameters
@@ -352,9 +362,9 @@ function apply!(o::AMSGrad, state, x, dx)
 end
 
 """
-    NADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
-[NADAM](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of ADAM.
+[NAdam](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of Adam.
 Parameters don't need tuning.
 
 # Parameters
@@ -365,16 +375,16 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct NADAM{T}
+struct NAdam{T}
   eta::T
   beta::Tuple{T, T}
   epsilon::T
 end
-NADAM(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = NADAM{typeof(η)}(η, β, ϵ)
+NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = NAdam{typeof(η)}(η, β, ϵ)
 
-init(o::NADAM, x::AbstractArray) = (zero(x), zero(x), o.beta)
+init(o::NAdam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
-function apply!(o::NADAM, state, x, dx)
+function apply!(o::NAdam, state, x, dx)
   η, β, ϵ = o.eta, o.beta, o.epsilon
 
   mt, vt, βt = state
@@ -388,9 +398,9 @@ function apply!(o::NADAM, state, x, dx)
 end
 
 """
-    ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η)))
+    AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η)))
 
-[ADAMW](https://arxiv.org/abs/1711.05101) is a variant of ADAM fixing (as in repairing) its
+[AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
 
 # Parameters
@@ -402,14 +412,14 @@ weight decay regularization.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-ADAMW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(ADAM{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
+AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
+  OptimiserChain(Adam{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1e-16)
 
 The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the well-known
-ADAM optimiser.
+Adam optimiser.
 
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating

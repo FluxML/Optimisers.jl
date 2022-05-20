@@ -36,7 +36,7 @@ It is initialised by `setup`, and then at each step, `update` returns both the n
 state, and the model with its trainable parameters adjusted:
 
 ```julia
-state = Optimisers.setup(Optimisers.ADAM(), model)  # just once
+state = Optimisers.setup(Optimisers.Adam(), model)  # just once
 
 state, model = Optimisers.update(state, model, grad)  # at every step
 ```
