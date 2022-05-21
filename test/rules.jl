@@ -6,14 +6,14 @@ Random.seed!(1)
 
 RULES = [
   # All the rules at default settings:
-  Descent(), ADAM(), Momentum(), Nesterov(), RMSProp(),
-  ADAGrad(), AdaMax(), ADADelta(), AMSGrad(), NADAM(),
-  ADAMW(), RADAM(), OADAM(), AdaBelief(),
+  Descent(), Adam(), Momentum(), Nesterov(), RMSProp(),
+  AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
+  AdamW(), RAdam(), OAdam(), AdaBelief(),
   # A few chained combinations:
-  OptimiserChain(WeightDecay(), ADAM(0.001)),
-  OptimiserChain(ClipNorm(), ADAM(0.001)),
+  OptimiserChain(WeightDecay(), Adam(0.001)),
+  OptimiserChain(ClipNorm(), Adam(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
-  OptimiserChain(WeightDecay(), OADAM(), ClipGrad(1)),
+  OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
 ]
 
 name(o) = typeof(o).name.name  # just for printing testset headings
@@ -177,10 +177,10 @@ end
 @testset "with complex numbers: Flux#1776" begin
   empty!(LOG)
   @testset "$(name(opt))" for opt in [
-              # The Flux PR had 1e-2 for all. But ADADelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
-              ADAM(1e-2), RMSProp(1e-2), RADAM(1e-2), OADAM(1e-2), ADAGrad(1e-2), ADADelta(0.9, 1e-5), NADAM(1e-2), AdaBelief(1e-2),
+              # The Flux PR had 1e-2 for all. But AdaDelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
+              Adam(1e-2), RMSProp(1e-2), RAdam(1e-2), OAdam(1e-2), AdaGrad(1e-2), AdaDelta(0.9, 1e-5), NAdam(1e-2), AdaBelief(1e-2),
               # These weren't in Flux PR:
-              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), ADAMW(1e-2), 
+              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), AdamW(1e-2), 
               ]
     # Our "model" is just a complex number
     model = (w = zeros(ComplexF64, 1),)

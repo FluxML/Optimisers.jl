@@ -160,9 +160,9 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       ok = (1.0:3.0, sin, "abc", :abc)
       m = (α = ok, β = rand(3), γ = ok)
       m1 = (rand(3), m, rand(3))
-      @test Optimisers.setup(ADAMW(), m1) isa Tuple
+      @test Optimisers.setup(AdamW(), m1) isa Tuple
       m2 = (rand(3), m, rand(3), m, rand(3))  # illegal
-      @test_throws ArgumentError Optimisers.setup(ADAMW(), m2)
+      @test_throws ArgumentError Optimisers.setup(AdamW(), m2)
     end
 
   end

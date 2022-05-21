@@ -9,8 +9,8 @@ include("destructure.jl")
 export destructure
 
 include("rules.jl")
-export Descent, ADAM, Momentum, Nesterov, RMSProp,
-       ADAGrad, AdaMax, ADADelta, AMSGrad, NADAM, ADAMW, RADAM, OADAM, AdaBelief,
+export Descent, Adam, Momentum, Nesterov, RMSProp,
+       AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain
 
 """
