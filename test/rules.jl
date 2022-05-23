@@ -22,7 +22,7 @@ RULES = [
 
 name(o) = typeof(o).name.name  # just for printing testset headings
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
-name(o::RMSProp) = o.centre ? "RMSProp(centre = true)" : :RMSProp
+name(o::RMSProp) = o.centred ? "RMSProp(centred = true)" : "RMSProp"
 
 LOG = Dict()  # for debugging these testsets, this makes it easy to plot each optimiser's loss
 
