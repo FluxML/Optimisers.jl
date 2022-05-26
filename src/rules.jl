@@ -6,8 +6,6 @@
 @deprecate ADAGrad AdaGrad
 @deprecate ADADelta AdaDelta
 
-abstract type AbstractOptimiser end
-
 """
     Descent(η = 1f-1)
 
@@ -18,7 +16,7 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 - Learning rate (`η`): Amount by which gradients are discounted before updating
                        the weights.
 """
-struct Descent{T} <: AbstractOptimiser
+struct Descent{T} <: Rule
   eta::T
 end
 Descent() = Descent(1f-1)
@@ -42,7 +40,7 @@ Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
-struct Momentum{T} <: AbstractOptimiser
+struct Momentum{T} <: Rule
   eta::T
   rho::T
 end
@@ -68,7 +66,7 @@ Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
                            prominent direction, in effect dampening oscillations.
 """
-struct Nesterov{T} <: AbstractOptimiser
+struct Nesterov{T} <: Rule
   eta::T
   rho::T
 end
@@ -106,7 +104,7 @@ gradients by an estimate their variance, instead of their second moment.
 - Keyword `centred` (or `centered`): Indicates whether to use centred variant
                                      of the algorithm.
 """
-struct RMSProp{T} <: AbstractOptimiser
+struct RMSProp{T} <: Rule
   eta::T
   rho::T
   epsilon::T
@@ -150,7 +148,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct Adam{T} <: AbstractOptimiser
+struct Adam{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -185,7 +183,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct RAdam{T} <: AbstractOptimiser
+struct RAdam{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -226,7 +224,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaMax{T} <: AbstractOptimiser
+struct AdaMax{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -260,7 +258,7 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct OAdam{T} <: AbstractOptimiser
+struct OAdam{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -295,7 +293,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaGrad{T} <: AbstractOptimiser
+struct AdaGrad{T} <: Rule
   eta::T
   epsilon::T
 end
@@ -325,7 +323,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaDelta{T} <: AbstractOptimiser
+struct AdaDelta{T} <: Rule
   rho::T
   epsilon::T
 end
@@ -359,7 +357,7 @@ optimiser. Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AMSGrad{T} <: AbstractOptimiser
+struct AMSGrad{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -395,7 +393,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct NAdam{T} <: AbstractOptimiser
+struct NAdam{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -449,7 +447,7 @@ Adam optimiser.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-struct AdaBelief{T} <: AbstractOptimiser
+struct AdaBelief{T} <: Rule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -481,7 +479,7 @@ This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to t
 # Parameters
 - Weight decay (`γ`): Decay applied to weights during optimisation.
 """
-struct WeightDecay{T} <: AbstractOptimiser
+struct WeightDecay{T} <: Rule
   gamma::T
 end
 WeightDecay() = WeightDecay(5f-4)
@@ -501,7 +499,7 @@ Restricts every gradient component to obey `-δ ≤ dx[i] ≤ δ`.
 
 See also [`ClipNorm`](@ref).
 """
-struct ClipGrad{T<:Real} <: AbstractOptimiser
+struct ClipGrad{T<:Real} <: Rule
   delta::T
 end
 ClipGrad() = ClipGrad(10f0)
@@ -526,7 +524,7 @@ which you can turn off with `throw = false`.
 
 See also [`ClipGrad`](@ref).
 """
-struct ClipNorm{T<:Real} <: AbstractOptimiser
+struct ClipNorm{T<:Real} <: Rule
   omega::T
   p::T
   throw::Bool
@@ -568,7 +566,7 @@ julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 ([-0.03, -0.1, -0.1],)
 ```
 """
-struct OptimiserChain{O<:Tuple} <: AbstractOptimiser
+struct OptimiserChain{O<:Tuple} <: Rule
   opts::O
 end
 OptimiserChain(opts...) = OptimiserChain(opts)

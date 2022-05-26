@@ -10,6 +10,7 @@ struct Leaf{R,S}
 end
 
 function setup(rule, x; seen = Base.IdSet())
+  rule isa Rule || Base.depwarn("In future, all optimisation rules should be <: Optimisers.Rule", :setup) # , force=true)
   if isnumeric(x)
     x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
     isbits(x) || push!(seen, x)

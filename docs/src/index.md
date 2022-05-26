@@ -6,7 +6,7 @@ A new optimiser must overload two functions, `apply!` and `init`:
 
 ```julia
 # Define a container to hold any optimiser specific parameters (if any):
-struct DecayDescent{T}
+struct DecayDescent{T} <: Optimisers.Rule
   η::T
 end
 
