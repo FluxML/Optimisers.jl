@@ -63,7 +63,7 @@ tree formed by the model and update the parameters using the gradients.
 Optimisers.jl does not depend on any one automatic differentiation package,
 but for now the most likely source of gradients is [Zygote.jl](https://fluxml.ai/Zygote.jl).
 Note that `update` always wants the "explicit" gradient as shown above, a tree structure, 
-rahter than the dictionary-like objects from the "implicit" style `gradient(() -> loss(...), params(model))`. 
+rather than the dictionary-like objects from the "implicit" style `gradient(() -> loss(...), params(model))`. 
 (See  [Zygote's documentation](https://fluxml.ai/Zygote.jl/dev/#Explicit-and-Implicit-Parameters-1) for more.)
 
 There is also `Optimisers.update!` which similarly returns a new model and new state,
