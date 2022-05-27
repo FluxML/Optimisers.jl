@@ -44,8 +44,8 @@ state, model = Optimisers.update(state, model, grad)  # at every step
 ```
 
 For models with deeply nested layers containing the parameters (like [Flux.jl](https://github.com/FluxML/Flux.jl) models),
-this state is a similarly nested tree. As is the gradient: if using Zygote, this must be done in "explicit" mode,
-not the "implicit" mode with `Params`.
+this state is a similarly nested tree. As is the gradient: if using Zygote, you must use the "explicit" style as shown,
+not the "implicit" one with `Params`.
 
 The function `destructure` collects all the trainable parameters into one vector,
 and returns this along with a function to re-build a similar model:
