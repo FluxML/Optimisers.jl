@@ -6,15 +6,15 @@ Optimisers.Descent
 Optimisers.Momentum
 Optimisers.Nesterov
 Optimisers.RMSProp
-Optimisers.ADAM
-Optimisers.RADAM
+Optimisers.Adam
+Optimisers.RAdam
 Optimisers.AdaMax
-Optimisers.OADAM
-Optimisers.ADAGrad
-Optimisers.ADADelta
+Optimisers.OAdam
+Optimisers.AdaGrad
+Optimisers.AdaDelta
 Optimisers.AMSGrad
-Optimisers.NADAM
-Optimisers.ADAMW
+Optimisers.NAdam
+Optimisers.AdamW
 Optimisers.AdaBelief
 ```
 
