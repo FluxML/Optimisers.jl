@@ -4,13 +4,15 @@ base(dx::Tangent) = backing(canonicalize(dx))
 base(dx) = dx
 const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 
+abstract type AbstractRule end
+
 struct Leaf{R,S}
   rule::R
   state::S
 end
 
 function setup(rule, x; seen = Base.IdSet())
-  rule isa Rule || Base.depwarn("In future, all optimisation rules should be <: Optimisers.Rule", :setup) # , force=true)
+  rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
   if isnumeric(x)
     x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
     isbits(x) || push!(seen, x)

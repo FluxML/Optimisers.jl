@@ -3,9 +3,8 @@ module Optimisers
 using Functors: functor, fmap, isleaf
 using LinearAlgebra
 
-abstract type Rule end
-
 include("interface.jl")
+export AbstractRule
 
 include("destructure.jl")
 export destructure
