@@ -21,7 +21,7 @@ Optimisers.jl defines many standard gradient-based optimisation rules, and tools
 
 This is the future of training for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
 and the present for [Lux.jl](https://github.com/avik-pal/Lux.jl).
-But it can be used separately on anything understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
+But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
 
 ## Installation
 
@@ -38,11 +38,15 @@ state, and the model with its trainable parameters adjusted:
 ```julia
 state = Optimisers.setup(Optimisers.Adam(), model)  # just once
 
+grad = Zygote.gradient(m -> loss(m(x), y), model)[1]
+
 state, model = Optimisers.update(state, model, grad)  # at every step
 ```
 
 For models with deeply nested layers containing the parameters (like [Flux.jl](https://github.com/FluxML/Flux.jl) models),
-this state is a similarly nested tree.
+this state is a similarly nested tree. As is the gradient: if using Zygote, you must use the "explicit" style as shown,
+not the "implicit" one with `Params`.
+
 The function `destructure` collects all the trainable parameters into one vector,
 and returns this along with a function to re-build a similar model:
 
