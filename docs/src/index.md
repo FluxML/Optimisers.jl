@@ -40,12 +40,12 @@ to adjust the model:
 
 using Flux, Metalhead, Optimisers
 
-model = Metalhead.ResNet18() |> gpu  # define a model to train
+model = Metalhead.ResNet(18) |> gpu  # define a model to train
 image = rand(Float32, 224, 224, 3, 1) |> gpu;  # dummy data
 @show sum(model(image));  # dummy loss function
 
 rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
-state = Optimisers.setup(rule, model);  # initialize this optimiser's momentum etc.
+state = Optimisers.setup(rule, model);  # initialise this optimiser's momentum etc.
 
 ∇model, _ = gradient(model, image) do m, x  # calculate the gradients
   sum(m(x))
@@ -86,7 +86,7 @@ identical trees of nested `NamedTuple`s.)
 
 using Lux, Boltz, Zygote, Optimisers
 
-lux_model, params, lux_state = Boltz.resnet(:resnet18) .|> gpu;  # define and initialise model
+lux_model, params, lux_state = Boltz.resnet(:resnet18) |> gpu;  # define and initialise model
 images = rand(Float32, 224, 224, 3, 4) |> gpu;  # batch of dummy data
 y, _ = Lux.apply(lux_model, images, params, lux_state);  # run the model
 @show sum(y)  # initial dummy loss
