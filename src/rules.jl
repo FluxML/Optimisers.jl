@@ -16,7 +16,7 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 - Learning rate (`η`): Amount by which gradients are discounted before updating
                        the weights.
 """
-struct Descent{T} <: AbstractRule
+struct Descent{T<Number} <: AbstractRule
   eta::T
 end
 Descent() = Descent(1f-1)
@@ -40,7 +40,7 @@ Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
-struct Momentum{T} <: AbstractRule
+struct Momentum{T<:Real} <: AbstractRule
   eta::T
   rho::T
 end
@@ -66,7 +66,7 @@ Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
                            prominent direction, in effect dampening oscillations.
 """
-struct Nesterov{T} <: AbstractRule
+struct Nesterov{T<:Real} <: AbstractRule
   eta::T
   rho::T
 end
@@ -104,7 +104,7 @@ gradients by an estimate their variance, instead of their second moment.
 - Keyword `centred` (or `centered`): Indicates whether to use centred variant
                                      of the algorithm.
 """
-struct RMSProp{T} <: AbstractRule
+struct RMSProp{T<:Real} <: AbstractRule
   eta::T
   rho::T
   epsilon::T
@@ -197,7 +197,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct Adam{T} <: AbstractRule
+struct Adam{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -230,7 +230,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct RAdam{T} <: AbstractRule
+struct RAdam{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -271,7 +271,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaMax{T} <: AbstractRule
+struct AdaMax{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -305,7 +305,7 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct OAdam{T} <: AbstractRule
+struct OAdam{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -340,7 +340,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaGrad{T} <: AbstractRule
+struct AdaGrad{T<:Real} <: AbstractRule
   eta::T
   epsilon::T
 end
@@ -370,7 +370,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaDelta{T} <: AbstractRule
+struct AdaDelta{T<:Real} <: AbstractRule
   rho::T
   epsilon::T
 end
@@ -404,7 +404,7 @@ optimiser. Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AMSGrad{T} <: AbstractRule
+struct AMSGrad{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -440,7 +440,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct NAdam{T} <: AbstractRule
+struct NAdam{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -494,7 +494,7 @@ Adam optimiser.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-struct AdaBelief{T} <: AbstractRule
+struct AdaBelief{T<:Real} <: AbstractRule
   eta::T
   beta::Tuple{T, T}
   epsilon::T
@@ -526,7 +526,7 @@ This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to t
 # Parameters
 - Weight decay (`γ`): Decay applied to weights during optimisation.
 """
-struct WeightDecay{T} <: AbstractRule
+struct WeightDecay{T<:Real} <: AbstractRule
   gamma::T
 end
 WeightDecay() = WeightDecay(5f-4)
