@@ -1,8 +1,9 @@
 # Optimisers.jl
 
-## Defining an Optimiser
+## Defining an optimisation rule
 
-A new optimiser must overload two functions, `apply!` and `init`:
+A new optimiser must overload two functions, [`apply!`](@ref) and [`init`](@ref).
+These act on one array of parameters:
 
 ```julia
 # Define a container to hold any optimiser specific parameters (if any):
@@ -27,7 +28,6 @@ caried to the next iteration.
 
 Notice that the state is handled separately from the optimiser itself. This
 is a key design principle and allows users to manage their own state explicitly.
-
 It of course also makes it easier to store the state.
 
 ## Usage with [Flux.jl](https://github.com/FluxML/Flux.jl)
@@ -109,4 +109,67 @@ y, _ = Lux.apply(lux_model, images, params, lux_state);
 Besides the parameters stored in `params` and gradually optimised, any other model state
 is stored in `lux_state`. For simplicity this example does not show how to propagate the 
 updated `lux_state` to the next iteration, see Lux's documentation.
+
+## Obtaining a flat parameter vector
+
+Instead of a nested tree-like structure, sometimes is is convenient to have all the
+parameters as one simple vector. Optimisers.jl contains a function [`destructure`](@ref)
+which creates this vector, and also creates way to re-build the original structure
+with new parameters. Both flattening and re-building may be used within `gradient` calls.
+
+An example with Flux's `model`:
+
+```julia
+using ForwardDiff  # an example of a package which only likes one array
+
+model = Chain(  # much smaller model example, as ForwardDiff is a slow algorithm here
+          Conv((3, 3), 3 => 5, pad=1, bias=false), 
+          BatchNorm(5, relu), 
+          Conv((3, 3), 5 => 3, stride=16),
+        )
+image = rand(Float32, 224, 224, 3, 1);
+@show sum(model(image));
+
+flat, re = destructure(model)
+st = Optimisers.setup(rule, flat)  # state is just one Leaf now
+
+∇flat = ForwardDiff.gradient(flat) do v
+  m = re(v)      # rebuild a new object like model
+  sum(m(image))  # call that as before
+end
+
+st, flat = Optimisers.update(st, flat, ∇flat)
+@show sum(re(flat)(image));
+```
+
+Here `flat` contains only the 283 trainable parameters, while the non-trainable
+ones are preserved inside `re`.
+When defining new layers, these can be specified if necessary by overloading [`trainable`](@ref).
+By default, all numeric arrays visible to [Functors.jl](https://github.com/FluxML/Functors.jl)
+are assumed to contain trainable parameters.
+
+Lux stores only the trainable parameters in `param`.
+This can also be flattened to a plain `Vector` in the same way:
+
+```julia
+using NNlib, Random
+
+lux_model = Chain(
+          Conv((3, 3), 3 => 5, pad=1, bias=false), 
+          BatchNorm(5, relu), 
+          Conv((3, 3), 5 => 3, stride=16),
+        )
+params, lux_state = Lux.setup(Random.GLOBAL_RNG, lux_model);
+
+flat, re = destructure(params)
+st = Optimisers.setup(rule, flat)
+
+∇flat, = Zygote.gradient(flat) do v
+  p = re(v)  # rebuild an object like params
+  y, _ = Lux.apply(lux_model, images, p, lux_state)
+  sum(y)
+end
+
+st, flat = Optimisers.update(st, flat, ∇flat)
+```
 
