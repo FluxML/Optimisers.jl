@@ -100,3 +100,7 @@ end
 st_o, ps = Optimisers.update!(st_o, ps, gs)
 
 ```
+
+Besides the parameters stored in `ps` and gradually optimised, any other model state
+is stored in `st_m`. For simplicity this example does not show how to propagate the 
+updated `st_m` to the next iteration, see Lux's documentation.
