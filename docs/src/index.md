@@ -32,8 +32,8 @@ It of course also makes it easier to store the state.
 
 ## Usage with [Flux.jl](https://github.com/FluxML/Flux.jl)
 
-To apply such an optimiser to a whole model, `setup` builds a tree containing any initial
-state for every trainable array. Then at each step, `update` uses this and the gradient
+To apply such an optimiser to a whole model, [`setup`](@ref) builds a tree containing any initial
+state for every trainable array. Then at each step, [`update`](@ref) uses this and the gradient
 to adjust the model:
 
 ```julia
@@ -67,7 +67,7 @@ This `∇model` is another tree structure, rather than the dictionary-like objec
 Zygote's "implicit" mode `gradient(() -> loss(...), Flux.params(model))` -- see 
 [Zygote's documentation](https://fluxml.ai/Zygote.jl/dev/#Explicit-and-Implicit-Parameters-1) for more about this difference.
 
-There is also `Optimisers.update!` which similarly returns a new model and new state,
+There is also [`Optimisers.update!`](@ref) which similarly returns a new model and new state,
 but is free to mutate arrays within the old one for efficiency.
 The method of `apply!` you write is likewise free to mutate arrays within its state;
 they are defensively copied when this rule is used with `update`.
@@ -148,7 +148,7 @@ When defining new layers, these can be specified if necessary by overloading [`t
 By default, all numeric arrays visible to [Functors.jl](https://github.com/FluxML/Functors.jl)
 are assumed to contain trainable parameters.
 
-Lux stores only the trainable parameters in `param`.
+Lux stores only the trainable parameters in `params`.
 This can also be flattened to a plain `Vector` in the same way:
 
 ```julia
