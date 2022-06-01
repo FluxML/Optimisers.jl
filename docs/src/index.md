@@ -30,7 +30,7 @@ is a key design principle and allows users to manage their own state explicitly.
 
 It of course also makes it easier to store the state.
 
-## Usage with Flux.jl
+## Usage with [Flux.jl](https://github.com/FluxML/Flux.jl)
 
 To apply such an optimiser to a whole model, `setup` builds a tree containing any initial
 state for every trainable array. Then at each step, `update` uses this and the gradient
@@ -40,18 +40,18 @@ to adjust the model:
 
 using Flux, Metalhead, Optimisers
 
-model = Metalhead.ResNet18() # define a model to train on
-image = rand(Float32, 224, 224, 3, 1); # dummy data
-@show sum(model(image)); # dummy loss function
+model = Metalhead.ResNet18()  # define a model to train
+image = rand(Float32, 224, 224, 3, 1);  # dummy data
+@show sum(model(image));  # dummy loss function
 
-o = Optimisers.Adam() # use the Adam optimiser with its default settings
-st = Optimisers.setup(o, model);  # initialize the optimiser before using it
+rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
+state = Optimisers.setup(rule, model);  # initialize this optimiser's momentum etc.
 
-m̄, _ = gradient(model, image) do m, x # calculate the gradients
+∇model, _ = gradient(model, image) do m, x  # calculate the gradients
   sum(m(x))
 end;
 
-st, model = Optimisers.update(st, model, m̄);
+state, model = Optimisers.update(state, model, ∇model);
 @show sum(model(image));
 
 ```
@@ -63,8 +63,8 @@ tree formed by the model and update the parameters using the gradients.
 Optimisers.jl does not depend on any one automatic differentiation package,
 but for now the most likely source of gradients is [Zygote.jl](https://fluxml.ai/Zygote.jl).
 Note that `update` always wants the gradient from Zygote's "explicit" mode, as shown above.
-This a another tree structure, rather than the dictionary-like objects from Zygote's "implicit"
-mode `gradient(() -> loss(...), params(model))` -- see 
+This `∇model` is another tree structure, rather than the dictionary-like object from 
+Zygote's "implicit" mode `gradient(() -> loss(...), Flux.params(model))` -- see 
 [Zygote's documentation](https://fluxml.ai/Zygote.jl/dev/#Explicit-and-Implicit-Parameters-1) for more about this difference.
 
 There is also `Optimisers.update!` which similarly returns a new model and new state,
@@ -72,35 +72,35 @@ but is free to mutate arrays within the old one for efficiency.
 The method of `apply!` you write is likewise free to mutate arrays within its state;
 they are defensively copied when this rule is used with `update`.
 
-## Usage with Lux.jl
+## Usage with [Lux.jl](https://github.com/avik-pal/Lux.jl)
 
-The main design difference of [Lux.jl](https://github.com/avik-pal/Lux.jl) is that the tree of
-parameters is separate from the `model` structure. It is these parameters which 
-`setup` and `update` need to know about.
+The main design difference of Lux is that the tree of parameters is separate from
+the layer structure. It is these parameters which `setup` and `update` need to know about.
 
 Lux describes this separation of parameter storage from model description as "explicit" parameters.
 Beware that it has nothing to do with Zygote's notion of "explicit" gradients.
-(If the same model is written in Flux and Lux, `m̄` above and `gs` below will often be identical
-trees of nested `NamedTuple`s.)
+(If the same model is written in Flux and Lux, `∇model` above and `∇params` below will often be
+identical trees of nested `NamedTuple`s.)
 
 ```julia
 
 using Lux  # https://github.com/avik-pal/Lux.jl#getting-started
 
-ps, st_m = Lux.setup(rng, model)  # model parameters and model state
+params, lux_state = Lux.setup(rng, lux_model)  # model parameters and model state
 
-o = Optimisers.Adam()
-st_o = Optimisers.setup(o, ps)  # optimiser state based on model parameters
+rule = Optimisers.Adam()
+opt_state = Optimisers.setup(rule, params)  # optimiser state based on model parameters
 
-gs = gradient(ps) do p  # gradient with respect to parameter tree
-  y, _ = Lux.apply(model, image, p, st_m)
+∇params, _ = gradient(params, image) do p, x  # gradient with respect to parameter tree
+  y, _ = Lux.apply(lux_model, x, p, lux_state)
   sum(y)
 end
 
-st_o, ps = Optimisers.update!(st_o, ps, gs)
+opt_state, params = Optimisers.update!(opt_state, params, ∇params)
 
 ```
 
-Besides the parameters stored in `ps` and gradually optimised, any other model state
-is stored in `st_m`. For simplicity this example does not show how to propagate the 
-updated `st_m` to the next iteration, see Lux's documentation.
+Besides the parameters stored in `params` and gradually optimised, any other model state
+is stored in `lux_state`. For simplicity this example does not show how to propagate the 
+updated `lux_state` to the next iteration, see Lux's documentation.
+
