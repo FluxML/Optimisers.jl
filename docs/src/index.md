@@ -1,6 +1,6 @@
 # Optimisers.jl
 
-## Define an Optimiser
+## Defining an Optimiser
 
 A new optimiser must overload two functions, `apply!` and `init`:
 
@@ -30,7 +30,7 @@ is a key design principle and allows users to manage their own state explicitly.
 
 It of course also makes it easier to store the state.
 
-## Usage
+## Usage with Flux.jl
 
 To apply such an optimiser to a whole model, `setup` builds a tree containing any initial
 state for every trainable array. Then at each step, `update` uses this and the gradient
@@ -44,7 +44,7 @@ model = Metalhead.ResNet18() # define a model to train on
 image = rand(Float32, 224, 224, 3, 1); # dummy data
 @show sum(model(image)); # dummy loss function
 
-o = Optimisers.ADAM() # define an ADAM optimiser with default settings
+o = Optimisers.Adam() # use the Adam optimiser with its default settings
 st = Optimisers.setup(o, model);  # initialize the optimiser before using it
 
 m̄, _ = gradient(model, image) do m, x # calculate the gradients
@@ -71,3 +71,32 @@ There is also `Optimisers.update!` which similarly returns a new model and new s
 but is free to mutate arrays within the old one for efficiency.
 The method of `apply!` you write is likewise free to mutate arrays within its state;
 they are defensively copied when this rule is used with `update`.
+
+## Usage with Lux.jl
+
+The main design difference of [Lux.jl](https://github.com/avik-pal/Lux.jl) is that the tree of
+parameters is separate from the `model` structure. It is these parameters which 
+`setup` and `update` need to know about.
+
+Lux describes this separation of parameter storage from model description as "explicit" parameters.
+Beware that it has nothing to do with Zygote's notion of "explicit" gradients.
+(If the same model is written in Flux and Lux, `m̄` above and `gs` below will often be identical
+trees of nested `NamedTuple`s.)
+
+```julia
+
+using Lux  # https://github.com/avik-pal/Lux.jl#getting-started
+
+ps, st_m = Lux.setup(rng, model)  # model parameters and model state
+
+o = Optimisers.Adam()
+st_o = Optimisers.setup(o, ps)  # optimiser state based on model parameters
+
+gs = gradient(ps) do p  # gradient with respect to parameter tree
+  y, _ = Lux.apply(model, image, p, st_m)
+  sum(y)
+end
+
+st_o, ps = Optimisers.update!(st_o, ps, gs)
+
+```
