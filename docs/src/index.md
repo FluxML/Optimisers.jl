@@ -40,8 +40,8 @@ to adjust the model:
 
 using Flux, Metalhead, Optimisers
 
-model = Metalhead.ResNet18()  # define a model to train
-image = rand(Float32, 224, 224, 3, 1);  # dummy data
+model = Metalhead.ResNet18() |> gpu  # define a model to train
+image = rand(Float32, 224, 224, 3, 1) |> gpu;  # dummy data
 @show sum(model(image));  # dummy loss function
 
 rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
@@ -86,8 +86,8 @@ identical trees of nested `NamedTuple`s.)
 
 using Lux, Boltz, Zygote, Optimisers
 
-lux_model, params, lux_state = Boltz.resnet(:resnet18);  # define and initialise model
-images = rand(Float32, 224, 224, 3, 4);  # batch of dummy data
+lux_model, params, lux_state = Boltz.resnet(:resnet18) .|> gpu;  # define and initialise model
+images = rand(Float32, 224, 224, 3, 4) |> gpu;  # batch of dummy data
 y, _ = Lux.apply(lux_model, images, params, lux_state);  # run the model
 @show sum(y)  # initial dummy loss
 
