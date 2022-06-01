@@ -84,19 +84,25 @@ identical trees of nested `NamedTuple`s.)
 
 ```julia
 
-using Lux  # https://github.com/avik-pal/Lux.jl#getting-started
+using Lux, Boltz, Zygote, Optimisers
 
-params, lux_state = Lux.setup(rng, lux_model)  # model parameters and model state
+lux_model, params, lux_state = Boltz.resnet(:resnet18);  # define and initialise model
+images = rand(Float32, 224, 224, 3, 4);  # batch of dummy data
+y, _ = Lux.apply(lux_model, images, params, lux_state);  # run the model
+@show sum(y)  # initial dummy loss
 
 rule = Optimisers.Adam()
-opt_state = Optimisers.setup(rule, params)  # optimiser state based on model parameters
+opt_state = Optimisers.setup(rule, params);  # optimiser state based on model parameters
 
-∇params, _ = gradient(params, image) do p, x  # gradient with respect to parameter tree
+∇params, _ = gradient(params, images) do p, x  # gradient with respect to parameter tree
   y, _ = Lux.apply(lux_model, x, p, lux_state)
   sum(y)
-end
+end;
 
-opt_state, params = Optimisers.update!(opt_state, params, ∇params)
+opt_state, params = Optimisers.update!(opt_state, params, ∇params);
+
+y, _ = Lux.apply(lux_model, images, params, lux_state);
+@show sum(y)
 
 ```
 
