@@ -63,8 +63,33 @@ or [`update!`](@ref).
 
 # Example
 ```jldoctest
-julia> Optimisers.setup(Descent(0.1f0), (x = rand(3), y = (true, false), z = tanh))
-(x = Leaf(Descent{Float32}(0.1), nothing), y = (nothing, nothing), z = nothing)
+julia> m = (x = rand(3), y = (true, false), z = tanh);
+
+julia> Optimisers.setup(Momentum(), m)  # same field names as m
+(x = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0, 0.0]), y = (nothing, nothing), z = nothing)
+```
+
+The recursion into structures uses Functors.jl, and any new `struct`s containing parameters
+need to be marked with `Functors.@functor` before use. Further refinements can, if necessary,
+be made by overloading [`trainable`](@ref).
+
+```jldoctest
+julia> struct Layer; mat; vec; end
+
+julia> model = (lay = Layer(rand(2, 2), rand(2)), fun = sin);
+
+julia> Optimisers.setup(Momentum(), model)  # new struct is by default ignored
+(lay = nothing, fun = nothing)
+
+julia> using Functors; @functor Layer  # annotate this type as containing parameters
+
+julia> Optimisers.setup(Momentum(), model)
+(lay = (mat = Leaf(Momentum{Float32}(0.01, 0.9), [0.0 0.0; 0.0 0.0]), vec = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0])), fun = nothing)
+
+julia> Optimisers.trainable(l::Layer) = (vec = l.vec,)  # if necessary, ignore some parameters
+
+julia> Optimisers.setup(Momentum(), model)
+(lay = (mat = nothing, vec = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0])), fun = nothing)
 ```
 """
 setup
