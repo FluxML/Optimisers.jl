@@ -159,7 +159,7 @@ lux_model = Chain(
           BatchNorm(5, relu), 
           Conv((3, 3), 5 => 3, stride=16),
         )
-params, lux_state = Lux.setup(Random.GLOBAL_RNG, lux_model);
+params, lux_state = Lux.setup(Random.default_rng(), lux_model);
 
 flat, re = destructure(params)
 st = Optimisers.setup(rule, flat)
