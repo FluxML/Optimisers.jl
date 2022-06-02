@@ -152,24 +152,14 @@ Lux stores only the trainable parameters in `params`.
 This can also be flattened to a plain `Vector` in the same way:
 
 ```julia
-using NNlib, Random
-
-lux_model = Chain(
-          Conv((3, 3), 3 => 5, pad=1, bias=false), 
-          BatchNorm(5, relu), 
-          Conv((3, 3), 5 => 3, stride=16),
-        )
 params, lux_state = Lux.setup(Random.default_rng(), lux_model);
 
 flat, re = destructure(params)
-st = Optimisers.setup(rule, flat)
 
-∇flat, = Zygote.gradient(flat) do v
+∇flat = ForwardDiff.gradient(flat) do v
   p = re(v)  # rebuild an object like params
   y, _ = Lux.apply(lux_model, images, p, lux_state)
   sum(y)
 end
-
-st, flat = Optimisers.update(st, flat, ∇flat)
 ```
 
