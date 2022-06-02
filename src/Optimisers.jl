@@ -102,7 +102,33 @@ The initial tree of states comes from [`setup`](@ref).
 
 This is used in exactly the same manner as [`update`](@ref), but because it may mutate
 arrays within the old model (and the old state), it will be faster for models of ordinary
-`Array`s or `CuArray`s. However, you should not rely on the old model being fully updated.
+`Array`s or `CuArray`s. However, you should not rely on the old model being fully updated
+but rather use the returned model.
+
+# Example
+
+```jldoctest
+julia> Optimisers, Functors
+
+julia> struct Linear; W; b; end    # define a linear model type
+ 
+julia> @functor Linear             # make `Linear`
+
+julia> (m::Linear)(x) = m.W * x .+ m.b       # model output
+
+julia> model = Linear(ones(2,2), zeros(2))
+Linear([1.0 1.0; 1.0 1.0], [0.0, 0.0])
+
+julia> st = Optimisers.setup(Adam(), model)    # setup the optimizer state
+(W = Leaf(Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7), ([0.0 0.0; 0.0 0.0], [0.0 0.0; 0.0 0.0], (0.9, 0.999))), b = Leaf(Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7), ([0.0, 0.0], [0.0, 0.0], (0.9, 0.999))))
+
+julia> x, y = ones(2,2), zeros(2, 2)        # create fake data
+([1.0 1.0; 1.0 1.0], [0.0 0.0; 0.0 0.0])
+
+julia> g = gradient(model -> sum((model(x) - y).^2), model)[1]   # gradient of the loss with respect to the model
+(W = [8.0 8.0; 8.0 8.0], b = [8.0, 8.0])
+
+julia> st, model = Optimisers.update!(st, model, g);   # update the model in place
 """
 update!
 
