@@ -63,8 +63,34 @@ or [`update!`](@ref).
 
 # Example
 ```jldoctest
-julia> Optimisers.setup(Descent(0.1f0), (x = rand(3), y = (true, false), z = tanh))
-(x = Leaf(Descent{Float32}(0.1), nothing), y = (nothing, nothing), z = nothing)
+julia> m = (x = rand(3), y = (true, false), z = tanh);
+
+julia> Optimisers.setup(Momentum(), m)  # same field names as m
+(x = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0, 0.0]), y = (nothing, nothing), z = nothing)
+```
+
+The recursion into structures uses Functors.jl, and any new `struct`s containing parameters
+need to be marked with `Functors.@functor` before use.
+See [the Flux docs](https://fluxml.ai/Flux.jl/stable/models/advanced/) for more about this.
+
+```
+julia> struct Layer; mat; fun; end
+
+julia> model = (lay = Layer([1 2; 3 4f0], sin), vec = [5, 6f0]);
+
+julia> Optimisers.setup(Momentum(), model)  # new struct is by default ignored
+(lay = nothing, vec = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0]))
+
+julia> destructure(model)
+(Float32[5.0, 6.0], Restructure(NamedTuple, ..., 2))
+
+julia> using Functors; @functor Layer  # annotate this type as containing parameters
+
+julia> Optimisers.setup(Momentum(), model)
+(lay = (mat = Leaf(Momentum{Float32}(0.01, 0.9), [0.0 0.0; 0.0 0.0]), fun = nothing), vec = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0]))
+
+julia> destructure(model)
+(Float32[1.0, 3.0, 2.0, 4.0, 5.0, 6.0], Restructure(NamedTuple, ..., 6))
 ```
 """
 setup
