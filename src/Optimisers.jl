@@ -4,6 +4,7 @@ using Functors: functor, fmap, isleaf
 using LinearAlgebra
 
 include("interface.jl")
+export AbstractRule
 
 include("destructure.jl")
 export destructure
