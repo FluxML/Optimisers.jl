@@ -16,7 +16,7 @@ For each parameter `p` and its gradient `dp`, the update is `p -= η * dp`.
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 """
-struct Descent{T<Number} <: AbstractRule
+struct Descent{T<:Number} <: AbstractRule
   eta::T
 end
 Descent() = Descent(1f-1)
