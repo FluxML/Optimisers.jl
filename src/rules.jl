@@ -10,10 +10,10 @@
     Descent(η = 1f-1)
 
 Classic gradient descent optimiser with learning rate `η`.
-For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
+For each parameter `p` and its gradient `dp`, the update is `p -= η * dp`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 """
 struct Descent{T<Number} <: AbstractRule
@@ -35,7 +35,7 @@ end
 Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
@@ -61,7 +61,7 @@ end
 Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
                            prominent direction, in effect dampening oscillations.
@@ -95,7 +95,7 @@ generally don't need tuning.
 gradients by an estimate their variance, instead of their second moment.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
@@ -190,7 +190,7 @@ end
 [Adam](https://arxiv.org/abs/1412.6980) optimiser.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -223,7 +223,7 @@ end
 [Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -264,7 +264,7 @@ end
 [AdaMax](https://arxiv.org/abs/1412.6980) is a variant of Adam based on the ∞-norm.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -298,7 +298,7 @@ end
 is a variant of Adam adding an "optimistic" term suitable for adversarial training.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -335,7 +335,7 @@ parameter specific learning rates based on how frequently it is updated.
 Parameters don't need tuning.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
@@ -397,7 +397,7 @@ The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -433,7 +433,7 @@ end
 Parameters don't need tuning.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -469,7 +469,7 @@ end
 weight decay regularization.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
@@ -487,7 +487,7 @@ The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the 
 Adam optimiser.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
