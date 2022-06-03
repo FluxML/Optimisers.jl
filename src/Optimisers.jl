@@ -73,7 +73,7 @@ The recursion into structures uses Functors.jl, and any new `struct`s containing
 need to be marked with `Functors.@functor` before use.
 See [the Flux docs](https://fluxml.ai/Flux.jl/stable/models/advanced/) for more about this.
 
-```jldoctest
+```
 julia> struct Layer; mat; fun; end
 
 julia> model = (lay = Layer([1 2; 3 4f0], sin), vec = [5, 6f0]);
