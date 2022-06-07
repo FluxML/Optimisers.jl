@@ -24,6 +24,23 @@ function setup(rule, x; seen = Base.IdSet())
   end
 end
 
+adjust(rule::Union{Real, AbstractRule}, ℓ::Leaf) = Leaf(adjust(rule, ℓ.rule), ℓ.state)
+adjust(rule::Union{Real, AbstractRule}, ::Nothing) = nothing
+adjust(rule::Union{Real, AbstractRule}, tree) = map(st -> adjust(rule, st), tree)
+
+function adjust(newr::AbstractRule, r::AbstractRule)
+    typeof(newr).name.wrapper == typeof(r).name.wrapper || throw(ArgumentError("adjust(r′, r) expects the same rule with different parameters"))
+    newr
+end
+function adjust(η::Real, r::T) where T <: AbstractRule
+    fs = fieldnames(T)
+    :eta in fs || throw(ArgumentError("adjust(η, r) expects that optimisation rule store its learning rate in r.eta"))
+    vals = map(fs) do field
+        field == :eta ? η : getfield(r, field)
+    end
+    T(vals...)
+end
+
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
 update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
