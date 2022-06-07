@@ -11,9 +11,10 @@ struct Leaf{R,S}
   state::S
 end
 
-function setup(rule, x; seen = Base.IdSet())
-  rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
+function setup(rule, x; seen = rule isa Real ? () : Base.IdSet())
+  rule isa Union{Real, AbstractRule} || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
   if isnumeric(x)
+    rule isa Real && throw(ArgumentError("setup(η, tree) expects a state tree, not a model"))
     x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
     isbits(x) || push!(seen, x)
     return Leaf(rule, init(rule, x))
@@ -24,22 +25,8 @@ function setup(rule, x; seen = Base.IdSet())
   end
 end
 
-adjust(rule::Union{Real, AbstractRule}, ℓ::Leaf) = Leaf(adjust(rule, ℓ.rule), ℓ.state)
-adjust(rule::Union{Real, AbstractRule}, ::Nothing) = nothing
-adjust(rule::Union{Real, AbstractRule}, tree) = map(st -> adjust(rule, st), tree)
-
-function adjust(newr::AbstractRule, r::AbstractRule)
-    typeof(newr).name.wrapper == typeof(r).name.wrapper || throw(ArgumentError("adjust(r′, r) expects the same rule with different parameters"))
-    newr
-end
-function adjust(η::Real, r::T) where T <: AbstractRule
-    fs = fieldnames(T)
-    :eta in fs || throw(ArgumentError("adjust(η, r) expects that optimisation rule store its learning rate in r.eta"))
-    vals = map(fs) do field
-        field == :eta ? η : getfield(r, field)
-    end
-    T(vals...)
-end
+setup(rule::Union{Real, AbstractRule}, ℓ::Leaf; seen = ()) = Leaf(adjust(rule, ℓ.rule), ℓ.state)
+setup(rule::Union{Real, AbstractRule}, ::Nothing; seen = ()) = nothing
 
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 

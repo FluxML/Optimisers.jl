@@ -56,6 +56,25 @@ julia> Optimisers.init(Momentum(), [1.0, 2.0])
 init
 
 """
+    Optimisers.adjust(η::Real, rule::RuleType) -> rule
+
+Replaces the activation rate of the optimisation rule with the given number.
+This method is only called by `setup(η, tree)`, and if `RuleType` has a field
+called `:eta` and the default constructor, then the standard definition will work.
+
+# Example
+```jldoctest
+julia> struct DecayDescent{T} <: Optimisers.AbstractRule  # as in the documentation
+         eta::T
+       end
+
+julia> Optimisers.adjust(0.23, DecayDescent(0.1f0))  # works automatically
+DecayDescent{Float32}(0.23f0)
+```
+"""
+adjust
+
+"""
     Optimisers.setup(rule, model) -> tree
 
 Initialises the given optimiser for every trainable parameter within the model.
@@ -162,17 +181,17 @@ julia> t  # original state should likewise be discarded
 update!
 
 """
-    Optimisers.adjust(rule, tree) -> tree
-    Optimisers.adjust(η::Real, tree) -> tree
+    Optimisers.setup(rule, tree) -> tree
+    Optimisers.setup(η::Real, tree) -> tree
 
-Alters the optimiser state from [`setup`](@ref) to change the parameters of the optimisation rule,
+Alters the optimiser state from `setup(rule, model)` to change the parameters of the optimisation rule,
 without destroying its state. To change just the learning rate, you can provide a number.
 
 # Example
 ```jldoctest
 julia> m = (vec = rand(Float32, 2), fun = sin);
 
-julia> st = Optimisers.setup(Nesterov(), m)
+julia> st = Optimisers.setup(Nesterov(), m)  # stored momentum is initialised to zero
 (vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[0.0, 0.0]), fun = nothing)
 
 julia> st, m = Optimisers.update(st, m, (vec = [14, 92], fun = nothing));  # with fake gradient
@@ -180,13 +199,13 @@ julia> st, m = Optimisers.update(st, m, (vec = [14, 92], fun = nothing));  # wit
 julia> st
 (vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.014, -0.092]), fun = nothing)
 
-julia> st = Optimisers.adjust(0.123, st)  # change learning rate, stored momentum untouched
+julia> st = Optimisers.setup(0.123, st)  # change learning rate, stored momentum untouched
 (vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.014, -0.092]), fun = nothing)
 
-julia> st = Optimisers.adjust(Nesterov(0.101, 0.909), st)  # change both η and ρ
+julia> st = Optimisers.setup(Nesterov(0.101, 0.909), st)  # change both η and ρ
 (vec = Leaf(Nesterov{Float64}(0.101, 0.909), Float32[-0.014, -0.092]), fun = nothing)
 ```
 """
-adjust
+setup(::Union{Real, AbstractRule}, ::Any)
 
 end # module

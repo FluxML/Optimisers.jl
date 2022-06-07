@@ -34,6 +34,7 @@ Optimisers.OptimiserChain
 Optimisers.setup
 Optimisers.update
 Optimisers.update!
+Optimisers.setup(::Union{Real, AbstractRule}, ::Any)
 ```
 
 Calling `Functors.@functor` on your model's layer types by default causes the
