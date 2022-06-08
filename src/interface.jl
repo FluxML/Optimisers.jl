@@ -123,7 +123,12 @@ function Base.show(io::IO, ℓ::Leaf)
   str = sprint(show, ℓ.rule; context = ioc)
   printstyled(io, "Leaf(", str, ", "; color = :green)
   str = sprint(show, ℓ.state; context = ioc)
-  print(io, length(str) < 70 ? str : first(str, 50) * " … ")
-  printstyled(io, ")"; color = :green)
+  if length(str) < 80
+    print(io, str)
+    printstyled(io, ")"; color = :green)
+  else
+    print(io, first(str, 66))
+    printstyled(io, " ...)"; color = :green)
+  end
 end
 
