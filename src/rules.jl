@@ -155,8 +155,6 @@ struct Adam{T} <: AbstractRule
 end
 Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = Adam{typeof(η)}(η, β, ϵ)
 
-const Adam = Adam
-
 init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
 function apply!(o::Adam, state, x, dx)
