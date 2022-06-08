@@ -56,7 +56,7 @@ julia> Optimisers.init(Momentum(), [1.0, 2.0])
 init
 
 """
-    Optimisers.adjust(η::Real, rule::RuleType) -> rule
+    Optimisers.adjust(rule::RuleType, η::Real) -> rule
 
 Replaces the activation rate of the optimisation rule with the given number.
 This method is only called by `setup(η, tree)`, and if `RuleType` has a field
@@ -68,7 +68,7 @@ julia> struct DecayDescent{T} <: Optimisers.AbstractRule  # as in the documentat
          eta::T
        end
 
-julia> Optimisers.adjust(0.23, DecayDescent(0.1f0))  # works automatically
+julia> Optimisers.adjust(DecayDescent(0.1f0), 0.23)  # works automatically
 DecayDescent{Float32}(0.23f0)
 ```
 """
@@ -184,7 +184,7 @@ update!
     Optimisers.setup(rule, tree) -> tree
     Optimisers.setup(η::Real, tree) -> tree
 
-Alters the optimiser state from `setup(rule, model)` to change the parameters of the optimisation rule,
+Alters the state `tree = setup(rule, model)` to change the parameters of the optimisation rule,
 without destroying its state. To change just the learning rate, you can provide a number.
 
 # Example

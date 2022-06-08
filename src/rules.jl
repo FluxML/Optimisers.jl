@@ -9,12 +9,12 @@
 
 # Generic adjust methods, called by setup(rule, tree) or by setup(eta, tree).
 # Some more specific ones are defined below.
-function adjust(newr::AbstractRule, r::AbstractRule)
-  typeof(newr).name.wrapper == typeof(r).name.wrapper || throw(ArgumentError(
-    "adjust(r′, r) expects the same rule with different parameters"))
+function adjust(oldr::AbstractRule, newr::AbstractRule)
+  typeof(newr).name.wrapper == typeof(oldr).name.wrapper || throw(ArgumentError(
+    "adjust(r, r′) expects the same rule with different parameters"))
   newr
 end
-function adjust(η::Real, r::T) where T <: AbstractRule
+function adjust(r::T, η::Real) where T <: AbstractRule
   fs = fieldnames(T)
   :eta in fs || throw(ArgumentError(
     "adjust(η, r) expects that optimisation rule store its learning rate in r.eta"))
@@ -148,8 +148,8 @@ function apply!(o::RMSProp, state, x, dx)
   return (quad, lin), dx′
 end
 
-function adjust(newr::RMSProp, r::RMSProp)  # centred version has a different state, so disallow changing that:
-  newr.centred == r.centred || throw(ArgumentError("adjust(r′, r) expects the same rule with different parameters"))
+function adjust(oldr::RMSProp, newr::RMSProp)  # centred version has a different state, so disallow changing that:
+  newr.centred == oldr.centred || throw(ArgumentError("adjust(r, r′) expects the same rule with different parameters"))
   newr
 end
 
@@ -652,19 +652,19 @@ function Base.show(io::IO, c::OptimiserChain)
   print(io, ")")
 end
 
-function adjust(newo::OptimiserChain, o::OptimiserChain)
-  for (opt1, opt2) in zip(newo.opts, o.opts) 
+function adjust(oldo::OptimiserChain, newo::OptimiserChain)
+  for (opt1, opt2) in zip(oldo.opts, newo.opts) 
     typeof(opt1).name.wrapper == typeof(opt2).name.wrapper || throw(ArgumentError(
-      "adjust(r′, r) expects the same rule with different parameters"))
+      "adjust(r, r′) expects the same rule with different parameters"))
   end
   newo
 end
-function adjust(eta::Real, o::OptimiserChain)  
+function adjust(o::OptimiserChain, eta::Real)  
   count(o.opts) do opt
     :eta in fieldnames(typeof(opt))
   end == 1 || throw(ArgumentError("adjust(η, ::OptimiserChain) expects exactly one rule with field r.eta"))
   opts = map(o.opts) do opt
-    :eta in fieldnames(typeof(opt)) ? adjust(eta, opt) : opt    
+    :eta in fieldnames(typeof(opt)) ? adjust(opt, eta) : opt    
   end
   OptimiserChain(opts...)
 end

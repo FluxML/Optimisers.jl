@@ -25,8 +25,7 @@ function setup(rule, x; seen = rule isa Real ? () : Base.IdSet())
   end
 end
 
-setup(rule::Union{Real, AbstractRule}, ℓ::Leaf; seen = ()) = Leaf(adjust(rule, ℓ.rule), ℓ.state)
-setup(rule::Union{Real, AbstractRule}, ::Nothing; seen = ()) = nothing
+setup(a::Union{Real, AbstractRule}, ℓ::Leaf; seen = ()) = Leaf(adjust(ℓ.rule, a), ℓ.state)
 
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
