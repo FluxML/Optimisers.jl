@@ -6,6 +6,8 @@ using LinearAlgebra
 include("interface.jl")
 export AbstractRule
 
+include("adjust.jl")
+
 include("destructure.jl")
 export destructure
 
@@ -54,25 +56,6 @@ julia> Optimisers.init(Momentum(), [1.0, 2.0])
 ```
 """
 init
-
-"""
-    Optimisers.adjust(rule::RuleType, η::Real) -> rule
-
-Replaces the activation rate of the optimisation rule with the given number.
-This method is only called by `setup(η, tree)`, and if `RuleType` has a field
-called `:eta` and the default constructor, then the standard definition will work.
-
-# Example
-```jldoctest
-julia> struct DecayDescent{T} <: Optimisers.AbstractRule  # as in the documentation
-         eta::T
-       end
-
-julia> Optimisers.adjust(DecayDescent(0.1f0), 0.23)  # works automatically
-DecayDescent{Float32}(0.23f0)
-```
-"""
-adjust
 
 """
     Optimisers.setup(rule, model) -> tree
@@ -179,33 +162,5 @@ julia> t  # original state should likewise be discarded
 ```
 """
 update!
-
-"""
-    Optimisers.setup(rule, tree) -> tree
-    Optimisers.setup(η::Real, tree) -> tree
-
-Alters the state `tree = setup(rule, model)` to change the parameters of the optimisation rule,
-without destroying its state. To change just the learning rate, you can provide a number.
-
-# Example
-```jldoctest
-julia> m = (vec = rand(Float32, 2), fun = sin);
-
-julia> st = Optimisers.setup(Nesterov(), m)  # stored momentum is initialised to zero
-(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[0.0, 0.0]), fun = nothing)
-
-julia> st, m = Optimisers.update(st, m, (vec = [14, 92], fun = nothing));  # with fake gradient
-
-julia> st
-(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.014, -0.092]), fun = nothing)
-
-julia> st = Optimisers.setup(0.123, st)  # change learning rate, stored momentum untouched
-(vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.014, -0.092]), fun = nothing)
-
-julia> st = Optimisers.setup(Nesterov(0.101, 0.909), st)  # change both η and ρ
-(vec = Leaf(Nesterov{Float64}(0.101, 0.909), Float32[-0.014, -0.092]), fun = nothing)
-```
-"""
-setup(::Union{Real, AbstractRule}, ::Any)
 
 end # module

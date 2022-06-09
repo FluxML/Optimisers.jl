@@ -1,4 +1,3 @@
-# These can be removed in v0.3
 @deprecate ADAM Adam
 @deprecate NADAM NAdam
 @deprecate ADAMW AdamW
@@ -6,24 +5,6 @@
 @deprecate OADAM OAdam
 @deprecate ADAGrad AdaGrad
 @deprecate ADADelta AdaDelta
-
-# Generic adjust methods, called by setup(rule, tree) or by setup(eta, tree).
-# Some more specific ones are defined below.
-function adjust(oldr::AbstractRule, newr::AbstractRule)
-  typeof(newr).name.wrapper == typeof(oldr).name.wrapper || throw(ArgumentError(
-    "adjust(r, r′) expects the same rule with different parameters"))
-  newr
-end
-function adjust(r::T, η::Real) where T <: AbstractRule
-  fs = fieldnames(T)
-  :eta in fs || throw(ArgumentError(
-    "adjust(η, r) expects that optimisation rule store its learning rate in r.eta"))
-  vals = map(fs) do field
-    field == :eta ? η : getfield(r, field)
-  end
-  T(vals...)  # relies on having the default constructor
-end
-
 
 """
     Descent(η = 1f-1)
@@ -149,8 +130,7 @@ function apply!(o::RMSProp, state, x, dx)
 end
 
 function adjust(oldr::RMSProp, newr::RMSProp)  # centred version has a different state, so disallow changing that:
-  newr.centred == oldr.centred || throw(ArgumentError("adjust(r, r′) expects the same rule with different parameters"))
-  newr
+  newr.centred == oldr.centred ? (newr, true) : (oldr, false)
 end
 
 function Base.show(io::IO, o::RMSProp)
@@ -653,18 +633,17 @@ function Base.show(io::IO, c::OptimiserChain)
 end
 
 function adjust(oldo::OptimiserChain, newo::OptimiserChain)
-  for (opt1, opt2) in zip(oldo.opts, newo.opts) 
-    typeof(opt1).name.wrapper == typeof(opt2).name.wrapper || throw(ArgumentError(
-      "adjust(r, r′) expects the same rule with different parameters"))
+  match = all(zip(oldo.opts, newo.opts)) do opt1, opt2 
+    typeof(opt1).name.wrapper == typeof(opt2).name.wrapper
   end
-  newo
+  match ? (newo, true) : (oldo, false)
 end
-function adjust(o::OptimiserChain, eta::Real)  
-  count(o.opts) do opt
-    :eta in fieldnames(typeof(opt))
-  end == 1 || throw(ArgumentError("adjust(η, ::OptimiserChain) expects exactly one rule with field r.eta"))
-  opts = map(o.opts) do opt
-    :eta in fieldnames(typeof(opt)) ? adjust(opt, eta) : opt    
+
+function _adjust(ℓ::Leaf{<:OptimiserChain}, a, ok::Ref)
+  opts = map(ℓ.rule.opts) do opt
+    newopt, flag = adjust(opt, a)
+    ok[] |= flag
+    newopt
   end
-  OptimiserChain(opts...)
+  Leaf(OptimiserChain(opts...), ℓ.state)
 end

@@ -11,10 +11,9 @@ struct Leaf{R,S}
   state::S
 end
 
-function setup(rule, x; seen = rule isa Real ? () : Base.IdSet())
-  rule isa Union{Real, AbstractRule} || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
+function setup(rule, x; seen = Base.IdSet())
+  rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
   if isnumeric(x)
-    rule isa Real && throw(ArgumentError("setup(η, tree) expects a state tree, not a model"))
     x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
     isbits(x) || push!(seen, x)
     return Leaf(rule, init(rule, x))
@@ -24,8 +23,6 @@ function setup(rule, x; seen = rule isa Real ? () : Base.IdSet())
     return map(xᵢ -> setup(rule, xᵢ; seen), _trainable(x))
   end
 end
-
-setup(a::Union{Real, AbstractRule}, ℓ::Leaf; seen = ()) = Leaf(adjust(ℓ.rule, a), ℓ.state)
 
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
