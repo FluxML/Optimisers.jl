@@ -87,8 +87,8 @@ function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _trai
 end
 
 _getat(y::Number, o::Int, flat::AbstractVector) = ProjectTo(y)(flat[o + 1])
-_getat(y::AbstractArray, o::Int, flat::AbstractVector) =
-  ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+_getat(y::AbstractArray{T}, o::Int, flat::AbstractVector) where T =
+  T.(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
 
 function _trainable_biwalk(f, x, aux)
   ch, re = functor(typeof(x), x)
