@@ -118,10 +118,17 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 
-function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
+function Base.show(io::IO, ℓ::Leaf)
   ioc = IOContext(io, :compact => true)
-  print(ioc, "Leaf(", ℓ.rule, ", ")
-  show(ioc, ℓ.state)
-  print(io, ")")
+  str = sprint(show, ℓ.rule; context = ioc)
+  printstyled(io, "Leaf(", str, ", "; color = :green)
+  str = sprint(show, ℓ.state; context = ioc)
+  if length(str) < 80
+    print(io, str)
+    printstyled(io, ")"; color = :green)
+  else
+    print(io, first(str, 66))
+    printstyled(io, " ...)"; color = :green)
+  end
 end
 
