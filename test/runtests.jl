@@ -158,8 +158,8 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
     @testset "tied weights" begin
       @testset "tuples" begin
-        twice = [1,2]
-        mtup = (twice, ([3,4], twice))
+        twice = [1,2.0]
+        mtup = (twice, ([3,4.0], twice))
 
         stup = Optimisers.setup(Descent(0.1), mtup)
         @test stup isa Optimisers.Tied
@@ -190,8 +190,8 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
         @test mt4[1] ≈ [1,2] - 0.1 * [7,7]
       end
       @testset "named" begin
-        thrice = [3]
-        model = (a = (x = thrice, y = [4,5,6], z = true), b = ((m = (0, 1, thrice),),), c = (x = [7,8], y = thrice))
+        thrice = [3f0]
+        model = (a = (x = thrice, y = Float32[4,5,6], z = true), b = ((m = (0, 1, thrice),),), c = (x = Float32[7,8], y = thrice))
         tree = Optimisers.setup(Momentum(0.1, 0.9), model)
         tree.ties
         @test model.a.x === model.b[1].m[3] == model.c.y
