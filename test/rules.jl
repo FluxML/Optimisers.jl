@@ -6,7 +6,7 @@ Random.seed!(1)
 
 RULES = [
   # All the rules at default settings:
-  Descent(), Adam(), Momentum(), Nesterov(), RMSProp(),
+  Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
   AdamW(), RAdam(), OAdam(), AdaBelief(),
   # A few chained combinations:
