@@ -181,7 +181,6 @@ function apply!(o::Rprop, state, x, dx)
     return (g₁, η₁), dx′
 end
 
-
 """
     Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
