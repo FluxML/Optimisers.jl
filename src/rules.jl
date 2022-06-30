@@ -138,32 +138,47 @@ end
 
 
 """
-  RProp
+    Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0))
+
+Optimizer using the
+[Rprop](https://ieeexplore.ieee.org/document/298623) algorithm. An full-batch
+learning algorithm that depends only on the sign of the gradient.
+
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
+                      
+- Scaling factors (`ℓ::Tuple`): Multiplicative increase and decrease factors.
+
+- Step sizes (`Γ::Tuple`): Mminimal and maximal allowed step sizes.
 """
-struct RProp{T} <: AbstractRule
-  eta::T
-  ell::Tuple{T,2}
-  gamma::Tuple{T,2}
+struct Rprop{T} <: AbstractRule
+    eta::T
+    ell::Tuple{T,T}
+    gamma::Tuple{T,T}
 end
 
-RProp(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = RProp{typeof(η)}(η, ℓ, Γ)
+Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η, ℓ, Γ)
 
-init(o::RProp, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
+init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
-function apply!(o::RProp, state, x, dx)
-  ℓ, Γ = o.ell, o.gamma
-  g₀, η₀ = state
+function apply!(o::Rprop, state, x, dx)
+    ℓ, Γ = o.ell, o.gamma
+    g₀, η₀ = state
 
-  @.. ind = g₀ * dx 
+    signs = g₀ .* dx
+    signs[signs .> 0] .= ℓ[2]
+    signs[signs .< 0] .= ℓ[1]
+    signs[signs .== 0] .= one(eltype(signs))
 
-  g₁ = map(i -> ind[i] < 0f0 ? zero(g₀[i]) : g₀[i], CartesianIndices(g₀))
-  η₁ = map(i -> ind[i] > zero(ind[i]) ? min(η₀[i] * ℓ[2],  Γ[2]) :
-                ind[i] < zero(ind[i]) ? max(η₀[i] * ℓ[1], Γ[1]) : η₀[i],
-           CartesianIndices(η₀))
+    η₁ =  clamp.(η₀ .* signs, Γ[1], Γ[2])
 
-  dx' = @lazy dx * sign(g₁)
-  
-  return (g₁, η₁), dx'
+    g₁ = copy(dx)
+    g₁[signs .== ℓ[1]] .= zero(eltype(g₁))
+
+    dx′ = @lazy η₁ * sign(g₁)
+
+    return (g₁, η₁), dx′
 end
 
 
