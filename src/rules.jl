@@ -164,20 +164,18 @@ init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
 function apply!(o::Rprop, state, x, dx)
     ℓ, Γ = o.ell, o.gamma
-    g₀, η₀ = state
+    g, η = state
 
-    signs = g₀ .* dx
+    signs = sign.(g .* dx)
     signs[signs .> 0] .= ℓ[2]
     signs[signs .< 0] .= ℓ[1]
     signs[signs .== 0] .= one(eltype(signs))
 
-    η₁ =  clamp.(η₀ .* signs, Γ[1], Γ[2])
+    @.. η =  clamp(η * signs, Γ[1], Γ[2])
+    @.. g = (signs !== ℓ[1]) * dx
 
-    @.. g = (signs == ℓ[1]) * dx
-
-    dx′ = @lazy η₁ * sign(g₁)
-
-    return (g₁, η₁), dx′
+    dx′ = @lazy η * sign(g)
+    return (g, η), dx′
 end
 
 """
