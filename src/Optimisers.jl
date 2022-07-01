@@ -157,6 +157,7 @@ julia> m  # original should be discarded, may be mutated but no guarantee
 
 julia> t  # original state should likewise be discarded
 (x = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.333333, 0.466667]), y = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.0, 0.0]))
+```
 """
 update!
 
