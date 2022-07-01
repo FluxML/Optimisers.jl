@@ -141,7 +141,7 @@ end
     Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0))
 
 Optimizer using the
-[Rprop](https://ieeexplore.ieee.org/document/298623) algorithm. An full-batch
+[Rprop](https://ieeexplore.ieee.org/document/298623) algorithm. A full-batch
 learning algorithm that depends only on the sign of the gradient.
 
 # Parameters
@@ -166,13 +166,10 @@ function apply!(o::Rprop, state, x, dx)
     ℓ, Γ = o.ell, o.gamma
     g, η = state
 
-    signs = broadcast(g, dx) do g, dx
-        s = sign(g * dx)
-        s > 0 ? ℓ[2] : s < 0 ? ℓ[1] : one(eltype(dx))
+    T = eltype(dx)
+    g, η = broadcast(g, η, dx) do g, η, dx
+        g * dx > 0 ? (g, min(η * ℓ[2], Γ[2])) : g * dx < 0 ? (zero(T), max(η * ℓ[1], Γ[1])) : (g, η)
     end
-
-    @.. η =  clamp(η * signs, Γ[1], Γ[2])
-    @.. g = (signs !== ℓ[1]) * dx
 
     dx′ = @lazy η * sign(g)
     return (g, η), dx′
