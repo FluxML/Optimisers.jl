@@ -166,7 +166,7 @@ function apply!(o::Rprop, state, x, dx)
     ℓ, Γ = o.ell, o.gamma
     g, η = state
 
-    signs = map(g, dx) do g, dx
+    signs = broadcast(g, dx) do g, dx
         s = sign(g * dx)
         s > 0 ? ℓ[2] : s < 0 ? ℓ[1] : one(eltype(dx))
     end
