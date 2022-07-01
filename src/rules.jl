@@ -173,8 +173,7 @@ function apply!(o::Rprop, state, x, dx)
 
     η₁ =  clamp.(η₀ .* signs, Γ[1], Γ[2])
 
-    g₁ = copy(dx)
-    g₁[signs .== ℓ[1]] .= zero(eltype(g₁))
+    @.. g = (signs == ℓ[1]) * dx
 
     dx′ = @lazy η₁ * sign(g₁)
 
