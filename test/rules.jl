@@ -39,7 +39,7 @@ end
     @test iloss(rand(10, 10), w, w′) > 1
     st = Optimisers.setup(o, w)
     for t = 1:10^5
-      x = rand(10,20)
+      x = rand(10, 20)
       gs = loggradient(o)(w -> iloss(x, w, w′), w)
       st, w = Optimisers.update!(st, w, gs...)
     end

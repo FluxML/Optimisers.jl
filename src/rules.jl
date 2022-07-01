@@ -166,9 +166,8 @@ function apply!(o::Rprop, state, x, dx)
     ℓ, Γ = o.ell, o.gamma
     g, η = state
 
-    T = eltype(dx)
     g, η = broadcast(g, η, dx) do g, η, dx
-        g * dx > 0 ? (g, min(η * ℓ[2], Γ[2])) : g * dx < 0 ? (zero(T), max(η * ℓ[1], Γ[1])) : (g, η)
+        g * dx > 0 ? (g, min(η * ℓ[2], Γ[2])) : g * dx < 0 ? (zero(dx), max(η * ℓ[1], Γ[1])) : (g, η)
     end
 
     dx′ = @lazy η * sign(g)
