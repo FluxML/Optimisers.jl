@@ -108,27 +108,28 @@ but rather use the returned model.
 # Example
 
 ```jldoctest
-julia> Optimisers, Functors
+julia> using StaticArrays, Zygote, Optimisers
 
-julia> struct Linear; W; b; end    # define a linear model type
- 
-julia> @functor Linear             # make `Linear`
+julia> m = (x = [1f0, 2f0], y = SA[4f0, 5f0]);  # partly mutable model
 
-julia> (m::Linear)(x) = m.W * x .+ m.b       # model output
+julia> t = Optimisers.setup(Momentum(1/30, 0.9), m);
 
-julia> model = Linear(ones(2,2), zeros(2))
-Linear([1.0 1.0; 1.0 1.0], [0.0, 0.0])
+julia> g = gradient(m -> sum(abs2.(m.x .+ m.y)), m)[1]
+(x = Float32[10.0, 14.0], y = Float32[10.0, 14.0])
 
-julia> st = Optimisers.setup(Adam(), model)    # setup the optimizer state
-(W = Leaf(Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7), ([0.0 0.0; 0.0 0.0], [0.0 0.0; 0.0 0.0], (0.9, 0.999))), b = Leaf(Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7), ([0.0, 0.0], [0.0, 0.0], (0.9, 0.999))))
+julia> t2, m2 = Optimisers.update!(t, m, g);
 
-julia> x, y = ones(2,2), zeros(2, 2)        # create fake data
-([1.0 1.0; 1.0 1.0], [0.0 0.0; 0.0 0.0])
+julia> m2  # after update or update!, this is the new model
+(x = Float32[0.6666666, 1.5333333], y = Float32[3.6666667, 4.5333333])
 
-julia> g = gradient(model -> sum((model(x) - y).^2), model)[1]   # gradient of the loss with respect to the model
-(W = [8.0 8.0; 8.0 8.0], b = [8.0, 8.0])
+julia> m2.x === m.x  # update! has re-used this array, for efficiency
+true
 
-julia> st, model = Optimisers.update!(st, model, g);   # update the model in place
+julia> m  # original should be discarded, may be mutated but no guarantee
+(x = Float32[0.6666666, 1.5333333], y = Float32[4.0, 5.0])
+
+julia> t  # original state should likewise be discarded
+(x = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.333333, 0.466667]), y = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.0, 0.0]))
 """
 update!
 
