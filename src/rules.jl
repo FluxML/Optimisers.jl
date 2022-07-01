@@ -166,10 +166,9 @@ function apply!(o::Rprop, state, x, dx)
     ℓ, Γ = o.ell, o.gamma
     g, η = state
 
-    signs = sign.(g .* dx)
-    signs[signs .> 0] .= ℓ[2]
-    signs[signs .< 0] .= ℓ[1]
-    signs[signs .== 0] .= one(eltype(signs))
+    signs = map(s-> s > 0 ? ℓ[2] :
+                    s < 0 ? ℓ[1] : one(eltype(dx)),
+                sign.(g .* dx))
 
     @.. η =  clamp(η * signs, Γ[1], Γ[2])
     @.. g = (signs !== ℓ[1]) * dx
