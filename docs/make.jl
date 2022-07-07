@@ -1,8 +1,8 @@
-using Documenter, Optimisers, Zygote, StaticArrays
+using Documenter, Optimisers, Zygote, StaticArrays, Functors
 
 DocMeta.setdocmeta!(Optimisers, :DocTestSetup, :(using Optimisers); recursive = true)
 
-makedocs(modules = [Optimisers, Zygote, StaticArrays],
+makedocs(modules = [Optimisers, Zygote, StaticArrays, Functors],
          doctest = false,
          sitename = "Optimisers.jl",
          pages = ["Home" => "index.md",
