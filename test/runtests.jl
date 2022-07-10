@@ -22,7 +22,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       g = ([25, 33],)
       o = Descent(0.1)
       s = Optimisers.setup(o, m)
-      
+
       s2, m2 = Optimisers.update(s, m, g)
       @test m[1] == 1:2  # not mutated
       @test Optimisers.iswriteable(m[1])
@@ -157,13 +157,76 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
     end
 
     @testset "tied weights" begin
-      ok = (1.0:3.0, sin, "abc", :abc)
-      m = (α = ok, β = rand(3), γ = ok)
-      m1 = (rand(3), m, rand(3))
-      @test Optimisers.setup(AdamW(), m1) isa Tuple
-      m2 = (rand(3), m, rand(3), m, rand(3))  # illegal
-      @test_throws ArgumentError Optimisers.setup(AdamW(), m2)
-    end
+      @testset "tuples" begin
+        twice = [1,2.0]
+        mtup = (twice, (copy(twice), twice)) # (tied (not tied, tied))
+
+        # simplest rule for which opt(g1) + opt(g2) != opt(g1 + g2)
+        stup = Optimisers.setup(Momentum(0.1), mtup)
+        gtup = ([3,3], ([10,10], [7,7])) # (g1, (g1 + g2, g2))
+
+        snew, mnew = Optimisers.update(stup, mtup, gtup)
+        @test mnew[1] ≈ mnew[2][1]  # gradient was accumulated
+        @test mnew[2][2] === mnew[1]  # and tie is not broken
+
+        st3, mt3 = Optimisers.update(stup, mtup, ([3,3], nothing))
+        @test mt3[1] ≈ [1,2] - 0.1 * [3,3]
+        @test mt3[2][2] === mt3[1]
+
+        st4, mt4 = Optimisers.update(stup, mtup, (nothing, ([5,5], [7,7])))
+        @test mt4[1] ≈ [1,2] - 0.1 * [7,7]
+      end
+
+      @testset "named" begin
+        thrice = [3f0]
+        model = (a = (x = thrice, y = Float32[4,5,6], z = true), b = ((m = (0, 1, thrice),),), c = (x = Float32[7,8], y = thrice))
+        tree = Optimisers.setup(Momentum(0.1, 0.9), model)
+        @test model.a.x === model.b[1].m[3] == model.c.y
+
+        loss(x::Array) = sum(abs2, x)
+        loss(x::Number) = x^3
+        loss(m) = sum(2 * loss(x) for x in m)
+        gradient(loss, model)
+        _, m2 = Optimisers.update(tree, model, gradient(loss, model)...)
+        @test m2.a.x === m2.b[1].m[3] == m2.c.y
+
+        loss3(m) = sum(x isa Tuple ? 0 : 2 * loss(x) for x in m)
+        gradient(loss3, model)  # truncates the b limb
+        _, m3 = Optimisers.update(tree, model, gradient(loss3, model)...)
+        @test m3.a.x === m3.b[1].m[3] == m3.c.y
+      end
+
+      @testset "transpose" begin
+        mat = [1 2 3; 4 5 6.0]
+        bidir = (m = mat, f = log, t = transpose(mat), v = [7, 8, 9.0])
+        bigrad, _ = gradient((m, x) -> sum(abs2, m.m * (m.f).(m.t*x .+ m.v)), bidir, [1, 0.1])
+        @test bigrad.t isa Matrix  # not a Transpose, that's the point here
+
+        state = Optimisers.setup(Descent(0.1), bidir)
+        @test state.t.parent === state.m  # successfully tied
+
+        s2, b2 = Optimisers.update(state, bidir, bigrad)
+        @test b2.t.parent === b2.m  # tie restored
+        @test b2.m ≈ bidir.m - 0.1 * (bigrad.m + transpose(bigrad.t))  # grad accumulated
+
+        state = Optimisers.setup(OptimiserChain(ClipGrad(10), Descent(0.1), ClipGrad(10)), bidir)
+        s2, b2 = Optimisers.update(state, bidir, bigrad)
+        @test b2.t.parent === b2.m
+        @test b2.m ≈ bidir.m - 0.1 * clamp.((bigrad.m + transpose(bigrad.t)), -10, 10)
+
+        # Similar, but now "primary" field is the transposed one:
+        tri = (a = transpose(mat), b = mat, c = transpose(mat), d = 4.0)
+        trigrad = gradient(m -> sum(abs2, m.a * (m.b * (m.c * [0.1, 1] .+ m.d) .- m.d)), tri)[1]
+        stri = Optimisers.setup(Descent(0.1), tri)
+        s3, t3 = Optimisers.update(stri, tri, trigrad)
+        @test t3.a.parent === t3.b === t3.c.parent
+        @test t3.a ≈ tri.a - 0.1 * (trigrad.a + trigrad.b' + trigrad.c)
+
+        g4 = (a = Broadcast.broadcasted(+, mat', 1), b = nothing, c = @thunk(mat' .+ 1), d = nothing)
+        # Error: no constructors for type Any
+        @test_broken s4, t4 = Optimisers.update(stri, tri, g4)
+      end
+    end # tied weights
 
   end
   @testset verbose=true "Destructure" begin

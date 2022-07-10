@@ -6,24 +6,27 @@ const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 
 abstract type AbstractRule end
 
-struct Leaf{R,S}
+mutable struct Leaf{R,S}
   rule::R
   state::S
 end
 
-function setup(rule, x; seen = Base.IdSet())
+function setup(rule, x; cache = IdDict{Any,Leaf}())
   rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
   if isnumeric(x)
-    x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
-    isbits(x) || push!(seen, x)
-    return Leaf(rule, init(rule, x))
+    leaf = get(cache, x, missing)
+    ismissing(leaf) || return leaf
+    leaf = Leaf(rule, init(rule, x))
+    isbits(x) || (cache[x] = leaf)
+    return leaf
   elseif isleaf(x)
     return nothing
   else
-    return map(xᵢ -> setup(rule, xᵢ; seen), _trainable(x))
+    return map(xᵢ -> setup(rule, xᵢ; cache), _trainable(x))
   end
 end
 
+_add!(x, x̄) = iswriteable(x) ? (x .= x .+ x̄) : eltype(x).(x .+ x̄)
 subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
 update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
@@ -31,22 +34,63 @@ update!(::Nothing, x, x̄s...) = nothing, x
 
 update!(ℓ::Leaf, x, ::Zero, ::Zero...) = ℓ, x
 function update!(ℓ::Leaf, x, x̄s...)
-  s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
-  Leaf(ℓ.rule, s′), subtract!(x, x̄′)
+  ℓ.state, x̄′ = apply!(ℓ.rule, ℓ.state, x, map(base, x̄s)...)
+  return ℓ, subtract!(x, x̄′)
 end
 
 update!(tree, x, ::Zero, ::Zero...) = tree, x
 function update!(tree, x, x̄s...)
+  cache = IdDict{Leaf,Any}()
+  _accumulate!(cache, tree, x, x̄s...)
+  return UpdateCallback(cache, IdDict{Leaf,Any}())(tree, x, x̄s...)
+end
+
+_accumulate!(::AbstractDict{Leaf,Any}, ::Nothing, _, _...) = nothing
+_accumulate!(::AbstractDict{Leaf,Any}, ::Nothing, _, ::Zero, ::Zero...) = nothing
+_accumulate!(::AbstractDict{Leaf,Any}, ℓ::Leaf, _, ::Zero, ::Zero...) = nothing
+_accumulate!(::AbstractDict{Leaf,Any}, _, _, ::Zero, ::Zero...) = nothing
+
+function _accumulate!(cache::AbstractDict{Leaf,Any}, ℓ::Leaf, _, x̄s...)
+  acc_x̄s = get(cache, ℓ, missing)
+  cache[ℓ] = ismissing(acc_x̄s) ? x̄s : map(_add!, acc_x̄s, x̄s)
+  return
+end
+function _accumulate!(cache::AbstractDict{Leaf,Any}, tree, x, x̄s...)
+  x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
+  x′, _ = functor(typeof(x), x)
+  foreach((stᵢ, xᵢ, x̄sᵢ...) -> _accumulate!(cache, stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
+end
+
+# slightly cleaner way of closing over update! internal state
+struct UpdateCallback
+  acc_grads::IdDict{Leaf,Any}
+  param_cache::IdDict{Leaf,Any}
+end
+
+(::UpdateCallback)(::Nothing, x, x̄s...) = nothing, x
+(::UpdateCallback)(::Nothing, x, ::Zero, ::Zero...) = nothing, x
+(::UpdateCallback)(ℓ::Leaf, x, ::Zero, ::Zero...) = ℓ, x
+(::UpdateCallback)(tree, x, ::Zero, ::Zero...) = tree, x
+
+(cb::UpdateCallback)(ℓ::Leaf, x, x̄s...) = get!(cb.param_cache, ℓ) do
+  update!(ℓ, x, pop!(cb.acc_grads, ℓ)...)
+end
+function (cb::UpdateCallback)(tree, x, x̄s...)
   x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
   x′, re = functor(typeof(x), x)
-  xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
-  map(first, xtree), re(map(last, xtree))
+  xtree = map(cb, tree, x′, x̄s′...)
+  return map(first, xtree), re(map(last, xtree))
 end
 
 function update(tree, x, x̄s...)
-  t′ = fmap(copy, tree; exclude = iswriteable)
-  x′ = fmap(copy, x; exclude = iswriteable)
-  update!(t′, x′, x̄s...)
+  # because we rely on Leaf identity for tied parameters, they require special treatment
+  cache = IdDict()
+  tree′ = fmap(tree; cache, exclude = Base.Fix2(isa, Leaf)) do ℓ
+    Leaf(ℓ.rule, fmap(copy, ℓ.state; cache, exclude = iswriteable))
+  end
+  x′ = fmap(copy, x; cache = empty!(cache), exclude = iswriteable)
+  x̄s′ = fmap(copy, x̄s; cache = empty!(cache), exclude = iswriteable)
+  return update!(tree′, x′, x̄s′...)
 end
 
 # default all rules to first order calls
