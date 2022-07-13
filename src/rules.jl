@@ -110,6 +110,7 @@ struct RMSProp{T} <: AbstractRule
   epsilon::T
   centred::Bool
 end
+
 RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centred::Bool = false, centered::Bool = false) =
   RMSProp{typeof(η)}(η, ρ, ϵ, centred | centered)
 
@@ -133,6 +134,47 @@ function Base.show(io::IO, o::RMSProp)
     print(io, "(")
     join(io, [o.eta, o.rho, o.epsilon], ", ")
     print(io, "; centred = ", o.centred, ")")
+end
+
+
+"""
+    Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0))
+
+Optimizer using the
+[Rprop](https://ieeexplore.ieee.org/document/298623) algorithm. A full-batch
+learning algorithm that depends only on the sign of the gradient.
+
+# Parameters
+- Learning rate (`η`): Amount by which gradients are discounted before updating
+                       the weights.
+                      
+- Scaling factors (`ℓ::Tuple`): Multiplicative increase and decrease factors.
+
+- Step sizes (`Γ::Tuple`): Mminimal and maximal allowed step sizes.
+"""
+struct Rprop{T} <: AbstractRule
+    eta::T
+    ell::Tuple{T,T}
+    gamma::Tuple{T,T}
+end
+
+Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η, ℓ, Γ)
+
+init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
+
+function apply!(o::Rprop, state, x, dx)
+    ℓ, Γ = o.ell, o.gamma
+    g, η = state
+
+    η = broadcast(g, η, dx) do g, η, dx
+        g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
+    end
+    g = broadcast(g, dx) do g, dx
+        g * dx < 0 ? zero(dx) : dx
+    end
+    dx′ = @lazy η * sign(g)
+
+    return (g, η), dx′
 end
 
 """
