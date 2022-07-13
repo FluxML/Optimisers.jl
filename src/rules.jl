@@ -169,11 +169,9 @@ function apply!(o::Rprop, state, x, dx)
     η = broadcast(g, η, dx) do g, η, dx
         g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
     end
-
     g = broadcast(g, dx) do g, dx
         g * dx < 0 ? zero(dx) : dx
     end
-
     dx′ = @lazy η * sign(g)
 
     return (g, η), dx′
