@@ -5,6 +5,7 @@
 Optimisers.Descent
 Optimisers.Momentum
 Optimisers.Nesterov
+Optimisers.Rprop
 Optimisers.RMSProp
 Optimisers.Adam
 Optimisers.RAdam
