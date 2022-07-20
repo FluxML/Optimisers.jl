@@ -24,7 +24,7 @@ function setup(rule, x; seen = Base.IdSet())
   end
 end
 
-subtract!(x, x̄) = iswriteable(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
+subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
 update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
 update!(::Nothing, x, x̄s...) = nothing, x
@@ -44,8 +44,8 @@ function update!(tree, x, x̄s...)
 end
 
 function update(tree, x, x̄s...)
-  t′ = fmap(copy, tree; exclude = iswriteable)
-  x′ = fmap(copy, x; exclude = iswriteable)
+  t′ = fmap(copy, tree; exclude = maywrite)
+  x′ = fmap(copy, x; exclude = maywrite)
   update!(t′, x′, x̄s...)
 end
 
@@ -56,8 +56,15 @@ isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. tr
 isnumeric(x::AbstractArray{<:Integer}) = false
 isnumeric(x) = false
 
-iswriteable(::DenseArray) = true  # more elaborate versions are possible, wait until needed?
-iswriteable(_) = false
+"""
+    maywrite(x) -> Bool
+
+Should return `true` if we are completely sure that `update!` can write new
+values into `x`. Otherwise `false`, indicating a non-mutating path.
+For now, simply `x isa DenseArray` allowing `Array`, `CuArray`, etc. 
+"""
+maywrite(::DenseArray) = true  # see https://github.com/FluxML/Optimisers.jl/issues/99 for discussion
+maywrite(_) = false
 
 """
     trainable(x::Layer) -> NamedTuple
@@ -84,13 +91,13 @@ end
     @.. x = x + y
 
 Sometimes in-place broadcasting macro, for use in `apply!` rules.
-If `iswriteable(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`.
+If `maywrite(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`.
 """
 macro var".."(ex)
   Meta.isexpr(ex, :(=)) || throw("the macro @.. only accepts assignment, like @.. x = y + z")
   dst = esc(ex.args[1])
   src = esc(Broadcast.__dot__(ex.args[2]))
-  :($dst = if $iswriteable($dst)
+  :($dst = if $maywrite($dst)
       $dst .= $src
     else
       $src
