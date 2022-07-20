@@ -1,13 +1,12 @@
 
 """
-    Optimisers.adjust(tree, adj) -> tree
+    Optimisers.adjust(tree, η) -> tree
 
 Alters the state `tree = setup(rule, model)` to change the parameters of the
 optimisation rule, without destroying its stored state. Typically used mid-way
 through training.
-* To change just the learning rate, provide a number `adj::Real`.
-* To change all parameters, provide a new rule `adj::AbstractRule`.
-  (This will affect only leaves of the same type.)
+
+To change just the learning rate, provide a number `η::Real`.
 
 # Example
 ```jldoctest
@@ -23,47 +22,46 @@ julia> st
 
 julia> st = Optimisers.adjust(st, 0.123)  # change learning rate, stored momentum untouched
 (vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.016, -0.088]), fun = nothing)
+```
 
-julia> Optimisers.adjust(st, Nesterov(0.10101, 0.90909))  # change both η and ρ
-(vec = Leaf(Nesterov{Float64}(0.10101, 0.90909), Float32[-0.016, -0.088]), fun = nothing)
+To change other parameters, `adjust` also accepts keyword arguments matching the field
+names of the optimisation rule's type.
 
-julia> Optimisers.adjust(st, Adam())  # this does nothing -- Adam stores two vectors
-┌ Warning: adjust did not find any rules to act on!
-└ @ Optimisers ~/.julia/dev/Optimisers/src/adjust.jl:33
-(vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.016, -0.088]), fun = nothing)
+```
+julia> fieldnames(Adam)
+(:eta, :beta, :epsilon)
+
+julia> st2 = Optimisers.setup(Adam(), m)
+(vec = Leaf(Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7), (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999))), fun = nothing)
+
+julia> Optimisers.adjust(st2; beta = (0.777, 0.909))
+(vec = Leaf(Adam{Float32}(0.001, (0.777, 0.909), 1.19209f-7), (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999))), fun = nothing)
+
+julia> Optimisers.adjust(st; beta = "no such field")  # silently ignored!
+(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.016, -0.088]), fun = nothing)
 ```
 """
-function adjust(tree, a)
-  ok = Ref(false)
-  newtree = _adjust(tree, a, ok)
-  ok[] || @warn "adjust did not find any rules to act on!"
-  newtree
-end
+adjust(tree, eta::Real) = map(st -> adjust(st, eta), tree)
+adjust(tree; kw...) = map(st -> adjust(st; kw...), tree)
 
-# """
-#     Optimisers.adjust(tree; kw...) -> tree
-#
-# I'm not sure we want this keyword story, or not yet?
-# """
-# adjust(tree; kw...) = adjust(tree, NamedTuple(kw))
+adjust(::Nothing, ::Real) = nothing
+adjust(::Nothing; kw...) = nothing
 
-_adjust(tree, a, ok::Ref) = map(st -> _adjust(st, a, ok), tree)
-_adjust(::Nothing, a, ok::Ref) = nothing
-function _adjust(ℓ::Leaf, a, ok::Ref)
-  newrule, flag = adjust(ℓ.rule, a)
-  ok[] |= flag
-  Leaf(newrule, ℓ.state)
-end
+adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state)
+adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state)
+
 
 """
-    Optimisers.adjust(rule::RuleType, η::Real) -> rule, changed
+    Optimisers.adjust(rule::RuleType, η::Real) -> rule
 
 Replaces the learning rate of the optimisation rule with the given number.
 
 This method is only called by `adjust(tree, η)`, and if `RuleType` has a field
 called `:eta` and the default constructor, then the standard definition will work.
-It is only necessary to provide a method if your `struct` stores its learning rate
-in a different field.
+
+It should only be necessary to provide a method if your custom `struct` stores its
+learning rate a field with a different name. Or if an inner constructor blocks the
+default behaviour.
 
 # Example
 ```jldoctest
@@ -75,41 +73,21 @@ julia> struct DecayDescent{T} <: Optimisers.AbstractRule  # as in the documentat
        end
 
 julia> Optimisers.adjust(DecayDescent(0.1f0), 0.2345)  # works automatically
-(DecayDescent{Float32}(0.2345f0), true)
+DecayDescent{Float32}(0.2345f0)
 
 julia> Optimisers.adjust(ClipNorm(), 0.345)  # does nothing, as this has no learning rate
-(ClipNorm{Float32}(10.0f0, 2.0f0, true), false)
+ClipNorm{Float32}(10.0f0, 2.0f0, true)
 ```
 """
-function adjust(r::T, η::Real) where T <: AbstractRule
+adjust(r::AbstractRule, eta::Real) = _adjust(r, (; eta))
+adjust(r::AbstractRule; kw...) = _adjust(r, NamedTuple(kw))
+
+function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
+  isempty(nt) && throw(ArgumentError("adjust must be given something to act on!"))
   fs = fieldnames(T)
-  if :eta in fs
-    vals = map(fs) do field
-      field == :eta ? η : getfield(r, field)
-    end
-    T(vals...), true  # relies on having the default constructor
-  else
-    r, false
+  vals = map(fs) do field
+    get(nt, field, getfield(r, field))
   end
+  T(vals...)  # relies on having the default constructor
 end
 
-# adjust(r::AbstractRule, η::Real) = adjust(r, (eta = η,))
-# function adjust(r::T, nt::NamedTuple) where T <: AbstractRule
-#   fs = fieldnames(T)
-#   if all(k -> k in fs, keys(nt))
-#     vals = map(fs) do field
-#       get(nt, field, getfield(r, field))
-#     end
-#     T(vals...), true  # relies on having the default constructor
-#   else
-#     r, false
-#   end
-# end
-
-function adjust(oldr::AbstractRule, newr::AbstractRule)
-  if typeof(newr).name.wrapper == typeof(oldr).name.wrapper
-    newr, true
-  else
-    oldr, false
-  end
-end

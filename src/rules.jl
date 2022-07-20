@@ -129,8 +129,9 @@ function apply!(o::RMSProp, state, x, dx)
   return (quad, lin), dx′
 end
 
-function adjust(oldr::RMSProp, newr::RMSProp)  # centred version has a different state, so disallow changing that:
-  newr.centred == oldr.centred ? (newr, true) : (oldr, false)
+function adjust(r::RMSProp; kw...)
+  :centred in keys(kw) && throw(ArgumentError("adjust(::RMSProp; centred) is not allowed, as the variants store different states"))
+  _adjust(r, NamedTuple(kw))  # that's why _adjust exists!
 end
 
 function Base.show(io::IO, o::RMSProp)
@@ -546,7 +547,7 @@ See also [`ClipNorm`](@ref).
 struct ClipGrad{T<:Real} <: AbstractRule
   delta::T
 end
-ClipGrad() = ClipGrad(10f0)
+ClipGrad(δ::Integer = 10) = ClipGrad(Float32(δ))  # float is to ensure adjust can change this
 
 init(o::ClipGrad, x::AbstractArray) = nothing
 
@@ -573,7 +574,7 @@ struct ClipNorm{T<:Real} <: AbstractRule
   p::T
   throw::Bool
 end
-ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{typeof(ω)}(ω, p, throw)
+ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{float(typeof(ω))}(ω, p, throw)
 
 init(o::ClipNorm, x::AbstractArray) = nothing
 
@@ -632,18 +633,5 @@ function Base.show(io::IO, c::OptimiserChain)
   print(io, ")")
 end
 
-function adjust(oldo::OptimiserChain, newo::OptimiserChain)
-  match = all(zip(oldo.opts, newo.opts)) do opt1, opt2 
-    typeof(opt1).name.wrapper == typeof(opt2).name.wrapper
-  end
-  match ? (newo, true) : (oldo, false)
-end
-
-function _adjust(ℓ::Leaf{<:OptimiserChain}, a, ok::Ref)
-  opts = map(ℓ.rule.opts) do opt
-    newopt, flag = adjust(opt, a)
-    ok[] |= flag
-    newopt
-  end
-  Leaf(OptimiserChain(opts...), ℓ.state)
-end
+adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
+adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)

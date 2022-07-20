@@ -131,7 +131,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test eltype(m4[2]) == Float32
     end
     
-    @testset "changing parameters" begin
+    @testset "adjusyting parameters" begin
       # Simple momentum:
       m = (α = ([0.0], sin), γ = Float32[4,3,2])
       s = Optimisers.setup(Momentum(0.1, 0.9), m)
@@ -147,7 +147,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test s2.α[1].rule.eta == 0.2
       @test s2.α[1].state == s1.α[1].state
       
-      s3 = Optimisers.adjust(s1, Momentum(0.3, 0.7))
+      s3 = Optimisers.adjust(s1; eta=0.3, rho=0.7)
       @test s3.γ.rule.eta == 0.3
       @test s3.γ.rule.rho == 0.7
       @test s3.γ.state == s1.γ.state
@@ -156,8 +156,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       _, m3 = Optimisers.update(s3, m, (α = nothing, γ = [1,10,100],))
       @test !(m.γ .- m3.γ ≈ [1, 10, 100])
 
-      @info "ignore this warning, testing adjust with mismatched rules"
-      @test s1 == Optimisers.adjust(s1, Nesterov(0.3, 0.7))  # does nothing
+      @test s1 == Optimisers.adjust(s1, zeta = "this does nothing")
   
       # OptimiserChain
       sc = Optimisers.setup(OptimiserChain(ClipGrad(2), Adam()), m)
@@ -168,6 +167,11 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       sc2 = Optimisers.adjust(sc1, 0.2)
       @test sc2.γ.rule.opts[1].delta == 2 # unchanged
       @test sc2.γ.rule.opts[2].eta === 0.2f0
+      @test sc2.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
+      
+      sc2 = Optimisers.adjust(sc1; delta = 2.5)  # ClipGrad(2) does not store an Int, for this reason
+      @test sc2.γ.rule.opts[1].delta == 2.5
+      @test sc2.γ.rule.opts[2].eta === 0.001f0 # unchanged
       @test sc2.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
