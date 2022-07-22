@@ -66,6 +66,8 @@ For now, simply `x isa DenseArray` allowing `Array`, `CuArray`, etc.
 maywrite(::DenseArray) = true  # see https://github.com/FluxML/Optimisers.jl/issues/99 for discussion
 maywrite(_) = false
 
+@deprecate iswriteable maywrite false  # remove when releasing Optimisers@0.3
+
 """
     trainable(x::Layer) -> NamedTuple
 
