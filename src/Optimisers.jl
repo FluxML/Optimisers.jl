@@ -24,7 +24,7 @@ which will be subtracted from the parameters, and the updated state (if any) for
 the next iteration, as a tuple `(state, gradient)`.
 
 For efficiency it is free to mutate the old state, but only what is returned will be used.
-Ideally this should check `iswriteable(x)`, which the built-in rules do via [`@..`](@ref).
+Ideally this should check `maywrite(x)`, which the built-in rules do via [`@..`](@ref).
 
 The initial state is `init(rule::RuleType, parameters)`.
 

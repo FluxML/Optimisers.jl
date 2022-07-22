@@ -25,7 +25,7 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       
       s2, m2 = Optimisers.update(s, m, g)
       @test m[1] == 1:2  # not mutated
-      @test Optimisers.iswriteable(m[1])
+      @test Optimisers.maywrite(m[1])
       @test m2[1] ≈ [1,2] .- 0.1 .* [25, 33]
 
       s3, m3 = Optimisers.update!(s, m, g)
