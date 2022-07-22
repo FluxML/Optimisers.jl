@@ -129,11 +129,16 @@ function apply!(o::RMSProp, state, x, dx)
   return (quad, lin), dx′
 end
 
+function adjust(r::RMSProp; kw...)
+  :centred in keys(kw) && throw(ArgumentError("adjust(::RMSProp; centred) is not allowed, as the variants store different states"))
+  _adjust(r, NamedTuple(kw))  # that's why _adjust exists!
+end
+
 function Base.show(io::IO, o::RMSProp)
-    show(io, typeof(o))
-    print(io, "(")
-    join(io, [o.eta, o.rho, o.epsilon], ", ")
-    print(io, "; centred = ", o.centred, ")")
+  show(io, typeof(o))
+  print(io, "(")
+  join(io, [o.eta, o.rho, o.epsilon], ", ")
+  print(io, "; centred = ", o.centred, ")")
 end
 
 
@@ -542,7 +547,7 @@ See also [`ClipNorm`](@ref).
 struct ClipGrad{T<:Real} <: AbstractRule
   delta::T
 end
-ClipGrad() = ClipGrad(10f0)
+ClipGrad(δ::Integer = 10) = ClipGrad(Float32(δ))  # float is to ensure adjust can change this
 
 init(o::ClipGrad, x::AbstractArray) = nothing
 
@@ -569,7 +574,7 @@ struct ClipNorm{T<:Real} <: AbstractRule
   p::T
   throw::Bool
 end
-ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{typeof(ω)}(ω, p, throw)
+ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{float(typeof(ω))}(ω, p, throw)
 
 init(o::ClipNorm, x::AbstractArray) = nothing
 
@@ -595,12 +600,12 @@ This is equivalent to `Descent(1)`.
 
 # Example
 ```jldoctest
-julia> o = OptimiserChain(ClipGrad(1), Descent(0.1));
+julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 
 julia> m = (zeros(3),);
 
 julia> s = Optimisers.setup(o, m)
-(Leaf(OptimiserChain(ClipGrad{Int64}(1), Descent{Float64}(0.1)), [nothing, nothing]),)
+(Leaf(OptimiserChain(ClipGrad{Float64}(1.0), Descent{Float64}(0.1)), [nothing, nothing]),)
 
 julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 ([-0.03, -0.1, -0.1],)
@@ -627,3 +632,6 @@ function Base.show(io::IO, c::OptimiserChain)
   join(io, c.opts, ", ")
   print(io, ")")
 end
+
+adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
+adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)

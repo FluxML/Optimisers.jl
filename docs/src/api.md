@@ -34,6 +34,7 @@ Optimisers.OptimiserChain
 Optimisers.setup
 Optimisers.update
 Optimisers.update!
+Optimisers.adjust(::Any, ::Real)
 ```
 
 Calling `Functors.@functor` on your model's layer types by default causes the
@@ -57,4 +58,5 @@ Optimisers.apply!
 Optimisers.init
 Optimisers.@..
 Optimisers.@lazy
+Optimisers.adjust(::AbstractRule, ::Real)
 ```

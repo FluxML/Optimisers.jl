@@ -6,6 +6,8 @@ using LinearAlgebra
 include("interface.jl")
 export AbstractRule
 
+include("adjust.jl")
+
 include("destructure.jl")
 export destructure
 

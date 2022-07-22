@@ -8,13 +8,13 @@ These act on one array of parameters:
 ```julia
 # Define a container to hold any optimiser specific parameters (if any):
 struct DecayDescent{T} <: Optimisers.AbstractRule
-  η::T
+  eta::T
 end
 
 # Define an `apply!` rule which encodes how the gradients will be used to
 # update the parameters:
 function Optimisers.apply!(o::DecayDescent, state, x, x̄)
-  newx̄ = (o.η / √state) .* x̄
+  newx̄ = (o.eta / √state) .* x̄
   nextstate = state + 1
   return nextstate, newx̄
 end
