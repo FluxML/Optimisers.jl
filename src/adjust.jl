@@ -54,30 +54,8 @@ adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state)
 """
     Optimisers.adjust(rule::RuleType, η::Real) -> rule
 
-Replaces the learning rate of the optimisation rule with the given number.
-
-This method is only called by `adjust(tree, η)`, and if `RuleType` has a field
-called `:eta` and the default constructor, then the standard definition will work.
-
-It should only be necessary to provide a method if your custom `struct` stores its
-learning rate a field with a different name. Or if an inner constructor blocks the
-default behaviour.
-
-# Example
-```jldoctest
-julia> Optimisers.adjust(Adam(), 0.12345)
-(Adam{Float32}(0.12345f0, (0.9f0, 0.999f0), 1.1920929f-7), true)
-
-julia> struct DecayDescent{T} <: Optimisers.AbstractRule  # as in the documentation
-         eta::T
-       end
-
-julia> Optimisers.adjust(DecayDescent(0.1f0), 0.2345)  # works automatically
-DecayDescent{Float32}(0.2345f0)
-
-julia> Optimisers.adjust(ClipNorm(), 0.345)  # does nothing, as this has no learning rate
-ClipNorm{Float32}(10.0f0, 2.0f0, true)
-```
+If a new optimisation rule has a learning rate which is *not* stored in field `rule.eta`,
+then you may should add a method to `adjust`. (But simpler to just use the standard name.)
 """
 adjust(r::AbstractRule, eta::Real) = _adjust(r, (; eta))
 adjust(r::AbstractRule; kw...) = _adjust(r, NamedTuple(kw))
