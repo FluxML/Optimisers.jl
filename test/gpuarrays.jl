@@ -1,25 +1,19 @@
 using Optimisers
-using ChainRulesCore #, Functors, StaticArrays, Zygote
-using LinearAlgebra, Statistics, Test
+using ChainRulesCore, Zygote
+using Test
 
 import CUDA
 if CUDA.functional()
   using CUDA  # exports CuArray, etc
-  @info "starting CUDA tests"
+  CUDA.allowscalar(false)
 else
-  @info "CUDA not functional, testing via GPUArrays"
-  using GPUArrays
-  GPUArrays.allowscalar(false)
+  @info "CUDA not functional, testing with JLArrays instead"
+  using JLArrays
+  JLArrays.allowscalar(false)
 
-  # GPUArrays provides a fake GPU array, for testing
-  jl_file = normpath(joinpath(pathof(GPUArrays), "..", "..", "test", "jlarray.jl"))
-  using Random, Adapt  # loaded within jl_file
-  include(jl_file)
-  using .JLArrays
   cu = jl
   CuArray{T,N} = JLArray{T,N}
 end
-
 @test cu(rand(3)) .+ 1 isa CuArray
 
 @testset "very basics" begin
@@ -89,6 +83,11 @@ end
   v, re = destructure(m)
   @test v isa CuArray
   @test re(2v).x isa CuArray
+
+  dm = gradient(m -> sum(abs2, destructure(m)[1]), m)[1]
+  @test dm.z isa CuArray
+  dv = gradient(v -> sum(abs2, re(v).z), cu([10, 20, 30, 40, 50.0]))[1]
+  @test dv isa CuArray
 end
 
 @testset "destructure mixed" begin
