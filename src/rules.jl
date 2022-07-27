@@ -168,15 +168,16 @@ Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η,
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
 function apply!(o::Rprop, state, x, dx)
-    ℓ = o.ell .|> eltype(x)
-    Γ = o.gamma .|> eltype(x)
+    T = eltype(x)
+    ℓ = map(T, o.ell)
+    Γ = map(T, o.gamma)
     g, η = state
 
     η = broadcast(g, η, dx) do g, η, dx
         g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
     end
     g = broadcast(g, dx) do g, dx
-        g * dx < 0 ? zero(dx) : dx
+        g * dx < 0 ? zero(T) : T(dx)
     end
     dx′ = @lazy η * sign(g)
 
