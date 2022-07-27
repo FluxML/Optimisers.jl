@@ -168,9 +168,8 @@ Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η,
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
 function apply!(o::Rprop, state, x, dx)
-    ℓ, Γ = o.ell, o.gamma
-    ℓ = ℓ .|> eltype(x)
-    Γ = Γ .|> eltype(x)
+    ℓ = o.ell .|> eltype(x)
+    Γ = o.gamma .|> eltype(x)
     g, η = state
 
     η = broadcast(g, η, dx) do g, η, dx
