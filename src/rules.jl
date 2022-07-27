@@ -25,7 +25,7 @@ init(o::Descent, x::AbstractArray) = nothing
 
 function apply!(o::Descent, state, x, dx)
   η = convert(float(eltype(x)), o.eta)
-  
+
   return state, @lazy dx * η  # @lazy creates a Broadcasted, will later fuse with x .= x .- dx
 end
 
@@ -51,7 +51,7 @@ init(o::Momentum, x::AbstractArray) = zero(x)
 function apply!(o::Momentum, state, x, dx)
   η, ρ, mvel = o.eta, o.rho, state
   @.. mvel = ρ * mvel + η * dx  # Macro @.. broadcasts into mvel if it can, else @. of rhs.
-  
+
   return mvel, mvel
 end
 
@@ -79,7 +79,7 @@ function apply!(o::Nesterov, state, x, dx)
 
   newdx = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
   @.. vel = ρ * vel - η * dx
-  
+
   return vel, newdx
 end
 
@@ -125,7 +125,7 @@ function apply!(o::RMSProp, state, x, dx)
     @.. lin = ρ * lin + (1 - ρ) * dx
   end
   dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
-  
+
   return (quad, lin), dx′
 end
 
@@ -152,7 +152,7 @@ learning algorithm that depends only on the sign of the gradient.
 # Parameters
 - Learning rate (`η`): Amount by which gradients are discounted before updating
                        the weights.
-                      
+
 - Scaling factors (`ℓ::Tuple`): Multiplicative increase and decrease factors.
 
 - Step sizes (`Γ::Tuple`): Mminimal and maximal allowed step sizes.
@@ -168,7 +168,7 @@ Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η,
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
 function apply!(o::Rprop, state, x, dx)
-    ℓ, Γ = o.ell, o.gamma
+    ℓ, Γ = (o.ell, o.gamma) .|> eltype(dx)
     g, η = state
 
     η = broadcast(g, η, dx) do g, η, dx
@@ -384,7 +384,7 @@ function apply!(o::AdaDelta, state, x, dx)
   # DON'T remove epsilon from numerator or even out of the square roots!
   dx′ = @. dx * sqrt(Δacc + ϵ) / sqrt(acc + ϵ)  # Cannot be lazy as this needs the old Δacc
   @.. Δacc = ρ * Δacc + (1 - ρ) * abs2(dx′)
-  
+
   return (acc, Δacc), dx′
 end
 
@@ -454,7 +454,7 @@ function apply!(o::NAdam, state, x, dx)
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
-  dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) / 
+  dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) /
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
   return (mt, vt, βt .* β), dx′
@@ -508,7 +508,7 @@ function apply!(o::AdaBelief, state, x, dx)
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. st = β[2] * st + (1 - β[2]) * abs2(dx - mt) + ϵ
   dx′ = @lazy η * mt / (1 - βt[1]) / (sqrt(st / (1 - βt[2])) + ϵ)
-  
+
   return (mt, st, βt .* β), dx′
 end
 
