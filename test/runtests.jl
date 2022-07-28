@@ -130,15 +130,16 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test eltype(m4[1]) == Float16  # because of explicit broadcast in subtract!
       @test eltype(m4[2]) == Float32
 
-      dm = ([1.0,2.0], [3.0,4.0])
-      s1 = Optimisers.setup(Rprop(0.1), m)
-      s2, m2 = Optimisers.update(s1, m, dm)
-      @test eltype(m2[1]) == Float16   # type should not be promoted by the gradient
-      @test eltype(m2[2]) == Float32
-      @test eltype(s2[1].state[1]) == eltype(s1[1].state[1])
-      @test eltype(s2[1].state[2]) == eltype(s1[1].state[2])
-      @test eltype(s2[2].state[1]) == eltype(s1[2].state[1])
-      @test eltype(s2[2].state[2]) == eltype(s1[2].state[2])
+      # Rprop re-creates its state arrays, check they don't get widened:
+      s5 = Optimisers.setup(Rprop(0.1), m)  # Float64 rule
+      grad64 = ([1.0,2.0], SA[3.0,4.0])  # Float64 gradients
+      s6, m6 = Optimisers.update(s5, m, grad64)
+      @test eltype(m6[1]) == Float16
+      @test eltype(m6[2]) == Float32
+      @test eltype(s6[1].state[1]) == Float16
+      @test eltype(s6[1].state[2]) == Float16
+      @test eltype(s6[2].state[1]) == Float32
+      @test eltype(s6[2].state[2]) == Float32
     end
 
     @testset "adjusyting parameters" begin
