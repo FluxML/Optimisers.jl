@@ -40,11 +40,11 @@ Optimisers.adjust(::Any, ::Real)
 Calling `Functors.@functor` on your model's layer types by default causes
 these functions to recurse into all children, and ultimately optimise
 all `isnumeric` leaf nodes.
-To restric this by ignoring some fields of a layer type, define `trainable`:
+To further restrict this by ignoring some fields of a layer type, define `trainable`:
 
 ```@docs
-Optimisers.trainable
 Optimisers.isnumeric
+Optimisers.trainable
 ```
 
 Such restrictions are also obeyed by this function for flattening a model:
