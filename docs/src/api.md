@@ -37,10 +37,13 @@ Optimisers.update!
 Optimisers.adjust(::Any, ::Real)
 ```
 
-Calling `Functors.@functor` on your model's layer types by default causes the
-optimiser to act on all suitable fields. To restrict this, define `trainable`:
+Calling `Functors.@functor` on your model's layer types by default causes
+these functions to recurse into all children, and ultimately optimise
+all `isnumeric` leaf nodes.
+To further restrict this by ignoring some fields of a layer type, define `trainable`:
 
 ```@docs
+Optimisers.isnumeric
 Optimisers.trainable
 ```
 

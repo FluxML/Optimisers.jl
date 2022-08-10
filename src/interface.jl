@@ -52,6 +52,15 @@ end
 # default all rules to first order calls
 apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
 
+"""
+    isnumeric(x) -> Bool
+
+Returns `true` on any parameter to be adjusted by Optimisers.jl,
+namely arrays of non-integer numbers. Returns `false` on all other types.
+
+Requires also that `Functors.isleaf(x) == true`, to focus on e.g. the
+parent of a transposed matrix, not the wrapper.
+"""
 isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
 isnumeric(x::AbstractArray{<:Integer}) = false
 isnumeric(x) = false
