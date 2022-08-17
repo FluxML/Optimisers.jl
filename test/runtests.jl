@@ -37,6 +37,10 @@ function Optimisers.apply!(o::BiRule, state, x, dx, dx2)
   return state, dx
 end
 
+# Make Yota's output look like Zygote's:
+
+Yota_gradient(f, xs...) = Base.tail(Yota.grad(f, xs...)[2])
+
 @testset verbose=true "Optimisers.jl" begin
   @testset verbose=true "Features" begin
 
