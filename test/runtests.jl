@@ -1,5 +1,5 @@
 using Optimisers
-using ChainRulesCore, Functors, StaticArrays, Zygote
+using ChainRulesCore, Functors, StaticArrays, Zygote, Yota
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
 
