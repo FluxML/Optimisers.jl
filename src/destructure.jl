@@ -61,16 +61,20 @@ end
 Base.show(io::IO, re::Restructure{T}) where T = print(io, "Restructure(", T.name.name, ", ..., ", re.length, ")")
 Base.length(re::Restructure) = re.length
 
+struct Offset
+  i::Int
+end
+
 # This flattens a model, and returns a web of offsets for later use:
 function _flatten(x)
-  isnumeric(x) && return vcat(_vec(x)), 0, length(x)  # trivial case
+  isnumeric(x) && return vcat(_vec(x)), Offset(0), length(x)  # trivial case
   arrays = AbstractVector[]
   len = Ref(0)
   off = fmap(x; exclude = isnumeric, walk = (f, z) -> map(f, _trainable(z))) do y
     push!(arrays, _vec(y))
     o = len[]
     len[] = o + length(y)
-    o
+    Offset(o)
   end
   isempty(arrays) && return Bool[], off, 0
   reduce(vcat, arrays), off, len[]
@@ -94,13 +98,13 @@ function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _trai
   end
 end
 
-_getat(y::Number, o::Int, flat::AbstractVector) = ProjectTo(y)(flat[o + 1])
-_getat(y::AbstractArray, o::Int, flat::AbstractVector) =
-  ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+_getat(y::Number, off::Offset, flat::AbstractVector) = ProjectTo(y)(flat[off.i + 1])
+_getat(y::AbstractArray, off::Offset, flat::AbstractVector) =
+  ProjectTo(y)(reshape(flat[off.i .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
 
 function _trainable_biwalk(f, x, aux)
   ch, re = functor(typeof(x), x)
-  au, _ = functor(typeof(x), aux)
+  au, _ = functor(aux)
   _trainmap(f, ch, _trainable(x), au) |> re
 end
 
@@ -112,13 +116,20 @@ end
 
 function _Tangent_biwalk(f, x, aux)  # use with prune = NoT
   ch, re = functor(typeof(x), x)
-  au, _ = functor(typeof(x), aux)
-  y = _trainmap(f, ch, _trainable(x), au)
+  au, _ = functor(aux)
+  y = map(ch, _trainable(x), au) do c, t, a  # isnothing(t) indicates non-trainable field, safe given isnumeric(c)
+    isnothing(t) ? NoT : f(t, a)
+  end
   y isa Tuple{} && return NoT
   p = ProjectTo(x)
   if p isa ProjectTo  # e.g. Array, NamedTuple
     p(y)
   else  # p === identity for unknown structs
+    y = map(backing(x), backing(re(y))) do c, t
+      # backing(re(y)) extracts NamedTuple backing from re(y); required if x has children which aren't its own fields
+      # however, re(y) will repopulate primal field values from x which weren't functor-ed; these gradients should be NoT
+      c === t ? NoT : t
+    end
     Tangent{typeof(x), typeof(y)}(y)
   end
 end
@@ -135,23 +146,23 @@ ChainRulesCore.@non_differentiable _zero(x)
 function _grad!(x, dx, off, flat::AbstractVector)
   x′, _ = functor(typeof(x), x)
   dx′, _ = functor(typeof(x), base(dx))
-  off′, _ = functor(typeof(x), off)
+  off′, _ = functor(off)
   for (xᵢ, dxᵢ, oᵢ) in zip(x′, dx′, off′)
     flat = _grad!(xᵢ, dxᵢ, oᵢ, flat)
   end
   flat
 end
-function _grad!(x, dx, off::Integer, flat::AbstractVector{T}) where T
+function _grad!(x, dx, off::Offset, flat::AbstractVector{T}) where T
   dx_un = unthunk(dx)
   T2 = promote_type(T, eltype(dx_un))
   if T != T2  # then we must widen the type
     flat = copyto!(similar(flat, T2), flat)
   end
-  @views flat[off .+ (1:length(x))] .+= vec(dx_un)  # must visit all tied nodes
+  @views flat[off.i .+ (1:length(x))] .+= vec(dx_un)  # must visit all tied nodes
   flat
 end
 _grad!(x, dx::Zero, off, flat::AbstractVector) = flat
-_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = flat  # ambiguity
+_grad!(x, dx::Zero, off::Offset, flat::AbstractVector) = flat  # ambiguity
 
 # These are only needed for 2nd derivatives:
 function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)

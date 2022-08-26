@@ -13,6 +13,13 @@ struct TwoThirds a; b; c; end
 Functors.@functor TwoThirds (a, c)
 Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
+struct Skip{T}  # like Flux 0.12's Chain
+  layers::T
+  Skip(ls...) = new{typeof(ls)}(ls)
+end
+Base.getindex(x::Skip, i::Integer) = x.layers[i]
+Functors.functor(::Type{<:Skip}, x) = x.layers, ls -> Skip(ls...)
+
 @testset verbose=true "Optimisers.jl" begin
   @testset verbose=true "Features" begin
 
@@ -218,6 +225,16 @@ Optimisers.trainable(x::TwoThirds) = (a = x.a,)
       @test Optimisers.setup(AdamW(), m1) isa Tuple
       m2 = (rand(3), m, rand(3), m, rand(3))  # illegal
       @test_throws ArgumentError Optimisers.setup(AdamW(), m2)
+    end
+
+    @testset "issue 62" begin
+      m62 = (s = Skip([1.0, 2.0], Foo([3.0], false)), t = [4.0, 5.0])
+      s62 = Optimisers.setup(Descent(), m62)
+      g62 = gradient(m -> m.s[2].x[1] + 3 * m.t[2], m62)
+      s, m = Optimisers.update(s62, m62, g62...)
+      @test m.s isa Skip
+      @test m.s[2].x ≈ [2.9]
+      @test m.t ≈ [4, 4.7]
     end
 
   end

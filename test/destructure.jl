@@ -181,6 +181,40 @@ end
   end == ([17,17,4,4],)  # Flux gave ([4.0, 4.0, 13.0, 13.0],)
 end
 
+@testset "issue 62" begin
+  # Flux.Chain used to have children which aren't its own fields, which Skip immitates.
+
+  sk = Skip([1.0, 2.0], (x=3, y=[4.0, 5.0]))
+  @test fmap(identity, sk) == sk
+
+  gk = gradient(x -> sum(x[2].y), sk)[1]
+  @test fmap(Zygote.accum, sk, gk) isa Skip  # this relies on functor(typeof(x), dx)
+
+  st = fmapstructure(identity, sk)
+  @test st isa Tuple{Vector, NamedTuple}
+  @test_throws Exception fmap(+, sk, st)  # this fails because of functor(typeof(x), dx)
+
+  v, re = destructure(sk)
+  @test v == [1,2,4,5]
+  @test re(10v) isa Skip
+  @test re(10v)[1] == [10, 20]
+
+  @test gradient(zero(v)) do w
+    re(w)[2].y[1]
+  end == ([0,0,1,0],)
+
+  @test gradient(sk) do x
+    w, _ = destructure(x)
+    w[1]^2 + w[4]^2
+  end == ((layers = ([2.0, 0.0], (x = nothing, y = [0.0, 10.0])),),)
+
+  ac = TwoThirds([1.0, 2.0], [3.0], [4.0, 5.0])  # a,c are functor-ed, and only a is trainable
+  @test gradient(ac) do x
+    w2, _ = destructure(x)
+    w2[2]^2
+  end == ((a = [0.0, 4.0], b = nothing, c = nothing),)
+end
+
 @testset "DiffEqFlux issue 699" begin
   # The gradient of `re` is a vector into which we accumulate contributions, and the issue
   # is that one contribution may have a wider type than `v`, especially for `Dual` numbers.
