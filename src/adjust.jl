@@ -47,8 +47,8 @@ adjust(tree; kw...) = map(st -> adjust(st; kw...), tree)
 adjust(::Nothing, ::Real) = nothing
 adjust(::Nothing; kw...) = nothing
 
-adjust(ℓ::Leaf, eta::Real) = ℓ.frozen ? ℓ : Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
-adjust(ℓ::Leaf; kw...) = ℓ.frozen ? ℓ : Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
+adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state)
+adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state)
 
 
 """

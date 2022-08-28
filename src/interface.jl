@@ -13,7 +13,6 @@ abstract type AbstractRule end
 mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter sharing
   rule::R
   state::S
-  frozen::Bool  # mutability also allows this flag to be changed
 end
 
 @functor Leaf
@@ -25,7 +24,7 @@ function setup(rule::AbstractRule, model)
   # Rely on Functors to identify shared arrays, they will share a Leaf in this tree:
   tree = fmapstructure(model, exclude = isnumeric) do x
     cnt[] += 1
-    Leaf(rule, init(rule, x), false)
+    Leaf(rule, init(rule, x))
   end
   cnt[] == 0 && @warn "setup found no parameters in the given model"
   tree
@@ -35,7 +34,7 @@ function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long 
   ioc = IOContext(io, :compact => true)
   print(ioc, "Leaf(", ℓ.rule, ", ")
   show(ioc, ℓ.state)
-  print(ioc, ", ", ℓ.frozen, ")")
+  print(ioc, ")")
 end
 
 ###
@@ -49,7 +48,6 @@ function update!(tree, model, grad)
   grads!(dict, tree, model, grad)
   # Second walk is to update the model. The walk taken follows Leaf identity
   newmodel = fmap(tree, model; exclude = ℓ -> ℓ isa Leaf, walk = _second_walk, cache = LeafCache()) do ℓ, x
-    ℓ.frozen && return x
     haskey(dict, ℓ) || return x  # no gradient seen, nothing to do
     s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, dict[ℓ])
     ℓ.state = s′  # to get state out of here, rely on mutability of Leaf
