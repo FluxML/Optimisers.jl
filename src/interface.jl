@@ -10,10 +10,10 @@ abstract type AbstractRule end
 ### setup
 ###
 
-mutable struct Leaf{R,S}
+mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter sharing
   rule::R
   state::S
-  frozen::Bool
+  frozen::Bool  # mutability also allows this flag to be changed
 end
 
 @functor Leaf
@@ -45,23 +45,15 @@ end
 function update!(tree, model, grad)
   # First walk is to accumulate the gradient. This recursion visits every copy of
   # shared leaves, but stops when branches are absent from the gradient:
-  gdict = IdDict{Leaf, Any}()
-  grads!(gdict, tree, model, grad)
-  # Second walk is to update the model, using same fmap walk as setup:
-  xdict = IdDict{Leaf, Any}()  # (this exists to allow for shared ℓ without shared x)
-  newmodel = fmap(model, tree; exclude = isnumeric) do x, ℓ
-    ℓ isa Leaf || error("this state does not match the model, expected a Leaf here")
+  dict = IdDict{Leaf, Any}()
+  grads!(dict, tree, model, grad)
+  # Second walk is to update the model. The walk taken follows Leaf identity
+  newmodel = fmap(tree, model; exclude = ℓ -> ℓ isa Leaf, walk = _second_walk) do ℓ, x
     ℓ.frozen && return x
-    haskey(gdict, ℓ) || return x  # no gradient seen, nothing to do
-    if haskey(xdict, ℓ)
-      # This means that shared ℓ encodes sharing not noted in x. Won't happen with setup above, no API yet.
-      x′ = xdict[ℓ]  # ... and is why xdict exists.
-      size(x′) == size(x) || error("the same Leaf belongs to arrays of size $(size(x)) and $(size(x′))")
-      return x′
-    end
-    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, gdict[ℓ])
+    haskey(dict, ℓ) || return x  # no gradient seen, nothing to do
+    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, dict[ℓ])
     ℓ.state = s′  # to get state out of here, rely on mutability of Leaf
-    xdict[ℓ] = subtract!(x, x̄′)
+    subtract!(x, x̄′)
   end
   tree, newmodel  # note that tree is guaranteed to be updated
 end
@@ -87,6 +79,13 @@ function update(tree, x, x̄s...)
   t′ = fmap(copy, tree; exclude = maywrite)  # goes inside Leaf
   x′ = fmap(copy, x; exclude = maywrite)
   update!(t′, x′, x̄s...)
+end
+
+# This differs from _default_walk(f,x,y) in taking re from 2nd argument, but cache will still operate on the first
+function _second_walk(f, x, y)
+  x′, _ = functor(typeof(y), x)
+  y′, re = functor(y)
+  re(map(f, x′, y′))
 end
 
 # default all rules to first order calls
