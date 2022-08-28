@@ -45,16 +45,23 @@ end
 function update!(tree, model, grad)
   # First walk is to accumulate the gradient. This recursion visits every copy of
   # shared leaves, but stops when branches are absent from the gradient:
-  dict = IdDict{Leaf, Any}()
-  grads!(dict, tree, model, grad)
-  # Second walk is to update the model, using same fmap walk as setup, thus each Leaf exactly once:
+  gdict = IdDict{Leaf, Any}()
+  grads!(gdict, tree, model, grad)
+  # Second walk is to update the model, using same fmap walk as setup:
+  xdict = IdDict{Leaf, Any}()  # (this exists to allow for shared ℓ without shared x)
   newmodel = fmap(model, tree; exclude = isnumeric) do x, ℓ
     ℓ isa Leaf || error("this state does not match the model, expected a Leaf here")
     ℓ.frozen && return x
-    haskey(dict, ℓ) || return x
-    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, dict[ℓ])
+    haskey(gdict, ℓ) || return x  # no gradient seen, nothing to do
+    if haskey(xdict, ℓ)
+      # This means that shared ℓ encodes sharing not noted in x. Won't happen with setup above, no API yet.
+      x′ = xdict[ℓ]  # ... and is why xdict exists.
+      size(x′) == size(x) || error("the same Leaf belongs to arrays of size $(size(x)) and $(size(x′))")
+      return x′
+    end
+    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, gdict[ℓ])
     ℓ.state = s′  # to get state out of here, rely on mutability of Leaf
-    subtract!(x, x̄′)
+    xdict[ℓ] = subtract!(x, x̄′)
   end
   tree, newmodel  # note that tree is guaranteed to be updated
 end

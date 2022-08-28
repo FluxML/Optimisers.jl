@@ -305,6 +305,22 @@ end
          # Error: no constructors for type Any
          @test_broken s4, t4 = Optimisers.update(stri, tri, g4)
        end
+       
+       @testset "artificial" begin
+         # Interpret shared Leaf as implying shared parameters, even if this did not arise from shared arrays.
+         # No API for setting this at the moment, but can construct one by hand:
+         model = (a = [1,2.0], b = [1, 2.0], c = [1, 2.0], d = [1, 2.0])
+         honest = Optimisers.setup(Momentum(0.1), model)
+         trick = (a = honest.a, b = honest.a, c = honest.c, d= honest.d)  # makes a & b shared
+  
+         trick2, model2 = Optimisers.update(trick, model, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
+         trick3, model3 = Optimisers.update(trick2, model2, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
+         
+         @test model3.a == model3.b == model3.d  # same as having the gradients added
+         @test !(model3.a ≈ model3.c)
+         @test trick3.a === trick3.b  # leaves remain shared
+         model3.a === model3.b  # in fact arrays end up shared, but this is not required
+       end
     end
 
     @testset "higher order interface" begin
