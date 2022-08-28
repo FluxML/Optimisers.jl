@@ -1,56 +1,93 @@
 
-using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero
+using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero, ZeroTangent
 base(dx::Tangent) = backing(canonicalize(dx))
 base(dx) = dx
 const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 
 abstract type AbstractRule end
 
-struct Leaf{R,S}
+###
+### setup
+###
+
+mutable struct Leaf{R,S}
   rule::R
   state::S
+  frozen::Bool
 end
 
-function setup(rule, x; seen = Base.IdSet())
-  rule isa AbstractRule || Base.depwarn("In future, all optimisation rules should be <: AbstractRule", :setup)
-  if isnumeric(x)
-    x in seen && throw(ArgumentError("Optimisers.jl does not at present handle tied weights, sorry."))
-    isbits(x) || push!(seen, x)
-    return Leaf(rule, init(rule, x))
-  elseif isleaf(x)
-    return nothing
-  else
-    return map(xᵢ -> setup(rule, xᵢ; seen), _trainable(x))
+@functor Leaf
+
+Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
+
+function setup(rule::AbstractRule, model)
+  cnt = Ref(0)
+  # Rely on Functors to identify shared arrays, they will share a Leaf in this tree:
+  tree = fmapstructure(model, exclude = isnumeric) do x
+    cnt[] += 1
+    Leaf(rule, init(rule, x), false)
   end
+  cnt[] == 0 && @warn "setup found no parameters in the given model"
+  tree
+end
+
+function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
+  ioc = IOContext(io, :compact => true)
+  print(ioc, "Leaf(", ℓ.rule, ", ")
+  show(ioc, ℓ.state)
+  print(ioc, ", ", ℓ.frozen, ")")
+end
+
+###
+### update
+###
+
+function update!(tree, model, grad)
+  # First walk is to accumulate the gradient. This recursion visits every copy of
+  # shared leaves, but stops when branches are absent from the gradient:
+  dict = IdDict{Leaf, Any}()
+  grads!(dict, tree, model, grad)
+  # Second walk is to update the model, using same fmap walk as setup, thus each Leaf exactly once:
+  newmodel = fmap(model, tree; exclude = isnumeric) do x, ℓ
+    ℓ isa Leaf || error("this state does not match the model, expected a Leaf here")
+    ℓ.frozen && return x
+    haskey(dict, ℓ) || return x
+    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, dict[ℓ])
+    ℓ.state = s′  # to get state out of here, rely on mutability of Leaf
+    subtract!(x, x̄′)
+  end
+  tree, newmodel  # note that tree is guaranteed to be updated
 end
 
 subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
-update!(::Nothing, x, ::Zero, ::Zero...) = nothing, x
-update!(::Nothing, x, x̄s...) = nothing, x
-
-update!(ℓ::Leaf, x, ::Zero, ::Zero...) = ℓ, x
-function update!(ℓ::Leaf, x, x̄s...)
-  s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, base.(x̄s)...)
-  Leaf(ℓ.rule, s′), subtract!(x, x̄′)
+grads!(dict::IdDict, ℓ::Leaf, x, ::Zero) = nothing
+function grads!(dict::IdDict, ℓ::Leaf, x, x̄)
+  x̄₀ = get(dict, ℓ, false)
+  dict[ℓ] = Broadcast.broadcasted(+, x̄, x̄₀)
+  nothing
 end
-
-update!(tree, x, ::Zero, ::Zero...) = tree, x
-function update!(tree, x, x̄s...)
+grads!(dict::IdDict, t, x, ::Zero) = nothing
+function grads!(dict::IdDict, tree, x, x̄s...)
+  # The only reason grads! takes model is that functor(typeof(x), base(x̄)) may differ from 
+  # functor(typeof(tree), base(x̄)), for things like Transpose
   x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
-  x′, re = functor(typeof(x), x)
-  xtree = map((stᵢ, xᵢ, x̄sᵢ...) -> update!(stᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
-  map(first, xtree), re(map(last, xtree))
+  x′, _ = functor(typeof(x), x)
+  foreach((tᵢ, xᵢ, x̄sᵢ...) -> grads!(dict, tᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
 end
 
 function update(tree, x, x̄s...)
-  t′ = fmap(copy, tree; exclude = maywrite)
+  t′ = fmap(copy, tree; exclude = maywrite)  # goes inside Leaf
   x′ = fmap(copy, x; exclude = maywrite)
   update!(t′, x′, x̄s...)
 end
 
 # default all rules to first order calls
 apply!(o, state, x, dx, dx2, dxs...) = apply!(o, state, x, dx)
+
+###
+### sources of truth
+###
 
 """
     isnumeric(x) -> Bool
@@ -98,6 +135,10 @@ function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tu
   map(c -> c in tr ? c : nothing, ch)
 end
 
+###
+### rule definition helpers
+###
+
 """
     @.. x = x + y
 
@@ -135,11 +176,3 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
-
-function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
-  ioc = IOContext(io, :compact => true)
-  print(ioc, "Leaf(", ℓ.rule, ", ")
-  show(ioc, ℓ.state)
-  print(io, ")")
-end
-

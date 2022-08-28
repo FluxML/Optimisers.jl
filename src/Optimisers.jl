@@ -1,6 +1,6 @@
 module Optimisers
 
-using Functors: functor, fmap, isleaf
+using Functors: functor, fmap, isleaf, @functor, fmapstructure, children
 using LinearAlgebra
 
 include("interface.jl")
@@ -157,8 +157,8 @@ true
 julia> m  # original should be discarded, may be mutated but no guarantee
 (x = Float32[0.6666666, 1.5333333], y = Float32[4.0, 5.0])
 
-julia> t  # original state should likewise be discarded
-(x = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.333333, 0.466667]), y = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.0, 0.0]))
+julia> t == t2  # original state is in fact guaranteed to be mutated
+true
 ```
 """
 update!
