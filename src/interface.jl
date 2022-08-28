@@ -48,7 +48,7 @@ function update!(tree, model, grad)
   dict = IdDict{Leaf, Any}()
   grads!(dict, tree, model, grad)
   # Second walk is to update the model. The walk taken follows Leaf identity
-  newmodel = fmap(tree, model; exclude = ℓ -> ℓ isa Leaf, walk = _second_walk) do ℓ, x
+  newmodel = fmap(tree, model; exclude = ℓ -> ℓ isa Leaf, walk = _second_walk, cache = LeafCache()) do ℓ, x
     ℓ.frozen && return x
     haskey(dict, ℓ) || return x  # no gradient seen, nothing to do
     s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, dict[ℓ])
@@ -87,6 +87,21 @@ function _second_walk(f, x, y)
   y′, re = functor(y)
   re(map(f, x′, y′))
 end
+
+# When fmap reconstructs for update!, it should not cache results with trivial nodes like () in the state.
+# This cache type has just enough methods to work in Functors, which possibly should be upgraded to just work.
+struct LeafCache <: AbstractDict{Leaf,Any}
+  dict::IdDict{Leaf,Any}
+end
+LeafCache() = LeafCache(IdDict{Leaf,Any}())
+
+Base.setindex!(c::LeafCache, x, ℓ::Leaf) = setindex!(c.dict, x, ℓ)
+Base.setindex!(c::LeafCache, x, _) = nothing
+Base.in(k, c::LeafCache) = k in c.dict
+Base.haskey(c::LeafCache, k) = haskey(c.dict, k)
+Base.getindex(c::LeafCache, ℓ::Leaf) = getindex(c.dict, ℓ)
+Base.iterate(c::LeafCache, i = 0) = iterate(c.dict, i)
+Base.length(c::LeafCache) = length(c.dict)
 
 # default all rules to first order calls
 apply!(o, state, x, dx, dx2, dxs...) = apply!(o, state, x, dx)
