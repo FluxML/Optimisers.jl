@@ -60,8 +60,8 @@ subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
 grads!(dict::IdDict, ℓ::Leaf, x, ::Zero) = nothing
 function grads!(dict::IdDict, ℓ::Leaf, x, x̄)
-  x̄₀ = get(dict, ℓ, false)
-  dict[ℓ] = Broadcast.broadcasted(+, x̄, x̄₀)
+  x̄₀ = get(dict, ℓ, ZeroTangent())
+  dict[ℓ] = x̄ + x̄₀  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
   nothing
 end
 grads!(dict::IdDict, t, x, ::Zero) = nothing
