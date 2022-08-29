@@ -13,17 +13,24 @@ struct TwoThirds a; b; c; end
 Functors.@functor TwoThirds (a, c)
 Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
-struct DummyHigherOrder <: AbstractRule end
+mutable struct MutTwo; x; y; end
+Functors.@functor MutTwo
 
+struct DummyHigherOrder <: AbstractRule end
 Optimisers.init(::DummyHigherOrder, x::AbstractArray) =
   (ones(eltype(x), size(x)), zero(x))
-
 dummy_update_rule(st, p, dx, dx2) = @. p - (st[1] * dx + st[2] * dx2)
 function Optimisers.apply!(::DummyHigherOrder, state, x, dx, dx2)
   a, b = state
   @.. dx = a * dx + b * dx2
-
   return (a .+ 1, b .+ 1), dx
+end
+
+struct BiRule <: Optimisers.AbstractRule end
+Optimisers.init(o::BiRule, x::AbstractArray) = nothing
+function Optimisers.apply!(o::BiRule, state, x, dx, dx2)
+  dx == dx2 || error("expected 1st & 2nd gradients to agree")
+  return state, dx
 end
 
 @testset verbose=true "Optimisers.jl" begin
@@ -220,6 +227,23 @@ end
       @test_throws MethodError Optimisers.update(sm, m)
     end
 
+    @testset "2nd order gradient" begin
+      m = (α = ([1.0], sin), γ = Float32[4,3,2])
+
+      # Special rule which requires this:
+      s = Optimisers.setup(BiRule(), m)
+      g = (α = ([0.1], ZeroTangent()), γ = [1,10,100],)
+      s1, m1 = Optimisers.update(s, m, g, g)
+      @test m1.α[1] == [0.9]
+      @test_throws Exception Optimisers.update(s, m, g, map(x->2 .* x, g))
+
+      # Ordinary rule which doesn't need it:
+      s2 = Optimisers.setup(Adam(), m)
+      s3, m3 = Optimisers.update(s2, m, g)
+      s4, m4 = Optimisers.update(s2, m, g, g)
+      @test m3.γ == m4.γ
+    end
+
     @testset "broadcasting macros" begin
       x = [1.0, 2.0]; y = [3,4]; z = [5,6]
       @test (@lazy x + y * z) isa Broadcast.Broadcasted
@@ -305,13 +329,15 @@ end
          # Error: no constructors for type Any
          @test_broken s4, t4 = Optimisers.update(stri, tri, g4)
        end
-       
+
        @testset "artificial" begin
          # Interpret shared Leaf as implying shared parameters, even if this did not arise from shared arrays.
          # No API for setting this at the moment, but can construct one by hand:
-         model = (a = [1,2.0], b = [1, 2.0], c = [1, 2.0], d = [1, 2.0])
-         honest = Optimisers.setup(Momentum(0.1), model)
-         trick = (a = honest.a, b = honest.a, c = honest.c, d= honest.d)  # makes a & b shared
+         model = (a = SA[1,2.0], b = SA[1, 2.0], c = SA[1, 2.0], d = SA[1, 2.0])
+         auto = Optimisers.setup(Momentum(0.1), model)
+         @test auto.a !== auto.b  # not tied just by value
+
+         trick = (a = auto.a, b = auto.a, c = auto.c, d= auto.d)  # makes a & b tied
   
          trick2, model2 = Optimisers.update(trick, model, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
          trick3, model3 = Optimisers.update(trick2, model2, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
@@ -319,8 +345,26 @@ end
          @test model3.a == model3.b == model3.d  # same as having the gradients added
          @test !(model3.a ≈ model3.c)
          @test trick3.a === trick3.b  # leaves remain shared
-         model3.a === model3.b  # in fact arrays end up shared, but this is not required
        end
+
+       @testset "mutable containers" begin
+         tmp = MutTwo([1.0], [2.0])
+         model = (a=tmp, b=tmp, c=MutTwo(tmp.x, tmp.y))
+         state = Optimisers.setup(Momentum(), model)
+
+         @test model.a === model.b
+         @test model.a !== model.c  # fields are identified, but struct is not
+
+         @test state.a.x === state.b.x
+         @test state.a === state.b
+         @test state.a === state.c  # unavoidable, but means we can't use leaf ID alone
+
+         mgrad = (a=(x=[1], y=[10]), b=(x=[100], y=[1000]), c=(x=[1/3], y=[1/30]))
+         state2, model2 = Optimisers.update(state, model, mgrad)
+
+         @test model2.a === model2.b  # tie of MutTwo structs is restored
+         @test model2.a !== model2.c  # but a new tie is not created
+      end
     end
 
     @testset "higher order interface" begin

@@ -20,14 +20,26 @@ end
 Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
 
 function setup(rule::AbstractRule, model)
-  cnt = Ref(0)
-  # Rely on Functors to identify shared arrays, they will share a Leaf in this tree:
-  tree = fmapstructure(model, exclude = isnumeric) do x
-    cnt[] += 1
-    Leaf(rule, init(rule, x))
-  end
-  cnt[] == 0 && @warn "setup found no parameters in the given model"
+  cache = IdDict()
+  tree = _setup(rule, model; cache)
+  isempty(cache) && @warn "setup found no trainable parameters in this model"
   tree
+end
+
+# _setup is almost fmapstructure, but needs a _trainable_walk, and a cache which ignores numbers etc.
+function _setup(rule, x; cache)
+  haskey(cache, x) && return cache[x]
+  if isnumeric(x)
+    ℓ = Leaf(rule, init(rule, x))
+    if isbits(x)
+      cache[nothing] = nothing  # just to disable the warning
+      ℓ
+    else
+      cache[x] = ℓ
+    end
+  else
+    map(xᵢ -> _setup(rule, xᵢ; cache), _trainable(x))
+  end
 end
 
 function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
@@ -41,65 +53,56 @@ end
 ### update
 ###
 
-function update!(tree, model, grad)
+function update(tree, model, grad, higher...)
+  t′ = fmap(copy, tree; exclude = maywrite)  # walks inside Leaf
+  x′ = fmap(copy, model; exclude = maywrite)
+  update!(t′, x′, grad, higher...)
+end
+
+function update!(tree, model, grad, higher...)
   # First walk is to accumulate the gradient. This recursion visits every copy of
   # shared leaves, but stops when branches are absent from the gradient:
-  dict = IdDict{Leaf, Any}()
-  grads!(dict, tree, model, grad)
-  # Second walk is to update the model. The walk taken follows Leaf identity
-  newmodel = fmap(tree, model; exclude = ℓ -> ℓ isa Leaf, walk = _second_walk, cache = LeafCache()) do ℓ, x
-    haskey(dict, ℓ) || return x  # no gradient seen, nothing to do
-    s′, x̄′ = apply!(ℓ.rule, ℓ.state, x, dict[ℓ])
-    ℓ.state = s′  # to get state out of here, rely on mutability of Leaf
+  grads = IdDict{Leaf, Any}()
+  _grads!(grads, tree, model, grad, higher...)
+  # Second walk is to update the model. The params cache indexed by (tree,x),
+  # so that identified Leafs can tie isbits parameters, but setup won't do that for you:
+  newmodel = _update!(tree, model; grads, params = IdDict())
+  tree, newmodel  # note that tree is guaranteed to be updated. Also that it's not necc a tree.
+end
+
+function _update!(tree, x; grads, params)
+  haskey(params, (tree,x)) && return params[(tree,x)]
+  isbits(tree) && return x  # means () is not cached, and also (((),),)
+  x′, re = functor(x)
+  x′′ = map((tᵢ, xᵢ) -> _update!(tᵢ, xᵢ; grads, params), tree, x′)
+  params[(tree,x)] = re(x′′)
+end
+function _update!(ℓ::Leaf, x; grads, params)
+  haskey(params, (ℓ,x)) && return params[(ℓ,x)]
+  params[(ℓ,x)] = if haskey(grads, ℓ)
+    ℓ.state, x̄′ = apply!(ℓ.rule, ℓ.state, x, grads[ℓ]...)
     subtract!(x, x̄′)
+  else
+    x # no gradient seen
   end
-  tree, newmodel  # note that tree is guaranteed to be updated
 end
 
 subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 
-grads!(dict::IdDict, ℓ::Leaf, x, ::Zero) = nothing
-function grads!(dict::IdDict, ℓ::Leaf, x, x̄)
-  x̄₀ = get(dict, ℓ, ZeroTangent())
-  dict[ℓ] = x̄ + x̄₀  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
+_grads!(dict::IdDict, ℓ::Leaf, x, ::Zero...) = nothing
+function _grads!(dict::IdDict, ℓ::Leaf, x, x̄s...)
+  x̄s₀ = get(dict, ℓ, map(_ -> ZeroTangent(), x̄s))
+  dict[ℓ] = map(+, x̄s, x̄s₀)  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
   nothing
 end
-grads!(dict::IdDict, t, x, ::Zero) = nothing
-function grads!(dict::IdDict, tree, x, x̄s...)
-  # The only reason grads! takes model is that functor(typeof(x), base(x̄)) may differ from 
+_grads!(dict::IdDict, t, x, ::Zero...) = nothing
+function _grads!(dict::IdDict, tree, x, x̄s...)
+  # The only reason _grads! takes model is that functor(typeof(x), base(x̄)) may differ from 
   # functor(typeof(tree), base(x̄)), for things like Transpose
   x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
   x′, _ = functor(typeof(x), x)
-  foreach((tᵢ, xᵢ, x̄sᵢ...) -> grads!(dict, tᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
+  foreach((tᵢ, xᵢ, x̄sᵢ...) -> _grads!(dict, tᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
 end
-
-function update(tree, x, x̄s...)
-  t′ = fmap(copy, tree; exclude = maywrite)  # goes inside Leaf
-  x′ = fmap(copy, x; exclude = maywrite)
-  update!(t′, x′, x̄s...)
-end
-
-# This differs from _default_walk(f,x,y) in taking re from 2nd argument, but cache will still operate on the first
-function _second_walk(f, x, y)
-  x′, _ = functor(typeof(y), x)
-  y′, re = functor(y)
-  re(map(f, x′, y′))
-end
-
-# When fmap reconstructs for update!, it should not cache results with trivial nodes like () in the state.
-# This cache type has just enough methods to work in Functors, which possibly should be upgraded to just work.
-struct LeafCache <: AbstractDict{Leaf,Any}
-  dict::IdDict{Leaf,Any}
-end
-LeafCache() = LeafCache(IdDict{Leaf,Any}())
-
-Base.setindex!(c::LeafCache, x, ℓ::Leaf) = setindex!(c.dict, x, ℓ)
-Base.setindex!(c::LeafCache, x, _) = nothing
-Base.in(k, c::LeafCache) = k in c.dict
-Base.haskey(c::LeafCache, k) = haskey(c.dict, k)
-Base.getindex(c::LeafCache, ℓ::Leaf) = getindex(c.dict, ℓ)
-Base.iterate(c::LeafCache, i = 0) = iterate(c.dict, i)
-Base.length(c::LeafCache) = length(c.dict)
 
 # default all rules to first order calls
 apply!(o, state, x, dx, dx2, dxs...) = apply!(o, state, x, dx)
