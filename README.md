@@ -1,3 +1,5 @@
+<img align="right" width="200px" src="https://github.com/FluxML/Optimisers.jl/raw/master/docs/src/assets/logo.png">
+
 # Optimisers.jl
 
 <!-- [![][docs-stable-img]][docs-stable-url] -->
@@ -8,7 +10,7 @@
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: https://fluxml.ai/Optimisers.jl/stable/
 
-[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-dev-url]: https://fluxml.ai/Optimisers.jl/dev/
 
 [action-img]: https://github.com/FluxML/Optimisers.jl/workflows/CI/badge.svg
