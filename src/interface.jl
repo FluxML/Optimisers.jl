@@ -74,8 +74,12 @@ function _update!(tree, x; grads, params)
   haskey(params, (tree,x)) && return params[(tree,x)]
   isbits(tree) && return x  # means () is not cached, and also (((),),)
   x′, re = functor(x)
-  x′′ = map((tᵢ, xᵢ) -> _update!(tᵢ, xᵢ; grads, params), tree, x′)
-  params[(tree,x)] = re(x′′)
+  x′′ = re(map((tᵢ, xᵢ) -> _update!(tᵢ, xᵢ; grads, params), tree, x′))
+  if ismutable(x′′)
+    params[(tree,x)] = x′′
+  else  # no ties to preserve between immutable structs, right?
+    x′′
+  end
 end
 function _update!(ℓ::Leaf, x; grads, params)
   haskey(params, (ℓ,x)) && return params[(ℓ,x)]
