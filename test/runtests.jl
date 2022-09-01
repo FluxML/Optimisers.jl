@@ -252,7 +252,7 @@ end
       # error if only given one derivative
       @test_throws MethodError Optimisers.update(stin, psin, dxs)
 
-      # first order rules compose
+      # first-order rules compose with second-order
       ochain = OptimiserChain(Descent(0.1), o)
       stin = Optimisers.setup(ochain, psin)
       stout, psout = Optimisers.update(stin, psin, dxs, dx2s)
