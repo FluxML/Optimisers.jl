@@ -249,7 +249,7 @@ end
       @test stout[1].state[1] == stin[1].state[1] .+ 1
       @test stout[2].state[2] == stin[2].state[2] .+ 1
 
-      # error cases for mismatched arguments
+      # error if only given one derivative
       @test_throws MethodError Optimisers.update(stin, psin, dxs)
 
       # first order rules compose
