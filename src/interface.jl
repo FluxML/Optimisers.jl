@@ -50,7 +50,7 @@ function update(tree, x, x̄s...)
 end
 
 # default all rules to first order calls
-apply!(o, state, x, dx, dxs...) = apply!(o, state, x, dx)
+apply!(o, state, x, dx, dx2, dxs...) = apply!(o, state, x, dx)
 
 """
     isnumeric(x) -> Bool
