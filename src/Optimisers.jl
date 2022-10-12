@@ -16,6 +16,10 @@ export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain
 
+###
+### one-array functions
+###
+
 """
     Optimisers.apply!(rule::RuleType, state, parameters, gradient) -> (state, gradient)
 
@@ -56,6 +60,10 @@ julia> Optimisers.init(Momentum(), [1.0, 2.0])
 ```
 """
 init
+
+###
+### whole-model functions
+###
 
 """
     Optimisers.setup(rule, model) -> tree

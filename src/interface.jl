@@ -166,7 +166,7 @@ end
 ###
 
 """
-    @.. x = x + y
+    @.. x = y + z
 
 Sometimes in-place broadcasting macro, for use in `apply!` rules.
 If `maywrite(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`.
