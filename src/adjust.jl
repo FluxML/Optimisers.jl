@@ -13,15 +13,15 @@ To change just the learning rate, provide a number `η::Real`.
 julia> m = (vec = rand(Float32, 2), fun = sin);
 
 julia> st = Optimisers.setup(Nesterov(), m)  # stored momentum is initialised to zero
-(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[0.0, 0.0]), fun = nothing)
+(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[0.0, 0.0]), fun = ())
 
 julia> st, m = Optimisers.update(st, m, (vec = [16, 88], fun = nothing));  # with fake gradient
 
 julia> st
-(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.016, -0.088]), fun = nothing)
+(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.016, -0.088]), fun = ())
 
 julia> st = Optimisers.adjust(st, 0.123)  # change learning rate, stored momentum untouched
-(vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.016, -0.088]), fun = nothing)
+(vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 
 To change other parameters, `adjust` also accepts keyword arguments matching the field
