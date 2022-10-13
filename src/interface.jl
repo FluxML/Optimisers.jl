@@ -15,7 +15,7 @@ mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter shari
   state::S
   frozen::Bool  # ... and to allow freeze! to act on this.
 end
-Leaf(rule, state) = Leaf(rule, state, false)
+Leaf(rule, state; frozen::Bool = false) = Leaf(rule, state, frozen)
 
 @functor Leaf
 
@@ -44,12 +44,12 @@ function _setup(rule, x; cache)
   end
 end
 
-function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
+function Base.show(io::IO, ℓ::Leaf; colour = ℓ.frozen ? :cyan : :green)
   ioc = IOContext(io, :compact => true)
-  print(ioc, "Leaf(", ℓ.rule, ", ")
+  str = sprint(show, ℓ.rule; context = ioc)
+  printstyled(io, "Leaf(", str, ", "; color = colour)
   show(ioc, ℓ.state)
-  ℓ.frozen && print(ioc, ", true")
-  print(ioc, ")")
+  printstyled(io, ℓ.frozen ? ", frozen=true)" : ")"; color = colour)
 end
 
 ###

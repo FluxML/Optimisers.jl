@@ -22,13 +22,13 @@ julia> Optimisers.update!(s, m, (x = ([pi], 10pi), y = [100pi]));  # with fake g
 julia> m
 (x = ([1.0], 2.0), y = [-0.14159258336972558])
 
-julia> s  # Leaf(..., true) means frozen
-(x = (Leaf(Momentum{Float32}(0.01, 0.9), [0.0], true), ()), y = Leaf(Momentum{Float32}(0.01, 0.9), [3.14159]))
+julia> s
+(x = (Leaf(Momentum{Float32}(0.01, 0.9), [0.0], frozen=true), ()), y = Leaf(Momentum{Float32}(0.01, 0.9), [3.14159]))
 
 julia> Optimisers.thaw!(s)
 
-julia> s.x[1]
-Leaf(Momentum{Float32}(0.01, 0.9), [0.0])
+julia> s.x
+(Leaf(Momentum{Float32}(0.01, 0.9), [0.0]), ())
 ```
 """
 freeze!(tree) = (fmapstructure(freeze!, tree; exclude = x -> x isa Leaf); nothing)
