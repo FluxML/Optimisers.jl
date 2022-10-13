@@ -1,3 +1,56 @@
+###
+### freeze!
+###
+
+"""
+    Optimisers.freeze!(tree)
+
+Temporarily alters the state `tree = setup(rule, model)` so that parameters will not be updated.
+Can be applied to the state corresponding to only part of a model, for instance `model.layers[1]`.
+Un-done by [`thaw!`](@ref Optimisers.thaw).
+
+# Example
+```jldoctest
+julia> m = (x = ([1.0], 2.0), y = [3.0]);
+
+julia> s = Optimisers.setup(Momentum(), m);
+
+julia> Optimisers.freeze!(s.x)
+
+julia> Optimisers.update!(s, m, (x = ([pi], 10pi), y = [100pi]));  # with fake gradient
+
+julia> m
+(x = ([1.0], 2.0), y = [-0.14159258336972558])
+
+julia> s  # Leaf(..., true) means frozen
+(x = (Leaf(Momentum{Float32}(0.01, 0.9), [0.0], true), ()), y = Leaf(Momentum{Float32}(0.01, 0.9), [3.14159]))
+
+julia> Optimisers.thaw!(s)
+
+julia> s.x[1]
+Leaf(Momentum{Float32}(0.01, 0.9), [0.0])
+```
+"""
+freeze!(tree) = (fmapstructure(freeze!, tree; exclude = x -> x isa Leaf); nothing)
+freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
+
+"""
+    Optimisers.thaw!(tree)
+
+Un-does [`freeze!`](@ref Optimisers.freeze!) for all parameters,
+mutating every `Leaf(rule, state, true)` to `Leaf(rule, state, false)`.
+"""
+thaw!(tree) = (fmapstructure(thaw!, tree; exclude = x -> x isa Leaf); nothing)
+thaw!(ℓ::Leaf) = (ℓ.frozen = false; nothing)
+
+freeze!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
+  "`freeze!` must not be applied to a model, only to the state tree from `setup`"))
+thaw!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
+  "`thaw!` must not be applied to a model, only to the state tree from `setup`"))
+
+###
+### adjust
+###
 
 """
     Optimisers.adjust(tree, η) -> tree

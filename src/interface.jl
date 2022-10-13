@@ -10,10 +10,12 @@ abstract type AbstractRule end
 ### setup
 ###
 
-mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter sharing
+mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter sharing...
   rule::R
   state::S
+  frozen::Bool  # ... and to allow freeze! to act on this.
 end
+Leaf(rule, state) = Leaf(rule, state, false)
 
 @functor Leaf
 
@@ -46,6 +48,7 @@ function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long 
   ioc = IOContext(io, :compact => true)
   print(ioc, "Leaf(", ℓ.rule, ", ")
   show(ioc, ℓ.state)
+  ℓ.frozen && print(ioc, ", true")
   print(ioc, ")")
 end
 
@@ -83,6 +86,7 @@ function _update!(tree, x; grads, params)
 end
 function _update!(ℓ::Leaf, x; grads, params)
   haskey(params, (ℓ,x)) && return params[(ℓ,x)]
+  ℓ.frozen && return x
   params[(ℓ,x)] = if haskey(grads, ℓ)
     ℓ.state, x̄′ = apply!(ℓ.rule, ℓ.state, x, grads[ℓ]...)
     subtract!(x, x̄′)
