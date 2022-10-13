@@ -5,6 +5,8 @@ using Optimisers: @.., @lazy
 
 Random.seed!(1)
 
+# Fake "models" for testing
+
 struct Foo; x; y; end
 Functors.@functor Foo
 Optimisers.trainable(x::Foo) = (x.y, x.x)
@@ -13,17 +15,26 @@ struct TwoThirds a; b; c; end
 Functors.@functor TwoThirds (a, c)
 Optimisers.trainable(x::TwoThirds) = (a = x.a,)
 
-struct DummyHigherOrder <: AbstractRule end
+mutable struct MutTwo; x; y; end
+Functors.@functor MutTwo
 
+# Simple rules for testing
+
+struct DummyHigherOrder <: AbstractRule end
 Optimisers.init(::DummyHigherOrder, x::AbstractArray) =
   (ones(eltype(x), size(x)), zero(x))
-
 dummy_update_rule(st, p, dx, dx2) = @. p - (st[1] * dx + st[2] * dx2)
 function Optimisers.apply!(::DummyHigherOrder, state, x, dx, dx2)
   a, b = state
   @.. dx = a * dx + b * dx2
-
   return (a .+ 1, b .+ 1), dx
+end
+
+struct BiRule <: Optimisers.AbstractRule end
+Optimisers.init(o::BiRule, x::AbstractArray) = nothing
+function Optimisers.apply!(o::BiRule, state, x, dx, dx2)
+  dx == dx2 || error("expected 1st & 2nd gradients to agree")
+  return state, dx
 end
 
 @testset verbose=true "Optimisers.jl" begin
@@ -48,6 +59,17 @@ end
       g4 = Tangent{typeof(m)}(g...)
       s4, m4 = Optimisers.update!(s, ([1.0, 2.0],), g4)
       @test m4[1] ≈ [1,2] .- 0.1 .* [25, 33]
+      
+      o5 = Momentum(0.1)
+      s5 = Optimisers.setup(o5, m)
+      
+      s6, m6 = Optimisers.update(s5, m, g)
+      @test s6[1].state ≈ [2.5, 3.3]
+      @test s5[1].state == [0, 0]  # not mutated -- wrong on v0.2.9
+
+      s7, m7 = Optimisers.update!(s5, m, g)
+      @test s7[1].state === s5[1].state  # same array
+      @test s7[1] === s5[1]  # same Leaf
     end
 
     @testset "gradient clipping" begin
@@ -225,40 +247,158 @@ end
     end
 
     @testset "tied weights" begin
-      ok = (1.0:3.0, sin, "abc", :abc)
-      m = (α = ok, β = rand(3), γ = ok)
-      m1 = (rand(3), m, rand(3))
-      @test Optimisers.setup(AdamW(), m1) isa Tuple
-      m2 = (rand(3), m, rand(3), m, rand(3))  # illegal
-      @test_throws ArgumentError Optimisers.setup(AdamW(), m2)
-    end
+      @testset "tuples" begin
+         twice = [1,2.0]
+         mtup = (twice, (copy(twice), twice)) # (tied (not tied, tied))
 
-    @testset "higher order interface" begin
-      w, b = rand(3, 4), rand(3)
+         # simplest rule for which opt(g1) + opt(g2) != opt(g1 + g2)
+         stup = Optimisers.setup(Momentum(0.1), mtup)
+         gtup = ([3,3], ([10,10], [7,7])) # (g1, (g1 + g2, g2))
 
-      o = DummyHigherOrder()
-      psin = (w, b)
-      dxs = map(x -> rand(size(x)...), psin)
-      dx2s = map(x -> rand(size(x)...), psin)
-      stin = Optimisers.setup(o, psin)
-      stout, psout = Optimisers.update(stin, psin, dxs, dx2s)
+         snew, mnew = Optimisers.update(stup, mtup, gtup)
+         @test mnew[1] ≈ mnew[2][1]  # gradient was accumulated
+         @test mnew[2][2] === mnew[1]  # and tie is not broken
 
-      # hardcoded rule behavior for dummy rule
-      @test psout[1] == dummy_update_rule(stin[1].state, psin[1], dxs[1], dx2s[1])
-      @test psout[2] == dummy_update_rule(stin[2].state, psin[2], dxs[2], dx2s[2])
-      @test stout[1].state[1] == stin[1].state[1] .+ 1
-      @test stout[2].state[2] == stin[2].state[2] .+ 1
+         st3, mt3 = Optimisers.update(stup, mtup, ([3,3], nothing))
+         @test mt3[1] ≈ [1,2] - 0.1 * [3,3]
+         @test mt3[2][2] === mt3[1]
 
-      # error if only given one derivative
-      @test_throws MethodError Optimisers.update(stin, psin, dxs)
+         st4, mt4 = Optimisers.update(stup, mtup, (nothing, ([5,5], [7,7])))
+         @test mt4[1] ≈ [1,2] - 0.1 * [7,7]
+       end
 
-      # first-order rules compose with second-order
-      ochain = OptimiserChain(Descent(0.1), o)
-      stin = Optimisers.setup(ochain, psin)
-      stout, psout = Optimisers.update(stin, psin, dxs, dx2s)
-      @test psout[1] == dummy_update_rule(stin[1].state[2], psin[1], 0.1 * dxs[1], dx2s[1])
-      @test psout[2] == dummy_update_rule(stin[2].state[2], psin[2], 0.1 * dxs[2], dx2s[2])
-    end
+       @testset "named" begin
+         thrice = [3f0]
+         model = (a = (x = thrice, y = Float32[4,5,6], z = true), b = ((m = (0, 1, thrice),),), c = (x = Float32[7,8], y = thrice))
+         tree = Optimisers.setup(Momentum(0.1, 0.9), model)
+         @test model.a.x === model.b[1].m[3] == model.c.y
+
+         loss(x::Array) = sum(abs2, x)
+         loss(x::Number) = x^3
+         loss(m) = sum(2 * loss(x) for x in m)
+         gradient(loss, model)
+         _, m2 = Optimisers.update(tree, model, gradient(loss, model)...)
+         @test m2.a.x === m2.b[1].m[3] == m2.c.y
+
+         loss3(m) = sum(x isa Tuple ? 0 : 2 * loss(x) for x in m)
+         gradient(loss3, model)  # truncates the b limb
+         _, m3 = Optimisers.update(tree, model, gradient(loss3, model)...)
+         @test m3.a.x === m3.b[1].m[3] == m3.c.y
+       end
+
+       @testset "transpose" begin
+         mat = [1 2 3; 4 5 6.0]
+         bidir = (m = mat, f = log, t = transpose(mat), v = [7, 8, 9.0])
+         bigrad, _ = gradient((m, x) -> sum(abs2, m.m * (m.f).(m.t*x .+ m.v)), bidir, [1, 0.1])
+         @test bigrad.t isa Matrix  # not a Transpose, that's the point here
+
+         state = Optimisers.setup(Descent(0.1), bidir)
+         @test state.t.parent === state.m  # successfully tied
+
+         s2, b2 = Optimisers.update(state, bidir, bigrad)
+         @test b2.t.parent === b2.m  # tie restored
+         @test b2.m ≈ bidir.m - 0.1 * (bigrad.m + transpose(bigrad.t))  # grad accumulated
+
+         state = Optimisers.setup(OptimiserChain(ClipGrad(10), Descent(0.1), ClipGrad(10)), bidir)
+         s2, b2 = Optimisers.update(state, bidir, bigrad)
+         @test b2.t.parent === b2.m
+         @test b2.m ≈ bidir.m - 0.1 * clamp.((bigrad.m + transpose(bigrad.t)), -10, 10)
+
+         # Similar, but now "primary" field is the transposed one:
+         tri = (a = transpose(mat), b = mat, c = transpose(mat), d = 4.0)
+         trigrad = gradient(m -> sum(abs2, m.a * (m.b * (m.c * [0.1, 1] .+ m.d) .- m.d)), tri)[1]
+         stri = Optimisers.setup(Descent(0.1), tri)
+         s3, t3 = Optimisers.update(stri, tri, trigrad)
+         @test t3.a.parent === t3.b === t3.c.parent
+         @test t3.a ≈ tri.a - 0.1 * (trigrad.a + trigrad.b' + trigrad.c)
+
+         g4 = (a = Broadcast.broadcasted(+, mat', 1), b = nothing, c = @thunk(mat' .+ 1), d = nothing)
+         # Error: no constructors for type Any
+         @test_broken s4, t4 = Optimisers.update(stri, tri, g4)
+       end
+
+       @testset "artificial" begin
+         # Interpret shared Leaf as implying shared parameters, even if this did not arise from shared arrays.
+         # No API for setting this at the moment, but can construct one by hand:
+         model = (a = SA[1,2.0], b = SA[1, 2.0], c = SA[1, 2.0], d = SA[1, 2.0])
+         auto = Optimisers.setup(Momentum(0.1), model)
+         @test auto.a !== auto.b  # not tied just by value
+
+         trick = (a = auto.a, b = auto.a, c = auto.c, d= auto.d)  # makes a & b tied
+  
+         trick2, model2 = Optimisers.update(trick, model, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
+         trick3, model3 = Optimisers.update(trick2, model2, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
+         
+         @test model3.a == model3.b == model3.d  # same as having the gradients added
+         @test !(model3.a ≈ model3.c)
+         @test trick3.a === trick3.b  # leaves remain shared
+       end
+
+       @testset "mutable containers" begin
+         tmp = MutTwo([1.0], [2.0])
+         model = (a=tmp, b=tmp, c=MutTwo(tmp.x, tmp.y))
+         state = Optimisers.setup(Momentum(), model)
+
+         @test model.a === model.b
+         @test model.a !== model.c  # fields are identified, but struct is not
+
+         @test state.a.x === state.b.x
+         @test state.a === state.b
+         @test state.a === state.c  # unavoidable, but means we can't use leaf ID alone
+
+         mgrad = (a=(x=[1], y=[10]), b=(x=[100], y=[1000]), c=(x=[1/3], y=[1/30]))
+         state2, model2 = Optimisers.update(state, model, mgrad)
+
+         @test model2.a === model2.b  # tie of MutTwo structs is restored
+         @test model2.a !== model2.c  # but a new tie is not created
+      end
+    end  # tied weights
+
+    @testset "2nd-order interface" begin
+      @testset "BiRule" begin
+        m = (α = ([1.0], sin), γ = Float32[4,3,2])
+
+        # Special rule which requires this:
+        s = Optimisers.setup(BiRule(), m)
+        g = (α = ([0.1], ZeroTangent()), γ = [1,10,100],)
+        s1, m1 = Optimisers.update(s, m, g, g)
+        @test m1.α[1] == [0.9]
+        @test_throws Exception Optimisers.update(s, m, g, map(x->2 .* x, g))
+
+        # Ordinary rule which doesn't need it:
+        s2 = Optimisers.setup(Adam(), m)
+        s3, m3 = Optimisers.update(s2, m, g)
+        s4, m4 = Optimisers.update(s2, m, g, g)
+        @test m3.γ == m4.γ
+      end
+
+      @testset "DummyHigherOrder" begin
+        w, b = rand(3, 4), rand(3)
+
+        o = DummyHigherOrder()
+        psin = (w, b)
+        dxs = map(x -> rand(size(x)...), psin)
+        dx2s = map(x -> rand(size(x)...), psin)
+        stin = Optimisers.setup(o, psin)
+        stout, psout = Optimisers.update(stin, psin, dxs, dx2s)
+
+        # hardcoded rule behavior for dummy rule
+        @test psout[1] == dummy_update_rule(stin[1].state, psin[1], dxs[1], dx2s[1])
+        @test psout[2] == dummy_update_rule(stin[2].state, psin[2], dxs[2], dx2s[2])
+        @test stout[1].state[1] == stin[1].state[1] .+ 1
+        @test stout[2].state[2] == stin[2].state[2] .+ 1
+
+        # error if only given one derivative
+        @test_throws MethodError Optimisers.update(stin, psin, dxs)
+
+        # first-order rules compose with second-order
+        ochain = OptimiserChain(Descent(0.1), o)
+        stin = Optimisers.setup(ochain, psin)
+        stout, psout = Optimisers.update(stin, psin, dxs, dx2s)
+        @test psout[1] == dummy_update_rule(stin[1].state[2], psin[1], 0.1 * dxs[1], dx2s[1])
+        @test psout[2] == dummy_update_rule(stin[2].state[2], psin[2], 0.1 * dxs[2], dx2s[2])
+      end
+    end  # 2nd-order
 
   end
   @testset verbose=true "Destructure" begin

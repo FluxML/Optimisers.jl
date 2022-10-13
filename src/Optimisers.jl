@@ -1,6 +1,6 @@
 module Optimisers
 
-using Functors: functor, fmap, isleaf
+using Functors: functor, fmap, isleaf, @functor, fmapstructure, children
 using LinearAlgebra
 
 include("interface.jl")
@@ -15,6 +15,10 @@ include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain
+
+###
+### one-array functions
+###
 
 """
     Optimisers.apply!(rule::RuleType, state, parameters, gradient) -> (state, gradient)
@@ -57,6 +61,10 @@ julia> Optimisers.init(Momentum(), [1.0, 2.0])
 """
 init
 
+###
+### whole-model functions
+###
+
 """
     Optimisers.setup(rule, model) -> tree
 
@@ -69,7 +77,7 @@ or [`update!`](@ref).
 julia> m = (x = rand(3), y = (true, false), z = tanh);
 
 julia> Optimisers.setup(Momentum(), m)  # same field names as m
-(x = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0, 0.0]), y = (nothing, nothing), z = nothing)
+(x = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = ())
 ```
 
 The recursion into structures uses Functors.jl, and any new `struct`s containing parameters
@@ -82,7 +90,7 @@ julia> struct Layer; mat; fun; end
 julia> model = (lay = Layer([1 2; 3 4f0], sin), vec = [5, 6f0]);
 
 julia> Optimisers.setup(Momentum(), model)  # new struct is by default ignored
-(lay = nothing, vec = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0]))
+(lay = (), vec = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0]))
 
 julia> destructure(model)
 (Float32[5.0, 6.0], Restructure(NamedTuple, ..., 2))
@@ -90,7 +98,7 @@ julia> destructure(model)
 julia> using Functors; @functor Layer  # annotate this type as containing parameters
 
 julia> Optimisers.setup(Momentum(), model)
-(lay = (mat = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0 0.0; 0.0 0.0]), fun = nothing), vec = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0]))
+(lay = (mat = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0 0.0; 0.0 0.0]), fun = ()), vec = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0]))
 
 julia> destructure(model)
 (Float32[1.0, 3.0, 2.0, 4.0, 5.0, 6.0], Restructure(NamedTuple, ..., 6))
@@ -112,12 +120,12 @@ See also [`update!`](@ref), which will be faster for models of ordinary `Array`s
 julia> m = (x = Float32[1,2,3], y = tanh);
 
 julia> t = Optimisers.setup(Descent(0.1f0), m)
-(x = Leaf(Descent{Float32}(0.1), nothing), y = nothing)
+(x = Leaf(Descent{Float32}(0.1), nothing), y = ())
 
 julia> g = (x = [1,1,1], y = nothing);  # fake gradient
 
 julia> Optimisers.update(t, m, g)
-((x = Leaf(Descent{Float32}(0.1), nothing), y = nothing), (x = Float32[0.9, 1.9, 2.9], y = tanh))
+((x = Leaf(Descent{Float32}(0.1), nothing), y = ()), (x = Float32[0.9, 1.9, 2.9], y = tanh))
 ```
 """
 update
@@ -157,8 +165,8 @@ true
 julia> m  # original should be discarded, may be mutated but no guarantee
 (x = Float32[0.6666666, 1.5333333], y = Float32[4.0, 5.0])
 
-julia> t  # original state should likewise be discarded
-(x = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.333333, 0.466667]), y = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.0, 0.0]))
+julia> t == t2  # original state is in fact guaranteed to be mutated
+true
 ```
 """
 update!
