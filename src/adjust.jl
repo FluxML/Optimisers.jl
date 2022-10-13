@@ -12,6 +12,8 @@ Can be applied to the state corresponding to only part of a model,
 for instance with `model::Chain`, to freeze `model.layers[1]` you
 should call `freeze!(tree.layers[1])`.
 
+Also prevents [`adjust`](@ref Optimisers.adjust) from changing the rule's parameters.
+
 # Example
 ```jldoctest
 julia> m = (x = ([1.0], 2.0), y = [3.0]);
@@ -64,6 +66,8 @@ through training.
 
 To change just the learning rate, provide a number `η::Real`.
 
+Does not affect any frozen parameters, set by [`freeze!`](@ref Optimisers.freeze!).
+
 # Example
 ```jldoctest
 julia> m = (vec = rand(Float32, 2), fun = sin);
@@ -103,8 +107,8 @@ adjust(tree; kw...) = map(st -> adjust(st; kw...), tree)
 adjust(::Nothing, ::Real) = nothing
 adjust(::Nothing; kw...) = nothing
 
-adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state)
-adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state)
+adjust(ℓ::Leaf, eta::Real) = ℓ.frozen ? ℓ : Leaf(adjust(ℓ.rule, eta), ℓ.state)
+adjust(ℓ::Leaf; kw...) = ℓ.frozen ? ℓ : Leaf(adjust(ℓ.rule; kw...), ℓ.state)
 
 
 """
