@@ -49,7 +49,7 @@ function Base.show(io::IO, ℓ::Leaf; colour = ℓ.frozen ? :cyan : :green)
   str = sprint(show, ℓ.rule; context = ioc)
   printstyled(io, "Leaf(", str, ", "; color = colour)
   show(ioc, ℓ.state)
-  printstyled(io, ℓ.frozen ? ", frozen=true)" : ")"; color = colour)
+  printstyled(io, ℓ.frozen ? ", frozen = true)" : ")"; color = colour)
 end
 
 ###

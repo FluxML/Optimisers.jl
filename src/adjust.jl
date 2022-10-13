@@ -5,9 +5,12 @@
 """
     Optimisers.freeze!(tree)
 
-Temporarily alters the state `tree = setup(rule, model)` so that parameters will not be updated.
-Can be applied to the state corresponding to only part of a model, for instance `model.layers[1]`.
-Un-done by [`thaw!`](@ref Optimisers.thaw).
+Temporarily alters the state `tree = setup(rule, model)` so that parameters
+will not be updated. Un-done by [`thaw!`](@ref Optimisers.thaw!).
+
+Can be applied to the state corresponding to only part of a model,
+for instance with `model::Chain`, to freeze `model.layers[1]` you
+should call `freeze!(tree.layers[1])`.
 
 # Example
 ```jldoctest
@@ -31,16 +34,16 @@ julia> s.x
 (Leaf(Momentum{Float32}(0.01, 0.9), [0.0]), ())
 ```
 """
-freeze!(tree) = (fmapstructure(freeze!, tree; exclude = x -> x isa Leaf); nothing)
+freeze!(tree) = foreach(freeze!, tree)
 freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
 
 """
     Optimisers.thaw!(tree)
 
-Un-does [`freeze!`](@ref Optimisers.freeze!) for all parameters,
-mutating every `Leaf(rule, state, true)` to `Leaf(rule, state, false)`.
+The reverse of [`freeze!`](@ref Optimisers.freeze!). Applies to all parameters,
+mutating every `Leaf(rule, state, frozen = true)` to `Leaf(rule, state, frozen = false)`.
 """
-thaw!(tree) = (fmapstructure(thaw!, tree; exclude = x -> x isa Leaf); nothing)
+thaw!(tree) = foreach(thaw!, tree)
 thaw!(ℓ::Leaf) = (ℓ.frozen = false; nothing)
 
 freeze!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
