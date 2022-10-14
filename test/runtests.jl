@@ -232,7 +232,7 @@ end
       st = Optimisers.adjust(st, 0.2)
       Optimisers.thaw!(st)
       st, m = Optimisers.update(st, m, (x=[1,10], y=([100,1000], nothing)));
-      @test m.y[1] ≈ [-7.0, -96.0]
+      @test m.y[1] ≈ [-17.0, -196.0]
       @test m.x ≈ [0.7, -1.0]
 
       @test_throws ArgumentError Optimisers.freeze!(m)

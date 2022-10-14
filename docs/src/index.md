@@ -142,7 +142,7 @@ st = Optimisers.setup(DecayDescent(0.1), Layer(3))
 
 To temporarily prevent training from affecting some parameters,
 use [freeze!](@ref Optimisers.freeze!) and `thaw!`.
-They work by mutating all `Leaf`s of the state tree, within the given limb:
+They work by mutating all `Leaf`s of the state tree, or part of it.
 
 ```julia
 using Flux, Optimisers
@@ -158,6 +158,7 @@ Optimisers.freeze!(opt.layers[3])
 
 Optimisers.update!(opt, net, gradient(m -> sum(m(x)), net)...);
 
+net.layers[3].bias  # stil zero, and its momentum is zero too:
 opt  # bias = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0], frozen = true)
 
 Optimisers.thaw!(opt)
