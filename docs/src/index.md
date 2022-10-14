@@ -138,6 +138,31 @@ Optimisers.trainable(x::Layer) = (; alpha = x.alpha)  # must be a subset of chid
 st = Optimisers.setup(DecayDescent(0.1), Layer(3))
 ```
 
+## Frozen Parameters
+
+To temporarily prevent training from affecting some parameters,
+use [freeze!](@ref Optimisers.freeze!) and `thaw!`.
+They work by mutating all `Leaf`s of the state tree, within the given limb:
+
+```julia
+using Flux, Optimisers
+
+x = randn(Float32, 28, 28, 1, 1);
+net = @autosize (size(x)...,) Chain(
+  Conv((3, 3), 1 => 3, stride=2, bias=false), Flux.flatten, Dense(_ => 2, relu),
+)
+opt = Optimisers.setup(Optimisers.Momentum(), net);
+
+net.layers[3] isa Dense  # now freeze this layer's parameters:
+Optimisers.freeze!(opt.layers[3])
+
+Optimisers.update!(opt, net, gradient(m -> sum(m(x)), net)...);
+
+opt  # bias = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0], frozen = true)
+
+Optimisers.thaw!(opt)
+```
+
 ## Tied Parameters
 
 If the same array appears twice (or more) in the model, [Functors.jl](https://fluxml.ai/Functors.jl) should recognise this.
@@ -159,7 +184,7 @@ st.layers.enc.layers[1].weight === st.layers.dec.layers[1].weight.parent  # true
 This identification relies on `===`, and will work for ordinary `Array`s and `CuArray`s.
 It will not at present work for `reshape`d arrays, nor for immutable arrays such as those
 from StaticArrays.jl.
- 
+
  
 ## Obtaining a flat parameter vector
 
