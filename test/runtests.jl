@@ -221,6 +221,24 @@ end
       @test sc2.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
+    @testset "freeze/thaw" begin
+      m = (x=[1.0, 2.0], y=([3.0, 4.0], sin));
+      st = Optimisers.setup(Descent(0.1), m);
+      Optimisers.freeze!(st.y)
+      st, m = Optimisers.update(st, m, (x=[1,10], y=([100,1000], nothing)));
+      @test m.x ≈ [0.9, 1.0]
+      @test m.y[1] == [3, 4]
+
+      st = Optimisers.adjust(st, 0.2)
+      Optimisers.thaw!(st)
+      st, m = Optimisers.update(st, m, (x=[1,10], y=([100,1000], nothing)));
+      @test m.y[1] ≈ [-7.0, -96.0]
+      @test m.x ≈ [0.7, -1.0]
+
+      @test_throws ArgumentError Optimisers.freeze!(m)
+      @test_throws ArgumentError Optimisers.thaw!(m)
+    end
+
     @testset "forgotten gradient" begin
       x = [1.0, 2.0]
       sx = Optimisers.setup(Descent(), x)

@@ -46,7 +46,7 @@ end
 
 function Base.show(io::IO, ℓ::Leaf; colour = ℓ.frozen ? :cyan : :green)
   ioc = IOContext(io, :compact => true)
-  str = sprint(show, ℓ.rule; context = ioc)
+  str = sprint(show, ℓ.rule; context = ioc)  # produces Adam{Float32}(0.001, ... not 0.001f0
   printstyled(io, "Leaf(", str, ", "; color = colour)
   show(ioc, ℓ.state)
   printstyled(io, ℓ.frozen ? ", frozen = true)" : ")"; color = colour)
