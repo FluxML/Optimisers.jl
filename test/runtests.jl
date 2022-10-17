@@ -39,7 +39,10 @@ end
 
 # Make Yota's output look like Zygote's:
 
-Yota_gradient(f, xs...) = Base.tail(Yota.grad(f, xs...)[2])
+Yota_gradient(f, xs...) = map(y2z, Base.tail(Yota.grad(f, xs...)[2]))
+y2z(::AbstractZero) = nothing  # we don't care about different flavours of zero
+y2z(t::Tangent) = map(y2z, ChainRulesCore.backing(canonicalize(t)))  # namedtuples!
+y2z(x) = x
 
 @testset verbose=true "Optimisers.jl" begin
   @testset verbose=true "Features" begin
