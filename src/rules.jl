@@ -618,15 +618,15 @@ struct OptimiserChain{O<:Tuple} <: AbstractRule
 end
 OptimiserChain(opts...) = OptimiserChain(opts)
 
-init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
+@functor OptimiserChain
+
+init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
-  new_states = similar(states)
-  for (i, (opt, state)) in enumerate(zip(o.opts, states))
-    new_states[i], dx = apply!(opt, state, x, dx, dxs...)
+  foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
+    state′, dx′ = apply!(opt, state, x, dx′, dxs...)
+    return (states′..., state′), dx′
   end
-
-  return new_states, dx
 end
 
 function Base.show(io::IO, c::OptimiserChain)
