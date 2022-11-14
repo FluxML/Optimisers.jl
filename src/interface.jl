@@ -59,7 +59,9 @@ function update(tree, model, grad, higher...)
   update!(t′, x′, grad, higher...)
 end
 
-function update!(tree, model, grad, higher...)
+update!!(tree, model, grad, higher...) = old_update!(tree, model, grad, higher...)
+
+function old_update!(tree, model, grad, higher...)
   # First walk is to accumulate the gradient. This recursion visits every copy of
   # shared leaves, but stops when branches are absent from the gradient:
   grads = IdDict{Leaf, Any}()
