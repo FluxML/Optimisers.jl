@@ -20,6 +20,7 @@ struct Descent{T} <: AbstractRule
   eta::T
 end
 Descent() = Descent(1f-1)
+Descent(η::Integer) = Descent(Float32(η))  # float ensures that adjust! can change this
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -44,7 +45,7 @@ struct Momentum{T} <: AbstractRule
   eta::T
   rho::T
 end
-Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
+Momentum(η = 1f-2, ρ = 9f-1) = Momentum{float_typeof(η)}(η, ρ)
 
 init(o::Momentum, x::AbstractArray) = zero(x)
 
@@ -70,7 +71,7 @@ struct Nesterov{T} <: AbstractRule
   eta::T
   rho::T
 end
-Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov{typeof(η)}(η, ρ)
+Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov{float_typeof(η)}(η, ρ)
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
@@ -84,7 +85,7 @@ function apply!(o::Nesterov, state, x, dx)
 end
 
 """
-    RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centred = false)
+    RMSProp(η = 1f-3, ρ = 9f-1, ϵ = 1f-7; centred = false)
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -111,8 +112,8 @@ struct RMSProp{T} <: AbstractRule
   centred::Bool
 end
 
-RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centred::Bool = false, centered::Bool = false) =
-  RMSProp{typeof(η)}(η, ρ, ϵ, centred | centered)
+RMSProp(η = 1f-3, ρ = 9f-1, ϵ = 1f-7; centred::Bool = false, centered::Bool = false) =
+  RMSProp{float_typeof(η)}(η, ρ, ϵ, centred | centered)
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
@@ -163,7 +164,7 @@ struct Rprop{T} <: AbstractRule
     gamma::Tuple{T,T}
 end
 
-Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η, ℓ, Γ)
+Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{float_typeof(η)}(η, ℓ, Γ)
 
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
@@ -185,7 +186,7 @@ function apply!(o::Rprop, state, x, dx)
 end
 
 """
-    Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7)
 
 [Adam](https://arxiv.org/abs/1412.6980) optimiser.
 
@@ -202,7 +203,7 @@ struct Adam{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = Adam{typeof(η)}(η, β, ϵ)
+Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7) = Adam{float_typeof(η)}(η, β, ϵ)
 
 init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
@@ -218,7 +219,7 @@ function apply!(o::Adam, state, x, dx)
 end
 
 """
-    RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7)
 
 [Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
 
@@ -235,7 +236,7 @@ struct RAdam{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = RAdam{typeof(η)}(η, β, ϵ)
+RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7) = RAdam{float_typeof(η)}(η, β, ϵ)
 
 init(o::RAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
@@ -259,7 +260,7 @@ function apply!(o::RAdam, state, x, dx)
 end
 
 """
-    AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7)
 
 [AdaMax](https://arxiv.org/abs/1412.6980) is a variant of Adam based on the ∞-norm.
 
@@ -276,7 +277,7 @@ struct AdaMax{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaMax{typeof(η)}(η, β, ϵ)
+AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7) = AdaMax{float_typeof(η)}(η, β, ϵ)
 
 init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
@@ -292,7 +293,7 @@ function apply!(o::AdaMax, state, x, dx)
 end
 
 """
-    OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η)))
+    OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = 1f-7)
 
 [OAdam](https://arxiv.org/abs/1711.00141) (Optimistic Adam)
 is a variant of Adam adding an "optimistic" term suitable for adversarial training.
@@ -310,7 +311,7 @@ struct OAdam{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η))) = OAdam{typeof(η)}(η, β, ϵ)
+OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = 1f-7) = OAdam{float_typeof(η)}(η, β, ϵ)
 
 init(o::OAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
@@ -328,7 +329,7 @@ function apply!(o::OAdam, state, x, dx)
 end
 
 """
-    AdaGrad(η = 1f-1, ϵ = eps(typeof(η)))
+    AdaGrad(η = 1f-1, ϵ = 1f-7)
 
 [AdaGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) optimizer. It has
 parameter specific learning rates based on how frequently it is updated.
@@ -344,7 +345,7 @@ struct AdaGrad{T} <: AbstractRule
   eta::T
   epsilon::T
 end
-AdaGrad(η = 1f-1, ϵ = eps(typeof(η))) = AdaGrad{typeof(η)}(η, ϵ)
+AdaGrad(η = 1f-1, ϵ = 1f-7) = AdaGrad{float_typeof(η)}(η, ϵ)
 
 init(o::AdaGrad, x::AbstractArray) = onevalue(o.epsilon, x)
 
@@ -391,7 +392,7 @@ function apply!(o::AdaDelta, state, x, dx)
 end
 
 """
-    AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7)
 
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
@@ -409,7 +410,7 @@ struct AMSGrad{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad{typeof(η)}(η, β, ϵ)
+AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7) = AMSGrad{float_typeof(η)}(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
   (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
@@ -427,7 +428,7 @@ function apply!(o::AMSGrad, state, x, dx)
 end
 
 """
-    NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7)
 
 [NAdam](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of Adam.
 Parameters don't need tuning.
@@ -445,7 +446,7 @@ struct NAdam{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = NAdam{typeof(η)}(η, β, ϵ)
+NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1f-7) = NAdam{float_typeof(η)}(η, β, ϵ)
 
 init(o::NAdam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
@@ -463,7 +464,7 @@ function apply!(o::NAdam, state, x, dx)
 end
 
 """
-    AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η)))
+    AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = 1f-7)
 
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
@@ -477,8 +478,8 @@ weight decay regularization.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(Adam{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
+AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = 1f-7) =
+  OptimiserChain(Adam{float_typeof(η)}(η, β, ϵ), WeightDecay{float_typeof(η)}(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1e-16)
@@ -499,7 +500,7 @@ struct AdaBelief{T} <: AbstractRule
   beta::Tuple{T, T}
   epsilon::T
 end
-AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = oftype(η, 1e-16)) = AdaBelief{typeof(η)}(η, β, ϵ)
+AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = oftype(η, 1e-16)) = AdaBelief{float_typeof(η)}(η, β, ϵ)
 
 init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x), o.beta)
 

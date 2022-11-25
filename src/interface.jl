@@ -206,3 +206,6 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
+
+float_typeof(η) = float(typeof(η))
+float_typeof(::Integer) = Float32

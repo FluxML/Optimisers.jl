@@ -229,3 +229,10 @@ end
     @test static_loss(static_model) < 1.9 
   end
 end
+
+@testset "integer constructors: $rule" for rule in (Descent, Adam)
+  # Adam(0) was an error, https://github.com/FluxML/Optimisers.jl/issues/119
+  st = Optimisers.setup(rule(0), rand(3))
+  st2 = Optimisers.adjust(st, 0.1)
+  @test st2.rule.eta ≈ 0.1
+end
