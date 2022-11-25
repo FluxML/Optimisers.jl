@@ -45,8 +45,8 @@ all `isnumeric` leaf nodes.
 To further restrict this by ignoring some fields of a layer type, define `trainable`:
 
 ```@docs
-Optimisers.isnumeric
 Optimisers.trainable
+Optimisers.isnumeric
 ```
 
 Such restrictions are also obeyed by this function for flattening a model:
