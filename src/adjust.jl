@@ -1,3 +1,59 @@
+###
+### freezing
+###
+
+"""
+    Optimisers.freeze!(tree)
+
+Temporarily alters the state `tree = setup(rule, model)` so that parameters
+will not be updated. Un-done by [`thaw!`](@ref Optimisers.thaw!).
+
+Can be applied to the state corresponding to only part of a model,
+for instance with `model::Chain`, to freeze `model.layers[1]` you
+should call `freeze!(tree.layers[1])`.
+
+# Example
+```jldoctest
+julia> m = (x = ([1.0], 2.0), y = [3.0]);
+
+julia> s = Optimisers.setup(Momentum(), m);
+
+julia> Optimisers.freeze!(s.x)
+
+julia> Optimisers.update!(s, m, (x = ([pi], 10pi), y = [100pi]));  # with fake gradient
+
+julia> m
+(x = ([1.0], 2.0), y = [-0.14159258336972558])
+
+julia> s
+(x = (Leaf(Momentum{Float32}(0.01, 0.9), [0.0], frozen = true), ()), y = Leaf(Momentum{Float32}(0.01, 0.9), [3.14159]))
+
+julia> Optimisers.thaw!(s)
+
+julia> s.x
+(Leaf(Momentum{Float32}(0.01, 0.9), [0.0]), ())
+```
+"""
+freeze!(tree) = foreach(freeze!, tree)
+freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
+
+"""
+    Optimisers.thaw!(tree)
+
+The reverse of [`freeze!`](@ref Optimisers.freeze!). Applies to all parameters,
+mutating every `Leaf(rule, state, frozen = true)` to `Leaf(rule, state, frozen = false)`.
+"""
+thaw!(tree) = foreach(thaw!, tree)
+thaw!(ℓ::Leaf) = (ℓ.frozen = false; nothing)
+
+freeze!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
+  "`freeze!` must not be applied to a model, only to the state tree from `setup`"))
+thaw!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
+  "`thaw!` must not be applied to a model, only to the state tree from `setup`"))
+
+###
+### adjust
+###
 
 """
     Optimisers.adjust(tree, η) -> tree
@@ -47,8 +103,8 @@ adjust(tree; kw...) = map(st -> adjust(st; kw...), tree)
 adjust(::Nothing, ::Real) = nothing
 adjust(::Nothing; kw...) = nothing
 
-adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state)
-adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state)
+adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
+adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
 
 
 """

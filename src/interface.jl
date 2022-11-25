@@ -10,10 +10,12 @@ abstract type AbstractRule end
 ### setup
 ###
 
-mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter sharing
+mutable struct Leaf{R,S}  # mutable so that its identity encodes parameter sharing...
   rule::R
   state::S
+  frozen::Bool  # ... and to allow freeze! to act on this.
 end
+Leaf(rule, state; frozen::Bool = false) = Leaf(rule, state, frozen)
 
 @functor Leaf
 
@@ -42,11 +44,12 @@ function _setup(rule, x; cache)
   end
 end
 
-function Base.show(io::IO, ℓ::Leaf)  # show method is mostly to hide its long type!
+function Base.show(io::IO, ℓ::Leaf; colour = ℓ.frozen ? :cyan : :green)
   ioc = IOContext(io, :compact => true)
-  print(ioc, "Leaf(", ℓ.rule, ", ")
+  str = sprint(show, ℓ.rule; context = ioc)  # produces Adam{Float32}(0.001, ... not 0.001f0
+  printstyled(io, "Leaf(", str, ", "; color = colour)
   show(ioc, ℓ.state)
-  print(ioc, ")")
+  printstyled(io, ℓ.frozen ? ", frozen = true)" : ")"; color = colour)
 end
 
 ###
@@ -83,6 +86,7 @@ function _update!(tree, x; grads, params)
 end
 function _update!(ℓ::Leaf, x; grads, params)
   haskey(params, (ℓ,x)) && return params[(ℓ,x)]
+  ℓ.frozen && return x
   params[(ℓ,x)] = if haskey(grads, ℓ)
     ℓ.state, x̄′ = apply!(ℓ.rule, ℓ.state, x, grads[ℓ]...)
     subtract!(x, x̄′)
