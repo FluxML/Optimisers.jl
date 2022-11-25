@@ -33,7 +33,7 @@ Optimisers.OptimiserChain
 ```@docs
 Optimisers.setup
 Optimisers.update
-Optimisers.update!
+Optimisers.update!!
 Optimisers.adjust(::Any, ::Real)
 Optimisers.freeze!
 Optimisers.thaw!

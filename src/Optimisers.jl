@@ -16,6 +16,8 @@ export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain
 
+
+@deprecate update! update!! false
 ###
 ### one-array functions
 ###
@@ -70,7 +72,7 @@ init
 
 Initialises the given optimiser for every trainable parameter within the model.
 Returns a tree of the relevant states, which must be passed to [`update`](@ref)
-or [`update!`](@ref).
+or [`update!!`](@ref).
 
 # Example
 ```jldoctest
@@ -113,7 +115,7 @@ Uses the optimiser and the gradient to change the trainable parameters in the mo
 Returns the improved model, and the optimiser states needed for the next update.
 The initial tree of states comes from [`setup`](@ref).
 
-See also [`update!`](@ref), which will be faster for models of ordinary `Array`s or `CuArray`s.
+See also [`update!!`](@ref), which will be faster for models of ordinary `Array`s or `CuArray`s.
 
 # Example
 ```jldoctest
@@ -131,7 +133,7 @@ julia> Optimisers.update(t, m, g)
 update
 
 """
-    Optimisers.update!(tree, model, gradient) -> (tree, model)
+    Optimisers.update!!(tree, model, gradient) -> (tree, model)
 
 Uses the optimiser and the gradient to change the trainable parameters in the model.
 Returns the improved model, and the optimiser states needed for the next update.
@@ -154,12 +156,12 @@ julia> t = Optimisers.setup(Momentum(1/30, 0.9), m);
 julia> g = gradient(m -> sum(abs2.(m.x .+ m.y)), m)[1]
 (x = Float32[10.0, 14.0], y = Float32[10.0, 14.0])
 
-julia> t2, m2 = Optimisers.update!(t, m, g);
+julia> t2, m2 = Optimisers.update!!(t, m, g);
 
-julia> m2  # after update or update!, this is the new model
+julia> m2  # this is the model with new parameters
 (x = Float32[0.6666666, 1.5333333], y = Float32[3.6666667, 4.5333333])
 
-julia> m2.x === m.x  # update! has re-used this array, for efficiency
+julia> m2.x === m.x  # update!! has re-used this array, for efficiency
 true
 
 julia> m  # original should be discarded, may be mutated but no guarantee
@@ -169,6 +171,6 @@ julia> t == t2  # original state is in fact guaranteed to be mutated
 true
 ```
 """
-update!
+update!!
 
 end # module

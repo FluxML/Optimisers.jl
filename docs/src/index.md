@@ -60,7 +60,7 @@ Notice that a completely new instance of the model is returned. Internally, this
 is handled by [Functors.jl](https://fluxml.ai/Functors.jl), where we do a walk over the
 tree formed by the model and update the parameters using the gradients.
 
-There is also [`Optimisers.update!`](@ref) which similarly returns a new model and new state,
+There is also [`Optimisers.update!!`](@ref) which similarly returns a new model and new state,
 but is free to mutate arrays within the old one for efficiency.
 The method of `apply!` for each rule is likewise free to mutate arrays within its state;
 they are defensively copied when this rule is used with `update`.
