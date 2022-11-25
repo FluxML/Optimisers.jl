@@ -155,13 +155,14 @@ opt = Optimisers.setup(Optimisers.Momentum(), net);
 
 net.layers[3] isa Dense  # now freeze this layer's parameters:
 Optimisers.freeze!(opt.layers[3])
+opt.layers[3].bias  # confirm: Leaf(Momentum(...), [0.0, 0.0], frozen = true)
 
 Optimisers.update!(opt, net, gradient(m -> sum(m(x)), net)...);
 
-net.layers[3].bias  # stil zero, and its momentum is zero too:
-opt  # bias = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0], frozen = true)
+net.layers[3].bias  # stil zero, and its momentum is too:
 
 Optimisers.thaw!(opt)
+opt.layers[3].bias  # Leaf(Momentum(...), [0.0, 0.0])
 ```
 
 ## Tied Parameters
