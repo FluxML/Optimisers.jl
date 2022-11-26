@@ -165,7 +165,7 @@ Optimisers.thaw!(opt)
 opt.layers[3].bias  # Leaf(Momentum(...), [0.0, 0.0])
 ```
 
-## Adjusting Learning Rate
+## Adjusting Hyperparameters
 
 To change the learning rate during training, use [`adjust!`](@ref Optimisers.adjust!).
 This works much like `freeze!` by mutating the state tree, or part of it,

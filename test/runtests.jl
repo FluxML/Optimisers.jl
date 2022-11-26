@@ -177,7 +177,7 @@ end
       @test eltype(s6[2].state[2]) == Float32
     end
 
-    @testset "adjusyting parameters, 1" begin
+    @testset "adjusting parameters, out-of-place" begin
       # Simple momentum:
       m = (α = ([0.0], sin), γ = Float32[4,3,2])
       s = Optimisers.setup(Momentum(0.1, 0.9), m)
@@ -221,7 +221,7 @@ end
       @test sc2.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
-    @testset "adjusyting parameters, 2!" begin  # Same tests, just in-place
+    @testset "adjusting parameters, in-place" begin
       # Simple momentum:
       m = (α = ([0.0], sin), γ = Float32[4,3,2])
       s = Optimisers.setup(Momentum(0.1, 0.9), m)
