@@ -425,4 +425,7 @@ end
   @testset verbose=true "Optimisation Rules" begin
     include("rules.jl")
   end
+  @testset verbose=true "GPU" begin
+    include("gpuarrays.jl")
+  end
 end
