@@ -637,3 +637,5 @@ end
 
 adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
 adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)
+
+checksign(o::OptimiserChain) = foreach(checksign, o.opts)

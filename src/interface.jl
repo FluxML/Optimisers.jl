@@ -22,6 +22,7 @@ Leaf(rule, state; frozen::Bool = false) = Leaf(rule, state, frozen)
 Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
 
 function setup(rule::AbstractRule, model)
+  checksign(rule)
   cache = IdDict()
   tree = _setup(rule, model; cache)
   isempty(cache) && @warn "setup found no trainable parameters in this model"
@@ -51,6 +52,10 @@ function Base.show(io::IO, ℓ::Leaf; colour = ℓ.frozen ? :cyan : :green)
   show(ioc, ℓ.state)
   printstyled(io, ℓ.frozen ? ", frozen = true)" : ")"; color = colour)
 end
+
+checksign(η::Real, s::Symbol) = η < 0 && throw(DomainError(s, "the learning rate cannot be negative, got $η"))
+checksign(η, s::Symbol) = nothing  # someone had a use for complex Descent
+checksign(rule::AbstractRule) = hasproperty(rule, :eta) && checksign(rule.eta, typeof(rule).name.name)
 
 ###
 ### update
