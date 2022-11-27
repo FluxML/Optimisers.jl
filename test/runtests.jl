@@ -265,6 +265,11 @@ end
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
+    @testset "forbid negative learning rates" begin
+      @test_throws DomainError Optimisers.setup(Momentum(-0.1), rand(3))
+      @test_throws DomainError Optimisers.setup(AdamW(-0.1), rand(3))
+    end
+
     @testset "freeze/thaw" begin
       m = (x=[1.0, 2.0], y=([3.0, 4.0], sin));
       st = Optimisers.setup(Descent(0.1), m);
