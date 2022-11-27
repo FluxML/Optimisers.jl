@@ -56,11 +56,14 @@ thaw!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
 ###
 
 """
-    Optimisers.adjust(tree, η) -> tree
+    Optimisers.adjust!(tree, η)
 
 Alters the state `tree = setup(rule, model)` to change the parameters of the
 optimisation rule, without destroying its stored state. Typically used mid-way
 through training.
+
+Can be applied to part of a model, by acting only on the corresponding part
+of the state `tree`.
 
 To change just the learning rate, provide a number `η::Real`.
 
@@ -76,11 +79,13 @@ julia> st, m = Optimisers.update(st, m, (vec = [16, 88], fun = nothing));  # wit
 julia> st
 (vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.016, -0.088]), fun = ())
 
-julia> st = Optimisers.adjust(st, 0.123)  # change learning rate, stored momentum untouched
+julia> Optimisers.adjust!(st, 0.123)  # change learning rate, stored momentum untouched
+
+julia> st
 (vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 
-To change other parameters, `adjust` also accepts keyword arguments matching the field
+To change other parameters, `adjust!` also accepts keyword arguments matching the field
 names of the optimisation rule's type.
 
 ```
@@ -97,15 +102,30 @@ julia> Optimisers.adjust(st; beta = "no such field")  # silently ignored!
 (vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.016, -0.088]), fun = nothing)
 ```
 """
-adjust(tree, eta::Real) = map(st -> adjust(st, eta), tree)
-adjust(tree; kw...) = map(st -> adjust(st; kw...), tree)
+adjust!(tree, eta::Real) = foreach(st -> adjust!(st, eta), tree)
+adjust!(tree; kw...) = foreach(st -> adjust!(st; kw...), tree)
 
-adjust(::Nothing, ::Real) = nothing
-adjust(::Nothing; kw...) = nothing
+adjust!(ℓ::Leaf, eta::Real) = (ℓ.rule = adjust(ℓ.rule, eta); nothing)
+adjust!(ℓ::Leaf; kw...) = (ℓ.rule = adjust(ℓ.rule; kw...); nothing)
 
 adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
 adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
 
+"""
+    adjust(tree, η) -> tree
+
+Like [`adjust!`](@ref Optimisers.adjust), but returns a new tree instead of mutating the old one.
+"""
+function adjust(tree, eta::Real)
+  t′ = fmap(copy, tree; exclude = maywrite)  # same as used for update / update!
+  adjust!(t′, eta)
+  t′
+end
+function adjust(tree; kw...)
+  t′ = fmap(copy, tree; exclude = maywrite)
+  adjust!(t′; kw...)
+  t′
+end
 
 """
     Optimisers.adjust(rule::RuleType, η::Real) -> rule

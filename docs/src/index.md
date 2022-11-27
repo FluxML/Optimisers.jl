@@ -165,6 +165,26 @@ Optimisers.thaw!(opt)
 opt.layers[3].bias  # Leaf(Momentum(...), [0.0, 0.0])
 ```
 
+## Adjusting Hyperparameters
+
+To change the learning rate during training, use [`adjust!`](@ref Optimisers.adjust!).
+This works much like `freeze!` by mutating the state tree, or part of it,
+without discarding the momenta. For the Flux model from just above:
+
+```julia
+Optimisers.adjust!(opt, 0.03)  # change η for the whole model...
+
+Optimisers.adjust!(opt.layers[3], 0.04)  # ... or just for one layer.
+```
+
+To change other fields of the optimisation rule, it accepts keyword arguments:
+
+```julia
+Momentum |> fieldnames  # (:eta, :rho)
+
+Optimisers.adjust!(opt, rho = 0.95)  # change ρ for the whole model.
+```
+
 ## Tied Parameters
 
 If the same array appears twice (or more) in the model, [Functors.jl](https://fluxml.ai/Functors.jl) should recognise this.
@@ -187,7 +207,7 @@ This identification relies on `===`, and will work for ordinary `Array`s and `Cu
 It will not at present work for `reshape`d arrays, nor for immutable arrays such as those
 from StaticArrays.jl.
 
- 
+
 ## Obtaining a flat parameter vector
 
 Instead of a nested tree-like structure, sometimes is is convenient to have all the
