@@ -607,7 +607,7 @@ julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 julia> m = (zeros(3),);
 
 julia> s = Optimisers.setup(o, m)
-(Leaf(OptimiserChain(ClipGrad{Float64}(1.0), Descent{Float64}(0.1)), [nothing, nothing]),)
+(Leaf(OptimiserChain(ClipGrad{Float64}(1.0), Descent{Float64}(0.1)), (nothing, nothing)),)
 
 julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 ([-0.03, -0.1, -0.1],)
@@ -618,15 +618,15 @@ struct OptimiserChain{O<:Tuple} <: AbstractRule
 end
 OptimiserChain(opts...) = OptimiserChain(opts)
 
-init(o::OptimiserChain, x::AbstractArray) = [init(opt, x) for opt in o.opts]
+@functor OptimiserChain
+
+init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
-  new_states = similar(states)
-  for (i, (opt, state)) in enumerate(zip(o.opts, states))
-    new_states[i], dx = apply!(opt, state, x, dx, dxs...)
+  foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
+    state′, dx′ = apply!(opt, state, x, dx′, dxs...)
+    return (states′..., state′), dx′
   end
-
-  return new_states, dx
 end
 
 function Base.show(io::IO, c::OptimiserChain)

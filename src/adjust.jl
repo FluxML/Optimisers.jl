@@ -68,7 +68,7 @@ of the state `tree`.
 To change just the learning rate, provide a number `η::Real`.
 
 # Example
-```jldoctest
+```jldoctest adjust
 julia> m = (vec = rand(Float32, 2), fun = sin);
 
 julia> st = Optimisers.setup(Nesterov(), m)  # stored momentum is initialised to zero
@@ -88,18 +88,18 @@ julia> st
 To change other parameters, `adjust!` also accepts keyword arguments matching the field
 names of the optimisation rule's type.
 
-```
+```jldoctest adjust
 julia> fieldnames(Adam)
 (:eta, :beta, :epsilon)
 
 julia> st2 = Optimisers.setup(OptimiserChain(ClipGrad(), Adam()), m)
-(vec = Leaf(OptimiserChain(ClipGrad{Float32}(10.0), Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7)), [nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999))]), fun = nothing)
+(vec = Leaf(OptimiserChain(ClipGrad{Float32}(10.0), Adam{Float32}(0.001, (0.9, 0.999), 1.19209f-7)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
 
 julia> Optimisers.adjust(st2; beta = (0.777, 0.909), delta = 11.1)  # delta acts on ClipGrad
-(vec = Leaf(OptimiserChain(ClipGrad{Float32}(11.1), Adam{Float32}(0.001, (0.777, 0.909), 1.19209f-7)), [nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999))]), fun = nothing)
+(vec = Leaf(OptimiserChain(ClipGrad{Float32}(11.1), Adam{Float32}(0.001, (0.777, 0.909), 1.19209f-7)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
 
 julia> Optimisers.adjust(st; beta = "no such field")  # silently ignored!
-(vec = Leaf(Nesterov{Float32}(0.001, 0.9), Float32[-0.016, -0.088]), fun = nothing)
+(vec = Leaf(Nesterov{Float32}(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 """
 adjust!(tree, eta::Real) = foreach(st -> adjust!(st, eta), tree)
