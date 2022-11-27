@@ -12,7 +12,7 @@
 Classic gradient descent optimiser with learning rate `η`.
 For each parameter `p` and its gradient `dp`, the update is `p -= η * dp`.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 """
@@ -34,7 +34,7 @@ end
 
 Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
@@ -60,7 +60,7 @@ end
 
 Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
@@ -94,7 +94,7 @@ generally don't need tuning.
 [Centred RMSProp](http://arxiv.org/abs/1308.08500) is a variant which normalises
 gradients by an estimate their variance, instead of their second moment.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
@@ -149,8 +149,8 @@ Optimizer using the
 [Rprop](https://ieeexplore.ieee.org/document/298623) algorithm. A full-batch
 learning algorithm that depends only on the sign of the gradient.
 
-# Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+# Arguments
+- Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 
 - Scaling factors (`ℓ::Tuple`): Multiplicative increase and decrease factors.
@@ -165,7 +165,7 @@ end
 
 Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η, ℓ, Γ)
 
-init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
+init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))  # will adjust work right here??
 
 function apply!(o::Rprop, state, x, dx)
     T = eltype(x)
@@ -189,7 +189,7 @@ end
 
 [Adam](https://arxiv.org/abs/1412.6980) optimiser.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -222,7 +222,7 @@ end
 
 [Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -263,7 +263,7 @@ end
 
 [AdaMax](https://arxiv.org/abs/1412.6980) is a variant of Adam based on the ∞-norm.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -297,7 +297,7 @@ end
 [OAdam](https://arxiv.org/abs/1711.00141) (Optimistic Adam)
 is a variant of Adam adding an "optimistic" term suitable for adversarial training.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -334,7 +334,7 @@ end
 parameter specific learning rates based on how frequently it is updated.
 Parameters don't need tuning.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
@@ -365,7 +365,7 @@ end
 rate based on a window of past gradient updates.
 Parameters don't need tuning.
 
-# Parameters
+# Arguments
 - Rho (`ρ`): Factor by which the gradient is decayed at each time step.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
@@ -396,7 +396,7 @@ end
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -432,7 +432,7 @@ end
 [NAdam](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of Adam.
 Parameters don't need tuning.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -468,7 +468,7 @@ end
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -486,7 +486,7 @@ AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
 The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the well-known
 Adam optimiser.
 
-# Parameters
+# Arguments
 - Learning rate (`η`): Factor by which gradients are discounted before updating
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
@@ -523,7 +523,7 @@ subtracted from `x`.
 Typically composed  with other optimisers as the first transformation in an [`OptimiserChain`](@ref).
 This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss.
 
-# Parameters
+# Arguments
 - Weight decay (`γ`): Decay applied to weights during optimisation.
 """
 struct WeightDecay{T<:Real} <: AbstractRule
