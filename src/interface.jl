@@ -40,7 +40,7 @@ function _setup(rule, x; cache)
       cache[x] = ℓ
     end
   else
-    map(xᵢ -> _setup(rule, xᵢ; cache), _trainable(x))
+    valuemap(xᵢ -> _setup(rule, xᵢ; cache), _trainable(x))
   end
 end
 
@@ -77,7 +77,7 @@ function _update!(tree, x; grads, params)
   haskey(params, (tree,x)) && return params[(tree,x)]
   isbits(tree) && return x  # means () is not cached, and also (((),),)
   x′, re = functor(x)
-  x′′ = re(map((tᵢ, xᵢ) -> _update!(tᵢ, xᵢ; grads, params), tree, x′))
+  x′′ = re(valuemap((tᵢ, xᵢ) -> _update!(tᵢ, xᵢ; grads, params), tree, x′))
   if ismutable(x′′)
     params[(tree,x)] = x′′
   else  # no ties to preserve between immutable structs, right?
@@ -100,16 +100,16 @@ subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 _grads!(dict::IdDict, ℓ::Leaf, x, ::Zero...) = nothing
 function _grads!(dict::IdDict, ℓ::Leaf, x, x̄s...)
   x̄s₀ = get(dict, ℓ, map(_ -> ZeroTangent(), x̄s))
-  dict[ℓ] = map(+, x̄s, x̄s₀)  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
+  dict[ℓ] = valuemap(+, x̄s, x̄s₀)  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
   nothing
 end
 _grads!(dict::IdDict, t, x, ::Zero...) = nothing
 function _grads!(dict::IdDict, tree, x, x̄s...)
   # The only reason _grads! takes model is that functor(typeof(x), base(x̄)) may differ from 
   # functor(typeof(tree), base(x̄)), for things like Transpose
-  x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
+  x̄s′ = valuemap(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
   x′, _ = functor(typeof(x), x)
-  foreach((tᵢ, xᵢ, x̄sᵢ...) -> _grads!(dict, tᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
+  valueforeach((tᵢ, xᵢ, x̄sᵢ...) -> _grads!(dict, tᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
 end
 
 # default all rules to first order calls
@@ -160,10 +160,19 @@ _trainable(x) = _trainable(functor(x)[1], trainable(x))
 _trainable(ch::NamedTuple, tr::NamedTuple) = merge(map(_ -> nothing, ch), tr)
 _trainable(ch::Tuple{Vararg{Any,N}}, tr::Tuple{Vararg{Any,N}}) where N = tr
 _trainable(ch::AbstractArray, tr::AbstractArray) = tr
+_trainable(ch::Dict, tr::Dict) = merge(valuemap(_ -> nothing, ch), tr)
+
 function _trainable(ch::NamedTuple, tr::Tuple)  # for old Flux-style no-names tuple
   @warn "trainable(x) should now return a NamedTuple with the field names, not a Tuple" maxlog=3
   map(c -> c in tr ? c : nothing, ch)
 end
+
+
+valuemap(f, x...) = map(f, x...)
+valuemap(f, x::Dict, ys...) = Dict(k => f(v, (y[k] for y in ys)...) for (k,v) in x)
+valueforeach(f, x...) = foreach(f, x...)
+valueforeach(f, x::Dict, ys...) = foreach(k -> f(k, x[k], (y[k] for y in ys)...), keys(x))
+
 
 ###
 ### rule definition helpers

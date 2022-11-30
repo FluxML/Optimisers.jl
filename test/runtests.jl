@@ -99,6 +99,19 @@ y2z(x) = x
       @test isnan(m3n.γ[3])
     end
 
+    @testset "Dict support" begin
+      d = Dict(:a => [1.0,2.0], :b => [3.0,4.0], :c => 1)
+      s = Optimisers.setup(AdamW(0.1), d)
+      @test s isa Dict{Symbol, <:Any}
+      @test s[:a] isa Optimisers.Leaf
+      @test s[:b] isa Optimisers.Leaf
+      @test s[:c] === ()
+      loss(model) = sum(abs2, model[:a])
+      g = gradient(loss, d)[1]
+      # s2, d2 = Optimisers.update(s, d, g)
+      Optimisers.update(s, d, g) # still broken
+    end
+
     @testset "OptimiserChain" begin
       x = [1, 10, 100.0]; dx = [1, 2, 3.0];
       @test Optimisers.update(Optimisers.setup(WeightDecay(0.1), x), x, dx)[2] ≈ [1-0.1-1, 10-1-2, 100-10-3]
