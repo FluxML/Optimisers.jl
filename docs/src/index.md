@@ -38,7 +38,7 @@ to adjust the model:
 
 ```julia
 
-using Flux, Metalhead, Optimisers
+using Flux, Metalhead, Zygote, Optimisers
 
 model = Metalhead.ResNet(18) |> gpu  # define a model to train
 image = rand(Float32, 224, 224, 3, 1) |> gpu;  # dummy data
@@ -52,7 +52,7 @@ state = Optimisers.setup(rule, model);  # initialise this optimiser's momentum e
 end;
 
 state, model = Optimisers.update(state, model, ∇model);
-@show sum(model(image));
+@show sum(model(image));  # reduced
 
 ```
 
@@ -62,8 +62,14 @@ tree formed by the model and update the parameters using the gradients.
 
 There is also [`Optimisers.update!`](@ref) which similarly returns a new model and new state,
 but is free to mutate arrays within the old one for efficiency.
-The method of `apply!` for each rule is likewise free to mutate arrays within its state;
-they are defensively copied when this rule is used with `update`.
+(The method of `apply!` above is likewise free to mutate arrays within its state;
+they are defensively copied when this rule is used with `update`.)
+For `Adam()`, there are two momenta per parameter, thus `state` is about twice the size of `model`:
+
+```julia
+Base.summarysize(model) / 1024^2  # about 45MB
+Base.summarysize(state) / 1024^2  # about 90MB
+```
 
 Optimisers.jl does not depend on any one automatic differentiation package,
 but for now the most likely source of gradients is [Zygote.jl](https://fluxml.ai/Zygote.jl).
@@ -72,14 +78,34 @@ This `∇model` is another tree structure, rather than the dictionary-like objec
 Zygote's "implicit" mode `gradient(() -> loss(...), Flux.params(model))` -- see 
 [Zygote's documentation](https://fluxml.ai/Zygote.jl/dev/#Explicit-and-Implicit-Parameters-1) for more about this difference.
 
+
+## Usage with [Yota.jl](https://github.com/dfdx/Yota.jl)
+
+Yota is another modern automatic differentiation package, an alternative to Zygote.
+
+Its main function is `Yota.grad`, which returns the loss as well as the gradient (like `Zygote.withgradient`)
+but also returns a gradient component for the loss function.
+To extract what Optimisers.jl needs, you can write (for the Flux model above):
+
+```julia
+using Yota
+
+loss, (∇function, ∇model, ∇image) = Yota.grad(model, image) do m, x
+  sum(m(x)
+end;
+
+# Or else, this may save computing ∇image:
+loss, (_, ∇model) = grad(m -> sum(m(image)), model);
+```
+
 ## Usage with [Lux.jl](https://github.com/avik-pal/Lux.jl)
 
-The main design difference of Lux is that the tree of parameters is separate from
+The main design difference of Lux from Flux is that the tree of parameters is separate from
 the layer structure. It is these parameters which `setup` and `update` need to know about.
 
 Lux describes this separation of parameter storage from model description as "explicit" parameters.
 Beware that it has nothing to do with Zygote's notion of "explicit" gradients.
-(If the same model is written in Flux and Lux, `∇model` above and `∇params` below will often be
+(If the same model is written in Flux and Lux, `∇model` above and `∇params` below will be nearly
 identical trees of nested `NamedTuple`s.)
 
 ```julia
@@ -88,27 +114,47 @@ using Lux, Boltz, Zygote, Optimisers
 
 lux_model, params, lux_state = Boltz.resnet(:resnet18) |> gpu;  # define and initialise model
 images = rand(Float32, 224, 224, 3, 4) |> gpu;  # batch of dummy data
-y, _ = Lux.apply(lux_model, images, params, lux_state);  # run the model
-@show sum(y)  # initial dummy loss
+y, lux_state = Lux.apply(lux_model, images, params, lux_state);  # run the model
+@show sum(y);  # initial dummy loss
 
 rule = Optimisers.Adam()
 opt_state = Optimisers.setup(rule, params);  # optimiser state based on model parameters
 
-∇params, _ = gradient(params, images) do p, x  # gradient with respect to parameter tree
-  y, _ = Lux.apply(lux_model, x, p, lux_state)
-  sum(y)
+(loss, lux_state), back = Zygote.pullback(params, images) do p, x
+  y, st = Lux.apply(lux_model, x, p, lux_state)
+  sum(y), st  # return both the loss, and the updated lux_state
 end;
+∇params, _ = back((one.(loss), nothing));  # gradient of only the loss, with respect to parameter tree
+loss == sum(y)  # not yet changed
 
 opt_state, params = Optimisers.update!(opt_state, params, ∇params);
 
-y, _ = Lux.apply(lux_model, images, params, lux_state);
-@show sum(y)
+y, lux_state = Lux.apply(lux_model, images, params, lux_state);
+@show sum(y);  # now reduced
 
 ```
 
 Besides the parameters stored in `params` and gradually optimised, any other model state
-is stored in `lux_state`. For simplicity this example does not show how to propagate the 
-updated `lux_state` to the next iteration, see Lux's documentation.
+is stored in `lux_state`, and updated by `Lux.apply`. (In this example, BatchNorm has state.)
+This is completely unrelated to Optimisers.jl's state, although designed in a similar spirit.
+
+```julia
+Base.summarysize(lux_model) / 1024   # just 2KB
+Base.summarysize(params) / 1024^2    # about 45MB, same as Flux model
+Base.summarysize(lux_state) / 1024   # 40KB
+Base.summarysize(opt_state) / 1024^2 # about 90MB, with Adam
+```
+
+If you are certain there is no model state, then the gradient calculation can
+be simplified to use `Zygote.gradient` instead of `Zygote.pullback`:
+
+```julia
+∇params, _ = gradient(params, images) do p, x
+  y, _ = Lux.apply(lux_model, x, p, lux_state)  # discards new lux_state
+  sum(y)
+end;
+```
+
 
 ## Non-`trainable` Parameters
 
