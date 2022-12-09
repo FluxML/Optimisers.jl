@@ -69,8 +69,8 @@ function update!(tree, model, grad, higher...)
   _grads!(grads, tree, model, grad, higher...)
   # Second walk is to update the model. The params cache indexed by (tree,x),
   # so that identified Leafs can tie isbits parameters, but setup won't do that for you:
-  newmodel = _update!(tree, model; grads, params = IdDict())
-  tree, newmodel  # note that tree is guaranteed to be updated. Also that it's not necc a tree.
+  # newmodel = _update!(tree, model; grads, params = IdDict())
+  # tree, newmodel  # note that tree is guaranteed to be updated. Also that it's not necc a tree.
 end
 
 function _update!(tree, x; grads, params)
