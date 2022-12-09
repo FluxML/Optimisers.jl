@@ -108,8 +108,12 @@ y2z(x) = x
       @test s[:c] === ()
       loss(model) = sum(abs2, model[:a])
       g = gradient(loss, d)[1]
-      # s2, d2 = Optimisers.update(s, d, g)
-      Optimisers.update(s, d, g) # still broken
+      s2, d2 = Optimisers.update(s, d, g)
+      @test s2 isa Dict{Symbol, <:Any}
+      @test d2 isa Dict{Symbol, <:Any}
+      @test d2[:a] == [0.9, 1.9]
+      @test d2[:b] == [3, 4]
+      @test d2[:c] == 1
     end
 
     @testset "OptimiserChain" begin

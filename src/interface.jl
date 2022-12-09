@@ -69,8 +69,8 @@ function update!(tree, model, grad, higher...)
   _grads!(grads, tree, model, grad, higher...)
   # Second walk is to update the model. The params cache indexed by (tree,x),
   # so that identified Leafs can tie isbits parameters, but setup won't do that for you:
-  # newmodel = _update!(tree, model; grads, params = IdDict())
-  # tree, newmodel  # note that tree is guaranteed to be updated. Also that it's not necc a tree.
+  newmodel = _update!(tree, model; grads, params = IdDict())
+  tree, newmodel  # note that tree is guaranteed to be updated. Also that it's not necc a tree.
 end
 
 function _update!(tree, x; grads, params)
@@ -100,14 +100,14 @@ subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 _grads!(dict::IdDict, ℓ::Leaf, x, ::Zero...) = nothing
 function _grads!(dict::IdDict, ℓ::Leaf, x, x̄s...)
   x̄s₀ = get(dict, ℓ, map(_ -> ZeroTangent(), x̄s))
-  dict[ℓ] = valuemap(+, x̄s, x̄s₀)  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
+  dict[ℓ] = map(+, x̄s, x̄s₀)  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
   nothing
 end
 _grads!(dict::IdDict, t, x, ::Zero...) = nothing
 function _grads!(dict::IdDict, tree, x, x̄s...)
   # The only reason _grads! takes model is that functor(typeof(x), base(x̄)) may differ from 
   # functor(typeof(tree), base(x̄)), for things like Transpose
-  x̄s′ = valuemap(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
+  x̄s′ = map(x̄ -> functor(typeof(x), base(x̄))[1], x̄s)
   x′, _ = functor(typeof(x), x)
   valueforeach((tᵢ, xᵢ, x̄sᵢ...) -> _grads!(dict, tᵢ, xᵢ, x̄sᵢ...), tree, x′, x̄s′...)
 end
@@ -169,9 +169,9 @@ end
 
 
 valuemap(f, x...) = map(f, x...)
-valuemap(f, x::Dict, ys...) = Dict(k => f(v, (y[k] for y in ys)...) for (k,v) in x)
+valuemap(f, x::Dict, ys...) = Dict(k => f(v, (get(y, k, nothing) for y in ys)...) for (k,v) in x)
 valueforeach(f, x...) = foreach(f, x...)
-valueforeach(f, x::Dict, ys...) = foreach(k -> f(k, x[k], (y[k] for y in ys)...), keys(x))
+valueforeach(f, x::Dict, ys...) = foreach(k -> f(x[k], (get(y, k, nothing) for y in ys)...), keys(x))
 
 
 ###
