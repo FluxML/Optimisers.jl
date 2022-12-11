@@ -171,7 +171,9 @@ end
 valuemap(f, x...) = map(f, x...)
 valuemap(f, x::Dict, ys...) = Dict(k => f(v, (get(y, k, nothing) for y in ys)...) for (k,v) in x)
 valueforeach(f, x...) = foreach(f, x...)
-valueforeach(f, x::Dict, ys...) = foreach(k -> f(x[k], (get(y, k, nothing) for y in ys)...), keys(x))
+valueforeach(f, x::Dict, ys...) = foreach(pairs(x)) do (k, v)
+  f(v, (get(y, k, nothing) for y in ys)...)
+end
 
 
 ###
