@@ -1,6 +1,6 @@
 module Optimisers
 
-using Functors: functor, fmap, isleaf, @functor, fmapstructure, children
+using Functors: functor, fmap, isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
 
 include("interface.jl")
