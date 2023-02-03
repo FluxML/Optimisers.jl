@@ -23,13 +23,13 @@ jobs:
         arch:
           - x64
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: actions/cache@v1
+      - uses: actions/cache@v3
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
         env:
           cache-name: cache-artifacts
@@ -47,7 +47,7 @@ jobs:
       - uses: julia-actions/julia-processcoverage@v1
         if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
         if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
         with:
           file: lcov.info
@@ -57,7 +57,7 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.6'
