@@ -218,6 +218,36 @@ function apply!(o::Adam, state, x, dx)
 end
 
 """
+    Lion(η = 0.001, β::Tuple = (0.9, 0.999))
+
+[Lion](https://arxiv.org/abs/2302.06675) optimiser.
+
+# Parameters
+- Learning rate (`η`): Magnitude by which gradients are updating the weights.
+- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+                                   second (β2) momentum estimate.
+"""
+struct Lion{T} <: AbstractRule
+  eta::T
+  beta::Tuple{T,T}
+end
+Lion(η = 1f-3, β = (9f-1, 9.99f-1)) = Lion{typeof(η)}(η, β)
+
+init(o::Lion, x::AbstractArray) = zero(x)
+
+function apply!(o::Lion, state, x, dx)
+  η, β = o.eta, o.beta
+
+  @.. state = β[2] * dx + (1-β[2]) * state
+
+  # The paper writes the update in terms of the old momentum,
+  # but easy to solve in terms of the current momentum instead:
+  dx′ = @lazy η * sign((β[2]-β[1]) * dx + β[1] * state)
+
+  return state, dx′
+end
+
+"""
     RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
 
 [Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
