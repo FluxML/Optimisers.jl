@@ -178,7 +178,7 @@ Functors.@functor Layer
 # Both array fields will be, for example, moved to the GPU:
 Functors.children(Layer(3))  # (alpha = [...], beta = [...], length)
 
-Optimisers.trainable(x::Layer) = (; alpha = x.alpha)  # must be a subset of chidlren
+Optimisers.trainable(x::Layer) = (; alpha = x.alpha)  # must be a subset of children
 
 # Only the first field will be optimised:
 st = Optimisers.setup(DecayDescent(0.1), Layer(3))
