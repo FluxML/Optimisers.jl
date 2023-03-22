@@ -61,16 +61,12 @@ end
 Base.show(io::IO, re::Restructure{T}) where T = print(io, "Restructure(", T.name.name, ", ..., ", re.length, ")")
 Base.length(re::Restructure) = re.length
 
-
-struct _FlattenWalk <: AbstractWalk end
-(::_FlattenWalk)(recurse, x) = map(recurse, _trainable(x))
-
 # This flattens a model, and returns a web of offsets for later use:
 function _flatten(x)
   isnumeric(x) && return vcat(_vec(x)), 0, length(x)  # trivial case
   arrays = AbstractVector[]
   len = Ref(0)
-  off = fmap(x; exclude = isnumeric, walk = _FlattenWalk()) do y
+  off = fmap(x; exclude = isnumeric, walk = _TrainableStructWalk()) do y
     push!(arrays, _vec(y))
     o = len[]
     len[] = o + length(y)
@@ -79,6 +75,10 @@ function _flatten(x)
   isempty(arrays) && return Bool[], off, 0
   reduce(vcat, arrays), off, len[]
 end
+
+struct _TrainableStructWalk <: AbstractWalk end
+
+(::_TrainableStructWalk)(recurse, x) = map(recurse, _trainable(x))
 
 _vec(x::Number) = LinRange(x,x,1)
 _vec(x::AbstractArray) = vec(x)
