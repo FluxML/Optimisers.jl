@@ -189,6 +189,7 @@ st = Optimisers.setup(DecayDescent(0.1), Layer(3))
 To temporarily prevent training from affecting some parameters,
 use [freeze!](@ref Optimisers.freeze!) and `thaw!`.
 They work by mutating all `Leaf`s of the state tree, or part of it.
+This method is used for Flux ≥ 14.
 
 ```julia
 using Flux, Optimisers
@@ -209,6 +210,38 @@ net.layers[3].bias  # stil zero, and its momentum is too:
 
 Optimisers.thaw!(opt)
 opt.layers[3].bias  # Leaf(Momentum(...), [0.0, 0.0])
+```
+
+ In Flux ≤ 0.13, Flux's old "implicit" training style should be used: 
+ When it is desired to not include all the model parameters (for e.g. transfer learning), we can simply not pass in those layers into our call to params.
+
+Consider a simple multi-layer perceptron model where we want to avoid optimising the first two `Dense` layers. We can obtain this using the slicing features `Chain` provides:
+
+```julia
+m = Chain(
+      Dense(784 => 64, relu),
+      Dense(64 => 64, relu),
+      Dense(32 => 10)
+    );
+
+ps = Flux.params(m[3:end])
+```
+
+The `Zygote.Params` object `ps` now holds a reference to only the parameters of the layers passed to it.
+
+During training, the gradients will only be computed for (and applied to) the last Dense layer, therefore only that would have its parameters changed.
+
+`Flux.params` also takes multiple inputs to make it easy to collect parameters from heterogenous models with a single call. A simple demonstration would be if we wanted to omit optimising the second Dense layer in the previous example. It would look something like this:
+
+```julia
+Flux.params(m[1], m[3:end])
+```
+
+Sometimes, a more fine-tuned control is needed. We can freeze a specific parameter of a specific layer which already entered a Params object ps, by simply deleting it from ps:
+
+```julia
+ps = Flux.params(m)
+delete!(ps, m[2].bias) 
 ```
 
 ## Adjusting Hyperparameters
