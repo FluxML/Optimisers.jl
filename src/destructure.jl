@@ -66,7 +66,7 @@ function _flatten(x)
   isnumeric(x) && return vcat(_vec(x)), 0, length(x)  # trivial case
   arrays = AbstractVector[]
   len = Ref(0)
-  off = fmap(x; exclude = isnumeric, walk = (f, z) -> map(f, _trainable(z))) do y
+  off = fmap(x; exclude = isnumeric, walk = _TrainableStructWalk()) do y
     push!(arrays, _vec(y))
     o = len[]
     len[] = o + length(y)
@@ -76,18 +76,22 @@ function _flatten(x)
   reduce(vcat, arrays), off, len[]
 end
 
+struct _TrainableStructWalk <: AbstractWalk end
+
+(::_TrainableStructWalk)(recurse, x) = map(recurse, _trainable(x))
+
 _vec(x::Number) = LinRange(x,x,1)
 _vec(x::AbstractArray) = vec(x)
 
 function ChainRulesCore.rrule(::typeof(_flatten), x)
   flat, off, len = _flatten(x)
   _maybewarn()
-  _flatten_back((dflat, _, _)) = (NoT, _rebuild(x, off, unthunk(dflat), len; walk = _Tangent_biwalk, prune = NoT))
+  _flatten_back((dflat, _, _)) = (NoT, _rebuild(x, off, unthunk(dflat), len; walk = _Tangent_biwalk(), prune = NoT))
   (flat, off, len), _flatten_back
 end
 
 # This reconstructs either a model like x, or a gradient for it:
-function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _trainable_biwalk, kw...)
+function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _Trainable_biwalk(), kw...)
   len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
   fmap(x, off; exclude = isnumeric, walk, kw...) do y, o
     _getat(y, o, flat)
@@ -98,7 +102,9 @@ _getat(y::Number, o::Int, flat::AbstractVector) = ProjectTo(y)(flat[o + 1])
 _getat(y::AbstractArray, o::Int, flat::AbstractVector) =
   ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
 
-function _trainable_biwalk(f, x, aux)
+struct _Trainable_biwalk <: AbstractWalk end
+
+function (::_Trainable_biwalk)(f, x, aux)
   ch, re = functor(typeof(x), x)
   au, _ = functor(typeof(x), aux)
   _trainmap(f, ch, _trainable(x), au) |> re
@@ -110,7 +116,9 @@ function _trainmap(f, ch, tr, aux)
   end
 end
 
-function _Tangent_biwalk(f, x, aux)  # use with prune = NoT
+struct _Tangent_biwalk <: AbstractWalk end
+
+function (::_Tangent_biwalk)(f, x, aux)  # use with prune = NoT
   ch, re = functor(typeof(x), x)
   au, _ = functor(typeof(x), aux)
   y = _trainmap(f, ch, _trainable(x), au)
@@ -156,7 +164,7 @@ _grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = flat  # ambiguity
 # These are only needed for 2nd derivatives:
 function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)
   @warn "second derivatives of Restructure may not work yet, sorry!" maxlog=3
-  _grad_back(dflat) = (NoT, NoT, _rebuild(x, off, unthunk(dflat); walk = _Tangent_biwalk, prune = NoT), NoT, NoT)
+  _grad_back(dflat) = (NoT, NoT, _rebuild(x, off, unthunk(dflat); walk = _Tangent_biwalk(), prune = NoT), NoT, NoT)
   _grad!(x, dx, off, flat), _grad_back
 end
 base(dx::Tangent{<:Tangent}) = backing(dx).backing  # might be needed for gradient(gradient(destructure))
