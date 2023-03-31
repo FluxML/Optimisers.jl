@@ -2,6 +2,8 @@ module Optimisers
 
 using Functors: functor, fmap, isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
+using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero, ZeroTangent
+using ChainRulesCore: ChainRulesCore, NoTangent, ProjectTo, unthunk
 
 include("interface.jl")
 export AbstractRule
@@ -15,6 +17,8 @@ include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain, Lion
+
+include("deprecations.jl")
 
 ###
 ### one-array functions
