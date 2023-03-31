@@ -2,6 +2,7 @@ module Optimisers
 
 using Functors: functor, fmap, isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
+using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero, ZeroTangent
 
 include("interface.jl")
 export AbstractRule

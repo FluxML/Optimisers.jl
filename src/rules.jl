@@ -1,11 +1,3 @@
-@deprecate ADAM Adam
-@deprecate NADAM NAdam
-@deprecate ADAMW AdamW
-@deprecate RADAM RAdam
-@deprecate OADAM OAdam
-@deprecate ADAGrad AdaGrad
-@deprecate ADADelta AdaDelta
-
 """
     Descent(η = 1f-1)
 
