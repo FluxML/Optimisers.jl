@@ -145,3 +145,38 @@ function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
   T(vals...)  # relies on having the default constructor
 end
 
+"""
+  AccumGrad(opt::AbstractRule, n::Int)
+
+A wrapper for an optimisation rule which accumulates gradients over `n` steps before
+applying the rule. This is useful for training with batch sizes larger than the
+available memory.
+"""
+struct AccumGrad{R<:AbstractRule} <: AbstractRule
+  opt::R
+  n::Int
+  
+  function AccumGrad(opt::R, n::Int) where R<:AbstractRule
+    n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
+    return new{R}(opt, n)  
+  end
+end
+
+function init(o::AccumGrad, x)
+  return (zero(x), 0, init(o.opt, x))
+end
+
+function apply!(o::AccumGrad, state, x, Δ)
+  accum_grad, counter, opt_state = state
+  counter += 1
+  @.. accum_grad = accum_grad + Δ
+  if counter == o.n
+    @.. Δ = accum_grad / o.n
+    Δ, opt_state = apply!(o.opt, opt_state, x, accum_grad)
+    @.. accum_grad = zero(accum_grad)
+    counter = 0
+  else
+    Δ = nothing
+  end
+  return Δ, (accum_grad, counter, opt_state)
+end
