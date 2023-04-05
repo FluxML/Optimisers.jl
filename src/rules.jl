@@ -667,3 +667,39 @@ end
 
 adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
 adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)
+
+
+"""
+  AccumGrad(opt::AbstractRule, n::Int)
+
+A wrapper for an optimisation rule which accumulates gradients over `n` steps before
+applying the rule. This is useful for training with batch sizes larger than the
+available memory.
+"""
+struct AccumGrad{R<:AbstractRule} <: AbstractRule
+  opt::R
+  n::Int
+  
+  function AccumGrad(opt::R, n::Int) where R<:AbstractRule
+    n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
+    return new{R}(opt, n)  
+  end
+end
+
+function init(o::AccumGrad, x)
+  return (zero(x), 0, init(o.opt, x))
+end
+
+function apply!(o::AccumGrad, state, x, dx)
+  accum_dx, counter, opt_state = state
+  counter += 1
+  @.. accum_dx = accum_dx + dx
+  if counter == o.n
+    opt_state, dx′ = apply!(o.opt, opt_state, x, accum_dx ./ o.n)
+    @.. accum_dx = zero(accum_dx)
+    counter = 0
+  else
+    dx′ = nothing
+  end
+  return (accum_dx, counter, opt_state), dx′
+end

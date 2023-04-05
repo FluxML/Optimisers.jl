@@ -96,6 +96,7 @@ function _update!(ℓ::Leaf, x; grads, params)
 end
 
 subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
+subtract!(x, x̄::Nothing) = x
 
 _grads!(dict::IdDict, ℓ::Leaf, x, ::Zero...) = nothing
 function _grads!(dict::IdDict, ℓ::Leaf, x, x̄s...)

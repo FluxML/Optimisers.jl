@@ -6,7 +6,7 @@ using LinearAlgebra
 include("interface.jl")
 export AbstractRule
 
-include("utils.jl")
+include("adjust.jl")
 
 include("destructure.jl")
 export destructure
@@ -14,7 +14,8 @@ export destructure
 include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
-       WeightDecay, ClipGrad, ClipNorm, OptimiserChain, Lion
+       WeightDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
+       AccumGrad
 
 ###
 ### one-array functions

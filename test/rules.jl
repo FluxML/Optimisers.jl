@@ -244,3 +244,27 @@ VERSION < v"1.9-" && @testset "using Yota" begin
     @test loss(w, w′) < 0.001
   end
 end
+
+@testset "AccumGrad" begin
+  x0 = rand(5)
+  x = copy(x0)
+  lr = 0.01
+  tree = Optimisers.setup(AccumGrad(Descent(lr), 3), x)
+
+  g1 = rand(5)
+  tree, x1 = Optimisers.update(tree, x, g1)
+  @test x1 ≈ x
+  @test x1 ≈ x0 
+  @test_broken x1 === x
+  g2 = rand(5)
+  tree, x2 = Optimisers.update(tree, x1, g2)
+  @test x2 ≈ x
+  @test x2 ≈ x0 
+  g3 = rand(5)
+  tree, x3 = Optimisers.update(tree, x2, g3)
+  @test x3 ≈ x0 .- lr .* (g1 .+ g2 .+ g3) ./ 3
+  g4 = rand(5)
+  
+  tree, x4 = Optimisers.update(tree, x3, g4)
+  @test x4 ≈ x3
+end
