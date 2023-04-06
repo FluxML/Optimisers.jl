@@ -630,7 +630,11 @@ With an empty sequence, `OptimiserChain()` is the identity,
 so `update!` will subtract the full gradient from the parameters.
 This is equivalent to `Descent(1)`.
 
+When `NoUpdate()` is returned by the `apply!` call for one of the optimisers, 
+it will prevent the following optimisers from being called.
+
 # Example
+
 ```jldoctest
 julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 
@@ -654,10 +658,14 @@ init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
   foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
-    state′, dx′ = apply!(opt, state, x, dx′, dxs...)
+    state′, dx′ = _apply_in_chain!(opt, state, x, dx′, dxs...)
     return (states′..., state′), dx′
   end
 end
+
+_apply_in_chain!(opt, state, x, dx′, dxs...) = apply!(opt, state, x, dx′, dxs...)
+_apply_in_chain!(opt, state, x, dx′::NoUpdate, dxs...) = state, NoUpdate()
+
 
 function Base.show(io::IO, c::OptimiserChain)
   print(io, "OptimiserChain(")
@@ -670,36 +678,37 @@ adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...
 
 
 """
-  AccumGrad(opt::AbstractRule, n::Int)
+  AccumGrad(n::Int)
 
-A wrapper for an optimisation rule which accumulates gradients over `n` steps before
-applying the rule. This is useful for training with batch sizes larger than the
-available memory.
+Accumulate gradients over `n` steps before applying the rule. 
+This is useful for training with batch sizes larger than the available memory.
 """
-struct AccumGrad{R<:AbstractRule} <: AbstractRule
-  opt::R
+struct AccumGrad <: AbstractRule
   n::Int
   
-  function AccumGrad(opt::R, n::Int) where R<:AbstractRule
+  function AccumGrad(n::Int)
     n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
-    return new{R}(opt, n)  
+    return new(n)  
   end
 end
 
 function init(o::AccumGrad, x)
-  return (zero(x), 0, init(o.opt, x))
+  return (zero(x), 0)
 end
 
 function apply!(o::AccumGrad, state, x, dx)
-  accum_dx, counter, opt_state = state
+  accum_dx, counter = state
+  if counter == 0
+    @.. accum_dx = zero(x)
+  end
   counter += 1
-  @.. accum_dx = accum_dx + dx
   if counter == o.n
-    opt_state, dx′ = apply!(o.opt, opt_state, x, accum_dx ./ o.n)
-    @.. accum_dx = zero(accum_dx)
+    @.. accum_dx = (accum_dx + dx) / o.n
+    dx′ = accum_dx
     counter = 0
   else
-    dx′ = nothing
+    @.. accum_dx = accum_dx + dx
+    dx′ = NoUpdate()
   end
-  return (accum_dx, counter, opt_state), dx′
+  return (accum_dx, counter), dx′
 end
