@@ -630,9 +630,6 @@ With an empty sequence, `OptimiserChain()` is the identity,
 so `update!` will subtract the full gradient from the parameters.
 This is equivalent to `Descent(1)`.
 
-When `NoUpdate()` is returned by the `apply!` call for one of the optimisers, 
-it will prevent the following optimisers from being called.
-
 # Example
 
 ```jldoctest
@@ -658,14 +655,13 @@ init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
   foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
-    state′, dx′ = _apply_in_chain!(opt, state, x, dx′, dxs...)
-    return (states′..., state′), dx′
+    if dx′ isa Zero
+      return (states′..., state), dx
+    else 
+      state′, dx′ = apply!(opt, state, x, dx′, dxs...)
+      return (states′..., state′), dx′
   end
 end
-
-_apply_in_chain!(opt, state, x, dx′, dxs...) = apply!(opt, state, x, dx′, dxs...)
-_apply_in_chain!(opt, state, x, dx′::NoUpdate, dxs...) = state, NoUpdate()
-
 
 function Base.show(io::IO, c::OptimiserChain)
   print(io, "OptimiserChain(")
@@ -693,22 +689,19 @@ struct AccumGrad <: AbstractRule
 end
 
 function init(o::AccumGrad, x)
-  return (zero(x), 0)
+  return (zero(x), 1)
 end
 
 function apply!(o::AccumGrad, state, x, dx)
   accum_dx, counter = state
-  if counter == 0
-    @.. accum_dx = zero(x)
+  if counter == 1
+    @.. accum_dx = zero(accum_dx)
   end
-  counter += 1
   if counter == o.n
     @.. accum_dx = (accum_dx + dx) / o.n
-    dx′ = accum_dx
-    counter = 0
+    return (accum_dx, 1), accum_dx
   else
     @.. accum_dx = accum_dx + dx
-    dx′ = NoUpdate()
+    return (accum_dx, counter + 1), nothing
   end
-  return (accum_dx, counter), dx′
 end
