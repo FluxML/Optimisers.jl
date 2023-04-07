@@ -499,6 +499,13 @@ y2z(x) = x
       end
     end  # 2nd-order
 
+    @testset "subtract! handles Zero" begin
+      x = rand(3)
+      y = Optimisers.subtract!(x, ChainRulesCore.ZeroTangent())
+      @test y === x
+      y = Optimisers.subtract!(x, nothing)
+      @test y === x
+    end
   end
   @testset verbose=true "Destructure" begin
     include("destructure.jl")

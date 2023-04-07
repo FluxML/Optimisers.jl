@@ -660,6 +660,7 @@ function apply!(o::OptimiserChain, states, x, dx, dxs...)
     else 
       state′, dx′ = apply!(opt, state, x, dx′, dxs...)
       return (states′..., state′), dx′
+    end
   end
 end
 
