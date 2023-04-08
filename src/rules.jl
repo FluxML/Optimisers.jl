@@ -655,8 +655,8 @@ init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
   foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
-    if dx isa Zero
-      return (states′..., state), dx
+    if dx′ isa Zero
+      return (states′..., state), dx′
     else 
       state′, dx′ = apply!(opt, state, x, dx′, dxs...)
       return (states′..., state′), dx′
