@@ -696,13 +696,13 @@ end
 function apply!(o::AccumGrad, state, x, dx)
   accum_dx, counter = state
   if counter == 1
-    @.. accum_dx = zero(accum_dx)
+    @.. accum_dx = dx / o.n
+  else
+    @.. accum_dx = accum_dx + dx / o.n
   end
   if counter == o.n
-    @.. accum_dx = (accum_dx + dx) / o.n
     return (accum_dx, 1), accum_dx
   else
-    @.. accum_dx = accum_dx + dx
     return (accum_dx, counter + 1), nothing
   end
 end
