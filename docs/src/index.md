@@ -45,13 +45,13 @@ image = rand(Float32, 224, 224, 3, 1) |> gpu;  # dummy data
 @show sum(model(image));  # dummy loss function
 
 rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
-state = Optimisers.setup(rule, model);  # initialise this optimiser's momentum etc.
+state_tree = Optimisers.setup(rule, model);  # initialise this optimiser's momentum etc.
 
 ∇model, _ = gradient(model, image) do m, x  # calculate the gradients
   sum(m(x))
 end;
 
-state, model = Optimisers.update(state, model, ∇model);
+state_tree, model = Optimisers.update(state_tree, model, ∇model);
 @show sum(model(image));  # reduced
 
 ```
@@ -60,7 +60,7 @@ Notice that a completely new instance of the model is returned. Internally, this
 is handled by [Functors.jl](https://fluxml.ai/Functors.jl), where we do a walk over the
 tree formed by the model and update the parameters using the gradients.
 
-There is also [`Optimisers.update!`](@ref) which similarly returns a new model and new state,
+There is also [`Optimisers.update!`](@ref) which similarly returns a new model,
 but is free to mutate arrays within the old one for efficiency.
 (The method of `apply!` above is likewise free to mutate arrays within its state;
 they are defensively copied when this rule is used with `update`.)
