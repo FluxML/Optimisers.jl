@@ -631,6 +631,7 @@ so `update!` will subtract the full gradient from the parameters.
 This is equivalent to `Descent(1)`.
 
 # Example
+
 ```jldoctest
 julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 
@@ -654,8 +655,12 @@ init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
   foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
-    state′, dx′ = apply!(opt, state, x, dx′, dxs...)
-    return (states′..., state′), dx′
+    if dx′ isa Zero
+      return (states′..., state), dx′
+    else 
+      state′, dx′ = apply!(opt, state, x, dx′, dxs...)
+      return (states′..., state′), dx′
+    end
   end
 end
 
@@ -667,3 +672,60 @@ end
 
 adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
 adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)
+
+
+"""
+  AccumGrad(n::Int)
+
+A rule constructed `OptimiserChain(AccumGrad(n), Rule())` will accumulate for `n` steps,
+before applying `Rule` to the mean of these `n` gradients.
+
+This is useful for training with effective batch sizes too large for the available memory.
+Instead of computing the gradient for batch size `b` at once, compute it for size `b/n` and
+accumulate `n` such gradients.
+
+# Example
+```jldoctest
+julia> m = (x=[1f0], y=[2f0]);
+
+julia> r = OptimiserChain(AccumGrad(2), WeightDecay(0.01), Descent(0.1));
+
+julia> s = Optimisers.setup(r, m);
+
+julia> Optimisers.update!(s, m, (x=[33], y=[0]));
+
+julia> m  # model not yet changed
+(x = Float32[1.0], y = Float32[2.0])
+
+julia> Optimisers.update!(s, m, (x=[0], y=[444]));
+
+julia> m  # n=2 gradients applied at once
+(x = Float32[-0.651], y = Float32[-20.202])
+```
+"""
+struct AccumGrad <: AbstractRule
+  n::Int
+  
+  function AccumGrad(n::Int)
+    n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
+    return new(n)  
+  end
+end
+
+function init(o::AccumGrad, x)
+  return (zero(x), 1)
+end
+
+function apply!(o::AccumGrad, state, x, dx)
+  accum_dx, counter = state
+  if counter == 1
+    @.. accum_dx = dx / o.n
+  else
+    @.. accum_dx = accum_dx + dx / o.n
+  end
+  if counter == o.n
+    return (accum_dx, 1), accum_dx
+  else
+    return (accum_dx, counter + 1), nothing
+  end
+end

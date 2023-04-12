@@ -144,4 +144,3 @@ function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
   end
   T(vals...)  # relies on having the default constructor
 end
-

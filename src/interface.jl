@@ -1,7 +1,8 @@
-
 using ChainRulesCore: canonicalize, backing, Tangent, AbstractZero, ZeroTangent
+
 base(dx::Tangent) = backing(canonicalize(dx))
 base(dx) = dx
+
 const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 
 abstract type AbstractRule end
@@ -96,6 +97,7 @@ function _update!(ℓ::Leaf, x; grads, params)
 end
 
 subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
+subtract!(x, x̄::Zero) = x
 
 _grads!(dict::IdDict, ℓ::Leaf, x, ::Zero...) = nothing
 function _grads!(dict::IdDict, ℓ::Leaf, x, x̄s...)
@@ -222,3 +224,4 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
+
