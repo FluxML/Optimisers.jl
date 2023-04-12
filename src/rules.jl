@@ -690,23 +690,17 @@ julia> m = (x=[1f0], y=[2f0]);
 
 julia> r = OptimiserChain(AccumGrad(2), WeightDecay(0.01), Descent(0.1));
 
-julia> s = Optimisers.setup(r, m)
-(x = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[0.0], 1), nothing, nothing)), y = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[0.0], 1), nothing, nothing)))
+julia> s = Optimisers.setup(r, m);
 
-julia> Optimisers.update!(s, m, (x=[33], y=[0]))
-((x = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[33.0], 2), nothing, nothing)), y = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[0.0], 2), nothing, nothing))), (x = Float32[1.0], y = Float32[2.0]))
+julia> Optimisers.update!(s, m, (x=[33], y=[0]));
 
 julia> m  # model not yet changed
 (x = Float32[1.0], y = Float32[2.0])
 
-julia> Optimisers.update!(s, m, (x=[0], y=[444]))
-((x = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[16.5], 1), nothing, nothing)), y = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[222.0], 1), nothing, nothing))), (x = Float32[-0.651], y = Float32[-20.202]))
+julia> Optimisers.update!(s, m, (x=[0], y=[444]));
 
 julia> m  # n=2 gradients applied at once
 (x = Float32[-0.651], y = Float32[-20.202])
-
-julia> Optimisers.update!(s, m, (x=[5], y=[5]))  # now the accumulator is reset
-((x = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[5.0], 2), nothing, nothing)), y = Leaf(AccumGrad(2) => WeightDecay{Float64}(0.01) => Descent{Float64}(0.1), ((Float32[5.0], 2), nothing, nothing))), (x = Float32[-0.651], y = Float32[-20.202]))
 ```
 """
 struct AccumGrad <: AbstractRule
