@@ -675,7 +675,7 @@ adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...
 
 
 """
-  AccumGrad(n::Int)
+    AccumGrad(n::Int)
 
 A rule constructed `OptimiserChain(AccumGrad(n), Rule())` will accumulate for `n` steps,
 before applying `Rule` to the mean of these `n` gradients.
