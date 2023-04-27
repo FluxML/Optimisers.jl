@@ -611,7 +611,7 @@ ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{float(typeof(ω))}(ω,
 init(o::ClipNorm, x::AbstractArray) = nothing
 
 function apply!(o::ClipNorm, state, x, dx)
-  nrm = norm(dx, o.p)
+  nrm = _norm(dx, o.p)
   if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
@@ -619,6 +619,48 @@ function apply!(o::ClipNorm, state, x, dx)
 
   return state, @lazy dx * λ
 end
+
+_norm(dx::AbstractArray, p::Real) = norm(dx, p)  # LinearAlgebra, CUDA
+function _norm(dx::Broadcast.Broadcasted, p::Real)
+  if p == 2
+    # This lacks the undeflow/overflow tests of LinearAlgebra's version
+    sqrt(sum(abs2, dx))
+  elseif p == 1
+    float(sum(abs, dx))
+  elseif p == Inf
+    float(maximum(abs, dx))
+  elseif p == 0
+    cnt = count(!iszero, dx)
+    T = Base.@default_eltype dx
+    T <: Number ? convert(float(T), cnt) : cnt
+  elseif p == -Inf
+    float(minimum(abs, dx))
+  else
+    # This isn't optimally fast but does ensure p::Float64 doesn't promote
+    tmp = abs.(dx)
+    q = convert(float(eltype(tmp)), p)
+    sum(tmp .^ q) ^ (1/q)
+  end
+end
+
+#=
+
+julia> using Metal
+
+julia> using Base.Broadcast: broadcasted, instantiate
+
+julia> bc = instantiate(broadcasted(+, MtlArray(rand(Float32, 3)), 1));
+
+julia> norm(bc)
+┌ Warning: Performing scalar indexing
+
+└ @ Metal ~/.julia/packages/Metal/TtPHW/src/compiler/compilation.jl:77
+ERROR: NSError: Undefined symbols:
+  llvm.maximum.f32, referenced from: _Z24partial_mapreduce_device8identity3max7Float323ValILi1024EES2_I22CartesianIndices__3___ES2_I22CartesianIndices__1___ES2_ILi1EES2_ILi1EES2_ILitrueEE14MtlDeviceArrayIS1_Li2ELi1EE11BroadcastedI13MtlArrayStyleILi1EE5TupleI5OneToI5Int64EE4normS6_IS4_IS5_ILi1EES6_IS7_IS8_EE1_S6_IS3_IS1_Li1ELi1EES8_EEEE
+
+julia> Metal.allowscalar(false)
+
+=#
 
 """
     OptimiserChain(opts...)
