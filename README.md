@@ -21,8 +21,8 @@
 
 Optimisers.jl defines many standard gradient-based optimisation rules, and tools for applying them to deeply nested models.
 
-This is the future of training for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
-and the present for [Lux.jl](https://github.com/avik-pal/Lux.jl).
+This was written as a new training back-end for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
+and is also used by [Lux.jl](https://github.com/avik-pal/Lux.jl).
 But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
 
 ## Installation
@@ -48,6 +48,12 @@ state_tree, model = Optimisers.update(opt_state, model, grad)  # at every step
 For models with deeply nested layers containing the parameters (like [Flux.jl](https://github.com/FluxML/Flux.jl) models),
 this `state_tree` is a similarly nested object. As is the gradient: if using Zygote, you must use the "explicit" style as shown,
 not the "implicit" one with `Params`.
+
+You can change the learning rate during training by mutating all the states:
+
+```julia
+Optimisers.adjust!(state_tree, 0.01)
+```
 
 The function `destructure` collects all the trainable parameters into one vector,
 and returns this along with a function to re-build a similar model:
