@@ -38,15 +38,15 @@ It is initialised by `setup`, and then at each step, `update` returns both the n
 state, and the model with its trainable parameters adjusted:
 
 ```julia
-opt_state = Optimisers.setup(Optimisers.Adam(), model)  # just once
+state_tree = Optimisers.setup(Optimisers.Adam(), model)  # just once
 
 grad = Zygote.gradient(m -> loss(m(x), y), model)[1]
 
-opt_state, model = Optimisers.update(opt_state, model, grad)  # at every step
+state_tree, model = Optimisers.update(opt_state, model, grad)  # at every step
 ```
 
 For models with deeply nested layers containing the parameters (like [Flux.jl](https://github.com/FluxML/Flux.jl) models),
-this `opt_state` is a similarly nested tree. As is the gradient: if using Zygote, you must use the "explicit" style as shown,
+this `state_tree` is a similarly nested object. As is the gradient: if using Zygote, you must use the "explicit" style as shown,
 not the "implicit" one with `Params`.
 
 The function `destructure` collects all the trainable parameters into one vector,
