@@ -90,7 +90,8 @@ y2z(x) = x
       _, m2 = Optimisers.update(s2, m, (α = ([0.1], nothing), γ = [1,10,100],))
       @test only(m.α[1] .- m2.α[1]) ≈ 0.1
       @test norm(m.γ .- m2.γ) ≈ 10
-      @test_throws DomainError Optimisers.update(s2, m, (α = [0.1], γ = [1,10,NaN],))
+      # This error is thrown by apply! due to NaN input.
+      @test_throws DomainError Optimisers.update(s2, m, (α = ([0.1], nothing), γ = [1,10,NaN],))
 
       s3 = Optimisers.setup(ClipNorm(5, 1; throw=false), m)
       _, m3 = Optimisers.update(s3, m, (α = ([0.1], nothing), γ = [1,10,100],))
