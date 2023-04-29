@@ -643,25 +643,6 @@ function _norm(dx::Broadcast.Broadcasted, p::Real)
   end
 end
 
-#=
-
-julia> using Metal
-
-julia> using Base.Broadcast: broadcasted, instantiate
-
-julia> bc = instantiate(broadcasted(+, MtlArray(rand(Float32, 3)), 1));
-
-julia> norm(bc)
-┌ Warning: Performing scalar indexing
-
-└ @ Metal ~/.julia/packages/Metal/TtPHW/src/compiler/compilation.jl:77
-ERROR: NSError: Undefined symbols:
-  llvm.maximum.f32, referenced from: _Z24partial_mapreduce_device8identity3max7Float323ValILi1024EES2_I22CartesianIndices__3___ES2_I22CartesianIndices__1___ES2_ILi1EES2_ILi1EES2_ILitrueEE14MtlDeviceArrayIS1_Li2ELi1EE11BroadcastedI13MtlArrayStyleILi1EE5TupleI5OneToI5Int64EE4normS6_IS4_IS5_ILi1EES6_IS7_IS8_EE1_S6_IS3_IS1_Li1ELi1EES8_EEEE
-
-julia> Metal.allowscalar(false)
-
-=#
-
 """
     OptimiserChain(opts...)
 
