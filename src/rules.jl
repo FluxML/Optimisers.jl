@@ -611,13 +611,36 @@ ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{float(typeof(ω))}(ω,
 init(o::ClipNorm, x::AbstractArray) = nothing
 
 function apply!(o::ClipNorm, state, x, dx)
-  nrm = norm(dx, o.p)
+  nrm = _norm(dx, o.p)
   if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
   λ = min(o.omega / nrm, 1)
 
   return state, @lazy dx * λ
+end
+
+_norm(dx::AbstractArray, p::Real) = norm(dx, p)  # LinearAlgebra, CUDA
+function _norm(dx::Broadcast.Broadcasted, p::Real)
+  if p == 2
+    # This lacks the undeflow/overflow tests of LinearAlgebra's version
+    sqrt(sum(abs2, dx))
+  elseif p == 1
+    float(sum(abs, dx))
+  elseif p == Inf
+    float(maximum(abs, dx))
+  elseif p == 0
+    cnt = count(!iszero, dx)
+    T = Base.@default_eltype dx
+    T <: Number ? convert(float(T), cnt) : cnt
+  elseif p == -Inf
+    float(minimum(abs, dx))
+  else
+    # This isn't optimally fast but does ensure p::Float64 doesn't promote
+    tmp = abs.(dx)
+    q = convert(float(eltype(tmp)), p)
+    sum(tmp .^ q) ^ (1/q)
+  end
 end
 
 """

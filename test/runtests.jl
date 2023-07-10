@@ -2,6 +2,7 @@ using Optimisers
 using ChainRulesCore, Functors, StaticArrays, Zygote, Yota
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
+using Base.Broadcast: broadcasted, instantiate, Broadcasted
 
 Random.seed!(1)
 
@@ -89,7 +90,8 @@ y2z(x) = x
       _, m2 = Optimisers.update(s2, m, (α = ([0.1], nothing), γ = [1,10,100],))
       @test only(m.α[1] .- m2.α[1]) ≈ 0.1
       @test norm(m.γ .- m2.γ) ≈ 10
-      @test_throws DomainError Optimisers.update(s2, m, (α = [0.1], γ = [1,10,NaN],))
+      # This error is thrown by apply! due to NaN input.
+      @test_throws DomainError Optimisers.update(s2, m, (α = ([0.1], nothing), γ = [1,10,NaN],))
 
       s3 = Optimisers.setup(ClipNorm(5, 1; throw=false), m)
       _, m3 = Optimisers.update(s3, m, (α = ([0.1], nothing), γ = [1,10,100],))
@@ -505,6 +507,19 @@ y2z(x) = x
       @test y === x
       y = Optimisers.subtract!(x, nothing)
       @test y === x
+    end
+
+    @testset "_norm(dx, p) works" begin
+      bc = instantiate(broadcasted(+, randn(Float32, 10), randn(Float32, 10)'));
+      arr = collect(bc)
+      bc2 = instantiate(broadcasted(+, [1, 0, -3, 4], 0))
+      arr2 = collect(bc2)
+      for p in (-Inf, -3, -1, 0, 0.5, 1, 1.5, 2, 3f0, Inf32)
+        @test Optimisers._norm(bc, p) ≈ norm(arr, p)
+        @test Optimisers._norm(bc, p) isa Float32
+        @test Optimisers._norm(bc2, p) ≈ norm(arr2, p)
+        @test Optimisers._norm(bc2, p) isa Float64
+      end
     end
   end
   @testset verbose=true "Destructure" begin
