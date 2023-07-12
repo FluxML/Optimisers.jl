@@ -8,7 +8,7 @@ RULES = [
   # All the rules at default settings:
   Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
-  AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
+  AdamW(), RAdam(), OAdam(), AdaBelief(), PAdam(), Lion(),
   # A few chained combinations:
   OptimiserChain(WeightDecay(), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
