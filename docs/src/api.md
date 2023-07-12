@@ -17,6 +17,7 @@ Optimisers.AMSGrad
 Optimisers.NAdam
 Optimisers.AdamW
 Optimisers.AdaBelief
+Optimisers.PAdam
 ```
 
 In addition to the main course, you may wish to order some of these condiments:
