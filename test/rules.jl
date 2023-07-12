@@ -8,7 +8,7 @@ RULES = [
   # All the rules at default settings:
   Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
-  AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
+  AdamW(), RAdam(), OAdam(), AdaBelief(), PAdam(), Lion(),
   # A few chained combinations:
   OptimiserChain(WeightDecay(), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
@@ -181,7 +181,7 @@ end
   empty!(LOG)
   @testset "$(name(opt))" for opt in [
               # The Flux PR had 1e-2 for all. But AdaDelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
-              Adam(1e-2), RMSProp(1e-2), RAdam(1e-2), OAdam(1e-2), AdaGrad(1e-2), AdaDelta(0.9, 1e-5), NAdam(1e-2), AdaBelief(1e-2),
+              Adam(1e-2), RMSProp(1e-2), RAdam(1e-2), OAdam(1e-2), AdaGrad(1e-2), AdaDelta(0.9, 1e-5), NAdam(1e-2), AdaBelief(1e-2), PAdam(1e-2)
               # These weren't in Flux PR:
               Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), AdamW(1e-2), 
               ]
