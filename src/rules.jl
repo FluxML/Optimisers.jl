@@ -70,7 +70,7 @@ Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 struct Nesterov <: AbstractRule
   eta::Float64
   rho::Float64
-  Nesterov(η = 1e-3, ρ = 9e-1) = Nesterov(nonneg(η), ρ)
+  Nesterov(η = 1e-3, ρ = 9e-1) = new(nonneg(η), ρ)
 end
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
