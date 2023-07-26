@@ -752,3 +752,25 @@ function apply!(o::AccumGrad, state, x, dx)
     return (accum_dx, counter + 1), nothing
   end
 end
+
+struct MixedPrecision{T<:Number, O<:AbstractRule} <: AbstractRule
+  opt::O
+end
+
+MixedPrecision(opt::AbstractRule) = MixedPrecision{Float32, typeof(opt)}(opt)
+MixedPrecision{T}(opt::AbstractRule) where T = MixedPrecision{T, typeof(opt)}(opt)
+
+to_precision(::Type{T}, x::AbstractArray) where T = convert(AbstractArray{T}, x)
+
+function init(o::MixedPrecision{T}, x) where T
+  xT = to_precision(T, x)
+  return (xT, init(o.opt, xT))
+end
+
+function apply!(o::MixedPrecision{T}, state, x, dx) where T
+  xT, st = state
+  st′, dx′ = apply!(o.opt, st, xT, dx)
+  subtract!(xT, dx′)
+  @. x = xT
+  return (xT, st′), nothing
+end

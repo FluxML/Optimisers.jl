@@ -15,7 +15,7 @@ include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
-       AccumGrad
+       AccumGrad, MixedPrecision
 
 ###
 ### one-array functions
