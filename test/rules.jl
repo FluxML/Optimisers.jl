@@ -9,6 +9,7 @@ RULES = [
   Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
   AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
+  MixedPrecision{Float64}(Adam()),
   # A few chained combinations:
   OptimiserChain(SignDecay(0.001), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
@@ -261,4 +262,20 @@ end
   os = Optimisers.setup(Adam(1e-4), x);
   os, x = Optimisers.update(os, x, δx)
   @test x ≈ Float16[1.835, -0.886, 0.5493] rtol=1e-3
+end
+
+@testset "MixedPrecision" begin
+  x = rand(Float16, 2)
+  opt_state = Optimisers.setup(MixedPrecision(Adam(1e-3)), x)
+  @test opt_state.state[1] isa Vector{Float32}
+  @test opt_state.state[2][1] isa Vector{Float32}
+  g = rand(Float16, 2)
+  new_state, new_x = Optimisers.update(opt_state, x, rand(Float16, 2))
+  @test new_x == Float16.(new_state.state[1])
+  @test new_x ≈ x .- 1e-3 .* g
+
+  x = rand(Float16, 2)
+  opt_state = Optimisers.setup(MixedPrecision{Float64}(Adam(1e-3)), x)
+  @test opt_state.state[1] isa Vector{Float64}
+  @test opt_state.state[2][1] isa Vector{Float64}  
 end

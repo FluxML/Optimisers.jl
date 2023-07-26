@@ -24,7 +24,7 @@ include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, SignDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
-       AccumGrad
+       AccumGrad, MixedPrecision
 
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public apply!, init, setup, update, update!"))
 
