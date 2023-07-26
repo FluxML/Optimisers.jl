@@ -795,17 +795,20 @@ end
 MixedPrecision(opt::AbstractRule) = MixedPrecision{Float32, typeof(opt)}(opt)
 MixedPrecision{T}(opt::AbstractRule) where T = MixedPrecision{T, typeof(opt)}(opt)
 
-to_precision(::Type{T}, x::AbstractArray) where T = convert(AbstractArray{T}, x)
-
-function init(o::MixedPrecision{T}, x) where T
-  xT = to_precision(T, x)
+function init(o::MixedPrecision{T}, x::AbstractArray) where T
+  xT = T.(x)
   return (xT, init(o.opt, xT))
 end
 
 function apply!(o::MixedPrecision{T}, state, x, dx) where T
   xT, st = state
   st′, dx′ = apply!(o.opt, st, xT, dx)
-  subtract!(xT, dx′)
-  @. x = xT
-  return (xT, st′), nothing
+  xT = subtract!(xT, dx′)
+  if maywrite(x)
+    x .= xT
+    dx′ = nothing
+  else
+    dx′ = x .- eltype(x).(xT)
+  end
+  return (xT, st′), dx′
 end
