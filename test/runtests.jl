@@ -246,17 +246,17 @@ y2z(x) = x
       # OptimiserChain
       sc = Optimisers.setup(OptimiserChain(ClipGrad(2), Adam()), m)
       sc1, mc1 = Optimisers.update(sc, m, (α = nothing, γ = [1,10,100],))
-      @test sc1.γ.rule.opts[2].eta == 0.001f0
+      @test sc1.γ.rule.opts[2].eta == 0.001
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
 
       sc2 = Optimisers.adjust(sc1, 0.2)
       @test sc2.γ.rule.opts[1].delta == 2 # unchanged
-      @test sc2.γ.rule.opts[2].eta === 0.2f0
+      @test sc2.γ.rule.opts[2].eta == 0.2
       @test sc2.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
 
       sc2 = Optimisers.adjust(sc1; delta = 2.5)  # ClipGrad(2) does not store an Int, for this reason
       @test sc2.γ.rule.opts[1].delta == 2.5
-      @test sc2.γ.rule.opts[2].eta === 0.001f0 # unchanged
+      @test sc2.γ.rule.opts[2].eta == 0.001 # unchanged
       @test sc2.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
@@ -295,12 +295,12 @@ y2z(x) = x
 
       Optimisers.adjust!(sc1, 0.2)
       @test sc1.γ.rule.opts[1].delta == 2 # unchanged
-      @test sc1.γ.rule.opts[2].eta === 0.2f0
+      @test sc1.γ.rule.opts[2].eta == 0.2
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
 
       Optimisers.adjust!(sc1; delta = 2.5)  # ClipGrad(2) does not store an Int, for this reason
       @test sc1.γ.rule.opts[1].delta == 2.5
-      @test sc1.γ.rule.opts[2].eta === 0.2f0 # unchanged
+      @test sc1.γ.rule.opts[2].eta == 0.2 # unchanged
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
