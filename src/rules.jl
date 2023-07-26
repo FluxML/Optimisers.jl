@@ -792,6 +792,8 @@ struct MixedPrecision{T<:Number, O<:AbstractRule} <: AbstractRule
   opt::O
 end
 
+@functor MixedPrecision
+
 MixedPrecision(opt::AbstractRule) = MixedPrecision{Float32, typeof(opt)}(opt)
 MixedPrecision{T}(opt::AbstractRule) where T = MixedPrecision{T, typeof(opt)}(opt)
 
@@ -812,3 +814,6 @@ function apply!(o::MixedPrecision{T}, state, x, dx) where T
   end
   return (xT, st′), dx′
 end
+
+adjust(o::MixedPrecision, eta::Real) = MixedPrecision(adjust(o.opt, eta))
+adjust(o::MixedPrecision; kw...) = MixedPrecision(adjust(o.opt; kw...))

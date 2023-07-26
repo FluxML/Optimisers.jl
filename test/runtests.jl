@@ -302,6 +302,20 @@ y2z(x) = x
       @test sc1.γ.rule.opts[1].delta == 2.5
       @test sc1.γ.rule.opts[2].eta === 0.2f0 # unchanged
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
+
+      # MixedPrecision
+      mp = Optimisers.setup(MixedPrecision(Momentum(0.1, 0.9)), m)
+      mp1, mp2 = Optimisers.update(mp, m, (α = nothing, γ = [1,10,100],))
+      @test mp1.γ.rule.opt.eta == 0.1
+      @test mp1.γ.state[2] ≈ [0.1, 1, 10]
+
+      Optimisers.adjust!(mp1, 0.2)
+      @test mp1.γ.rule.opt.eta == 0.2
+      @test mp1.γ.rule.opt.rho == 0.9
+
+      Optimisers.adjust!(mp1; eta=0.3, rho=0.7)
+      @test mp1.γ.rule.opt.eta == 0.3
+      @test mp1.γ.rule.opt.rho == 0.7
     end
 
     @testset "freeze/thaw" begin
