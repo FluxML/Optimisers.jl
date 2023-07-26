@@ -214,7 +214,7 @@ function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    Lion(η = 0.001, β::Tuple = (0.9, 0.999))
+    Lion(η = 0.001, β = (0.9, 0.999))
 
 [Lion](https://arxiv.org/abs/2302.06675) optimiser.
 
@@ -223,16 +223,14 @@ end
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
 """
-struct Lion{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T,T}
+@def struct Lion <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
 end
-Lion(η = 1f-3, β = (9f-1, 9.99f-1)) = Lion{typeof(η)}(η, β)
 
 init(o::Lion, x::AbstractArray) = zero(x)
 
-function apply!(o::Lion, state, x, dx)
-  T = eltype(state)
+function apply!(o::Lion, state, x::AbstractArray{T}, dx) where T
   η, β = T(o.eta), T.(o.beta)
 
   @.. state = β[2] * dx + (1-β[2]) * state
@@ -245,7 +243,7 @@ function apply!(o::Lion, state, x, dx)
 end
 
 """
-    RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    RAdam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
 
 [Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
 
@@ -257,18 +255,17 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct RAdam{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+@def struct RAdam <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
+  epsilon = 1e-8
 end
-RAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = RAdam{typeof(η)}(η, β, ϵ)
 
 init(o::RAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
-function apply!(o::RAdam, state, x, dx)
-  η, β, ϵ = o.eta, o.beta, o.epsilon
-  ρ∞ = 2/(1-β[2])-1
+function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  ρ∞ = 2/(1-β[2]) - 1
 
   mt, vt, βt, t = state
 
@@ -542,7 +539,7 @@ function apply!(o::AdaBelief, state, x, dx)
 end
 
 """
-    WeightDecay(γ = 5f-4)
+    WeightDecay(γ = 5e-4)
 
 Decay weights by ``γ``, that is, add `γ .* x` to the gradient `x̄` which will be
 subtracted from `x`.
@@ -553,35 +550,34 @@ This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to t
 # Parameters
 - Weight decay (`γ`): Decay applied to weights during optimisation.
 """
-struct WeightDecay{T} <: AbstractRule
-  gamma::T
+@def struct WeightDecay <: AbstractRule
+  gamma = 5e-4
 end
-WeightDecay() = WeightDecay(5f-4)
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
-function apply!(o::WeightDecay, state, x, dx)
-  dx′ = @lazy dx + o.gamma * x
+function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
+  γ = T(o.gamma)
+  dx′ = @lazy dx + γ * x
 
   return state, dx′
 end
 
 """
-    ClipGrad(δ = 10f0)
+    ClipGrad(δ = 10)
 
 Restricts every gradient component to obey `-δ ≤ dx[i] ≤ δ`.
 
 See also [`ClipNorm`](@ref).
 """
-struct ClipGrad{T<:Real} <: AbstractRule
-  delta::T
+@def struct ClipGrad <: AbstractRule
+  delta = 10.0
 end
-ClipGrad(δ::Integer = 10) = ClipGrad(Float32(δ))  # float is to ensure adjust can change this
 
 init(o::ClipGrad, x::AbstractArray) = nothing
 
-function apply!(o::ClipGrad, state, x, dx)
-  δ = convert(float(eltype(x)), o.delta)
+function apply!(o::ClipGrad, state, x::AbstractArray{T}, dx) where T
+  δ = T(o.delta)
   dx′ = @lazy clamp(dx, -δ, δ)
 
   return state, dx′
@@ -598,21 +594,21 @@ which you can turn off with `throw = false`.
 
 See also [`ClipGrad`](@ref).
 """
-struct ClipNorm{T<:Real} <: AbstractRule
-  omega::T
-  p::T
+struct ClipNorm <: AbstractRule
+  omega::Float64
+  p::Float64
   throw::Bool
 end
-ClipNorm(ω = 10f0, p = 2; throw::Bool = true) = ClipNorm{float(typeof(ω))}(ω, p, throw)
+ClipNorm(ω = 10, p = 2; throw::Bool = true) = ClipNorm(ω, p, throw)
 
 init(o::ClipNorm, x::AbstractArray) = nothing
 
-function apply!(o::ClipNorm, state, x, dx)
+function apply!(o::ClipNorm, state, x::AbstractArray{T}, dx) where T
   nrm = _norm(dx, o.p)
   if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
-  λ = min(o.omega / nrm, 1)
+  λ = T(min(o.omega / nrm, 1))
 
   return state, @lazy dx * λ
 end
