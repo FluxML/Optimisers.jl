@@ -171,7 +171,7 @@ init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 function apply!(o::Rprop, state, x, dx)
     g, η = state
     T = eltype(g)
-    ℓ, Γ = T(o.ell), T.(o.gamma)
+    ℓ, Γ = T.(o.ell), T.(o.gamma)
   
     η = broadcast(g, η, dx) do g, η, dx
         g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
