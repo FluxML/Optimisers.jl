@@ -30,7 +30,7 @@ function apply!(o::Descent, state, x, dx)
 end
 
 """
-    Momentum(η = 1f-2, ρ = 9f-1)
+    Momentum(η = 0.01, ρ = 0.9)
 
 Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
@@ -40,11 +40,11 @@ Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
-struct Momentum{T} <: AbstractRule
-  eta::T
-  rho::T
+struct Momentum <: AbstractRule
+  eta::Float64
+  rho::Float64
+  Momentum(η = 0.01, ρ = 0.9) = new(nonneg(η), ρ)
 end
-Momentum(η = 1f-2, ρ = 9f-1) = Momentum{typeof(η)}(η, ρ)
 
 init(o::Momentum, x::AbstractArray) = zero(x)
 
@@ -57,7 +57,7 @@ function apply!(o::Momentum, mvel, x, dx)
 end
 
 """
-    Nesterov(η = 1f-3, ρ = 9f-1)
+    Nesterov(η = 0.001, ρ = 0.9)
 
 Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 
@@ -67,11 +67,11 @@ Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
                            prominent direction, in effect dampening oscillations.
 """
-struct Nesterov{T} <: AbstractRule
-  eta::T
-  rho::T
+struct Nesterov <: AbstractRule
+  eta::Float64
+  rho::Float64
+  Nesterov(η = 1e-3, ρ = 9e-1) = Nesterov(nonneg(η), ρ)
 end
-Nesterov(η = 1f-3, ρ = 9f-1) = Nesterov{typeof(η)}(η, ρ)
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
@@ -86,7 +86,7 @@ function apply!(o::Nesterov, vel, x, dx)
 end
 
 """
-    RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centred = false)
+    RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-7; centred = false)
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -106,15 +106,14 @@ gradients by an estimate their variance, instead of their second moment.
 - Keyword `centred` (or `centered`): Indicates whether to use centred variant
                                      of the algorithm.
 """
-struct RMSProp{T} <: AbstractRule
-  eta::T
-  rho::T
-  epsilon::T
+struct RMSProp <: AbstractRule
+  eta::Float64
+  rho::Float64
+  epsilon::Float64
   centred::Bool
+  RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-7; centred::Bool = false, centered::Bool = false) =
+    new(nonneg(η), ρ, ϵ, centred | centered)
 end
-
-RMSProp(η = 1f-3, ρ = 9f-1, ϵ = eps(typeof(η)); centred::Bool = false, centered::Bool = false) =
-  RMSProp{typeof(η)}(η, ρ, ϵ, centred | centered)
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
@@ -138,8 +137,7 @@ function adjust(r::RMSProp; kw...)
 end
 
 function Base.show(io::IO, o::RMSProp)
-  show(io, typeof(o))
-  print(io, "(")
+  print(io, "RMSProp(")
   join(io, [o.eta, o.rho, o.epsilon], ", ")
   print(io, "; centred = ", o.centred, ")")
 end
@@ -199,12 +197,12 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct Adam{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+struct Adam <: AbstractRule
+  eta::Float64
+  beta::Tuple{Float64, Float64}
+  epsilon::Float64
+  Adam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-7) = new(nonneg(η), β, ϵ)
 end
-Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = Adam{typeof(η)}(η, β, ϵ)
 
 init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 

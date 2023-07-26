@@ -225,3 +225,4 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 
+nonneg(η::Real) = η < 0 ? throw(DomainError(η, "the learning rate cannot be negative")) : η
