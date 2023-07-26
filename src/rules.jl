@@ -47,8 +47,7 @@ end
 
 init(o::Momentum, x::AbstractArray) = zero(x)
 
-function apply!(o::Momentum, mvel, x, dx)
-  T = eltype(mvel)
+function apply!(o::Momentum, mvel, x::AbstractArray{T}, dx) where T
   η, ρ = T(o.eta), T(o.rho)
   @.. mvel = ρ * mvel + η * dx  # Macro @.. broadcasts into mvel if it can, else @. of rhs.
 
@@ -73,8 +72,7 @@ end
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
-function apply!(o::Nesterov, vel, x, dx)
-  T = eltype(vel)
+function apply!(o::Nesterov, vel, x::AbstractArray{T}, dx) where T
   η, ρ = T(o.eta), T(o.rho)
 
   newdx = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
@@ -118,10 +116,9 @@ end
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
-function apply!(o::RMSProp, state, x, dx)
-  quad, lin = state
-  T = eltype(quad)
+function apply!(o::RMSProp, state, x::AbstractArray{T}, dx) where T
   η, ρ, ϵ = T(o.eta), T(o.rho), T(o.epsilon)
+  quad, lin = state
 
   @.. quad = ρ * quad + (1 - ρ) * abs2(dx)
   if o.centred
@@ -169,10 +166,9 @@ Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η,
 
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
-function apply!(o::Rprop, state, x, dx)
-    g, η = state
-    T = eltype(g)
+function apply!(o::Rprop, state, x::AbstractArray{T}, dx) where T
     ℓ, Γ = T.(o.ell), T.(o.gamma)
+    g, η = state
   
     η = broadcast(g, η, dx) do g, η, dx
         g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
@@ -206,10 +202,9 @@ end
 
 init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
-function apply!(o::Adam, state, x, dx)
-  mt, vt, βt = state
-  T = eltype(mt)
+function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
