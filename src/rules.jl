@@ -40,10 +40,9 @@ Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 - Momentum (`ρ`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
-struct Momentum <: AbstractRule
-  eta::Float64
-  rho::Float64
-  Momentum(η = 0.01, ρ = 0.9) = new(nonneg(η), ρ)
+@def struct Momentum <: AbstractRule
+  eta = 0.01
+  rho = 0.9
 end
 
 init(o::Momentum, x::AbstractArray) = zero(x)
@@ -67,10 +66,9 @@ Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 - Nesterov momentum (`ρ`): Controls the acceleration of gradient descent in the
                            prominent direction, in effect dampening oscillations.
 """
-struct Nesterov <: AbstractRule
-  eta::Float64
-  rho::Float64
-  Nesterov(η = 1e-3, ρ = 9e-1) = new(nonneg(η), ρ)
+@def struct Nesterov <: AbstractRule
+  eta = 0.001
+  rho = 0.9
 end
 
 init(o::Nesterov, x::AbstractArray) = zero(x)
@@ -111,8 +109,11 @@ struct RMSProp <: AbstractRule
   rho::Float64
   epsilon::Float64
   centred::Bool
-  RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false) =
-    new(nonneg(η), ρ, ϵ, centred | centered)
+end
+
+function RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
+  η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
+  RMSProp(η, ρ, ϵ, centred | centered)
 end
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
@@ -197,11 +198,10 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct Adam <: AbstractRule
-  eta::Float64
-  beta::Tuple{Float64, Float64}
-  epsilon::Float64
-  Adam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8) = new(nonneg(η), β, ϵ)
+@def struct Adam <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
+  epsilon = 1e-8
 end
 
 init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
