@@ -86,7 +86,7 @@ function apply!(o::Nesterov, vel, x, dx)
 end
 
 """
-    RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-7; centred = false)
+    RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred = false)
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -111,7 +111,7 @@ struct RMSProp <: AbstractRule
   rho::Float64
   epsilon::Float64
   centred::Bool
-  RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-7; centred::Bool = false, centered::Bool = false) =
+  RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false) =
     new(nonneg(η), ρ, ϵ, centred | centered)
 end
 
@@ -185,7 +185,7 @@ function apply!(o::Rprop, state, x, dx)
 end
 
 """
-    Adam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    Adam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
 
 [Adam](https://arxiv.org/abs/1412.6980) optimiser.
 
@@ -201,7 +201,7 @@ struct Adam <: AbstractRule
   eta::Float64
   beta::Tuple{Float64, Float64}
   epsilon::Float64
-  Adam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-7) = new(nonneg(η), β, ϵ)
+  Adam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8) = new(nonneg(η), β, ϵ)
 end
 
 init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
@@ -495,7 +495,7 @@ function apply!(o::NAdam, state, x, dx)
 end
 
 """
-    AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η)))
+    AdamW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = 1e-8)
 
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
@@ -509,8 +509,8 @@ weight decay regularization.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-AdamW(η = 1f-3, β = (9f-1, 9.99f-1), γ = 0, ϵ = eps(typeof(η))) =
-  OptimiserChain(Adam{typeof(η)}(η, β, ϵ), WeightDecay{typeof(η)}(γ))
+AdamW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = 1e-8) =
+  OptimiserChain(Adam(η, β, ϵ), WeightDecay(γ))
 
 """
     AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1e-16)
