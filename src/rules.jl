@@ -753,6 +753,41 @@ function apply!(o::AccumGrad, state, x, dx)
   end
 end
 
+"""
+    MixedPrecision(opt)
+    MixedPrecision{T}(opt)
+
+An optimiser that wraps another optimiser `opt` in order to perform mixed precision
+training [1]. 
+
+The state of `MixedPrecision` will contain a copy in precision `T` of the trainable parameter `x`, 
+call it `xT`. 
+The internal state of `opt` also operates at precision `T`.
+If `T` is not specified, it defaults to `Float32`.
+
+Call `g` the gradient of `x`. Both `g` and `x` are typically in a precision lower than `T`
+(e.g. `Float16`).
+
+In the `update!(opt_state, x, g)` call, `opt` is used to update `xT` instead of `x`, 
+then `x` is updated with the value of `xT`. 
+
+[1] Micikevicius et al. '17, "Mixed Precision Training", https://arxiv.org/abs/1710.03740 .
+
+# Examples
+
+```julia
+x = rand(Float16, 2) # a trainable parameter in low precision
+
+opt = MixedPrecision(Adam(1e-3)) 
+opt_state = Optimisers.setup(opt, x) # the state contains a copy of x in Float32 precision
+
+g = rand(Float16, 2) # a gradient in low precision
+
+# accumulation is performed in high precision,
+# then also the low precision x is synced
+Optimisers.update!(opt_state, x, g)  
+```
+"""
 struct MixedPrecision{T<:Number, O<:AbstractRule} <: AbstractRule
   opt::O
 end
