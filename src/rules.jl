@@ -265,13 +265,13 @@ init(o::RAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
 
 function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
-  ρ∞ = 2/(1-β[2]) - 1
+  ρ∞ = 2/(1-β[2]) - 1 |> real
 
   mt, vt, βt, t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
-  ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2])
+  ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2]) |> real
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
     dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
@@ -283,7 +283,7 @@ function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    AdaMax(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
 
 [AdaMax](https://arxiv.org/abs/1412.6980) is a variant of Adam based on the ∞-norm.
 
@@ -295,17 +295,16 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaMax{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+@def struct AdaMax{T} <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
+  epsilon = 1e-8
 end
-AdaMax(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AdaMax{typeof(η)}(η, β, ϵ)
 
 init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
-function apply!(o::AdaMax, state, x, dx)
-  η, β, ϵ = o.eta, o.beta, o.epsilon
+function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
   mt, ut, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -316,7 +315,7 @@ function apply!(o::AdaMax, state, x, dx)
 end
 
 """
-    OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η)))
+    OAdam(η = 0.001, β = (0.5, 0.9), ϵ = 1e-8)
 
 [OAdam](https://arxiv.org/abs/1711.00141) (Optimistic Adam)
 is a variant of Adam adding an "optimistic" term suitable for adversarial training.
@@ -329,17 +328,16 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct OAdam{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+@def struct OAdam{T} <: AbstractRule
+  eta = 0.001
+  beta = (0.5, 0.9)
+  epsilon = 1e-8
 end
-OAdam(η = 1f-3, β = (5f-1, 9f-1), ϵ = eps(typeof(η))) = OAdam{typeof(η)}(η, β, ϵ)
 
 init(o::OAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
 
-function apply!(o::OAdam, state, x, dx)
-  η, β, ϵ = o.eta, o.beta, o.epsilon
+function apply!(o::OAdam, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
   mt, vt, βt, term = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -352,7 +350,7 @@ function apply!(o::OAdam, state, x, dx)
 end
 
 """
-    AdaGrad(η = 1f-1, ϵ = eps(typeof(η)))
+    AdaGrad(η = 0.1, ϵ = 1e-8)
 
 [AdaGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) optimizer. It has
 parameter specific learning rates based on how frequently it is updated.
@@ -364,16 +362,15 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaGrad{T} <: AbstractRule
-  eta::T
-  epsilon::T
+@def struct AdaGrad <: AbstractRule
+  eta = 0.1
+  epsilon = 1e-8
 end
-AdaGrad(η = 1f-1, ϵ = eps(typeof(η))) = AdaGrad{typeof(η)}(η, ϵ)
 
 init(o::AdaGrad, x::AbstractArray) = onevalue(o.epsilon, x)
 
-function apply!(o::AdaGrad, state, x, dx)
-  η, ϵ = o.eta, o.epsilon
+function apply!(o::AdaGrad, state, x::AbstractArray{T}, dx) where T
+  η, ϵ = T(o.eta), T(o.epsilon)
   acc = state
 
   @.. acc = acc + abs2(dx)
@@ -383,7 +380,7 @@ function apply!(o::AdaGrad, state, x, dx)
 end
 
 """
-    AdaDelta(ρ = 9f-1, ϵ = eps(typeof(ρ)))
+    AdaDelta(ρ = 0.9, ϵ = 1e-8)
 
 [AdaDelta](https://arxiv.org/abs/1212.5701) is a version of AdaGrad adapting its learning
 rate based on a window of past gradient updates.
@@ -394,16 +391,15 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AdaDelta{T} <: AbstractRule
-  rho::T
-  epsilon::T
+@def struct AdaDelta{T} <: AbstractRule
+  rho = 0.9
+  epsilon = 1e-8
 end
-AdaDelta(ρ = 9f-1, ϵ = eps(typeof(ρ))) = AdaDelta{typeof(ρ)}(ρ, ϵ)
 
 init(o::AdaDelta, x::AbstractArray) = (zero(x), zero(x))
 
-function apply!(o::AdaDelta, state, x, dx)
-  ρ, ϵ = o.rho, o.epsilon
+function apply!(o::AdaDelta, state, x::AbstractArray{T}, dx) where T
+  ρ, ϵ = T(o.rho), T(o.epsilon)
   acc, Δacc = state
 
   @.. acc = ρ * acc + (1 - ρ) * abs2(dx)
@@ -415,7 +411,7 @@ function apply!(o::AdaDelta, state, x, dx)
 end
 
 """
-    AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    AMSGrad(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
 
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
@@ -428,18 +424,18 @@ optimiser. Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct AMSGrad{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+@def struct AMSGrad{T} <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
+  epsilon = 1e-8
 end
 AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad{typeof(η)}(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
   (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
 
-function apply!(o::AMSGrad, state, x, dx)
-  η, β, ϵ = o.eta, o.beta, o.epsilon
+function apply!(o::AMSGrad, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
   mt, vt, v̂t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -451,7 +447,7 @@ function apply!(o::AMSGrad, state, x, dx)
 end
 
 """
-    NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η)))
+    NAdam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
 
 [NAdam](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of Adam.
 Parameters don't need tuning.
@@ -464,17 +460,16 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-struct NAdam{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+@def struct NAdam{T} <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
+  epsilon = 1e-8
 end
-NAdam(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = NAdam{typeof(η)}(η, β, ϵ)
 
 init(o::NAdam, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
-function apply!(o::NAdam, state, x, dx)
-  η, β, ϵ = o.eta, o.beta, o.epsilon
+function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
 
   mt, vt, βt = state
 
@@ -505,7 +500,7 @@ AdamW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = 1e-8) =
   OptimiserChain(Adam(η, β, ϵ), WeightDecay(γ))
 
 """
-    AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = 1e-16)
+    AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
 
 The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the well-known
 Adam optimiser.
@@ -518,17 +513,16 @@ Adam optimiser.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-struct AdaBelief{T} <: AbstractRule
-  eta::T
-  beta::Tuple{T, T}
-  epsilon::T
+@def struct AdaBelief{T} <: AbstractRule
+  eta = 0.001
+  beta = (0.9, 0.999)
+  epsilon = 1e-16
 end
-AdaBelief(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = oftype(η, 1e-16)) = AdaBelief{typeof(η)}(η, β, ϵ)
 
 init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x), o.beta)
 
-function apply!(o::AdaBelief, state, x, dx)
-  η, β, ϵ = o.eta, o.beta, o.epsilon
+function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
   mt, st, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -584,7 +578,7 @@ function apply!(o::ClipGrad, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    ClipNorm(ω = 10f0, p = 2; throw = true)
+    ClipNorm(ω = 10, p = 2; throw = true)
 
 Scales any gradient array for which `norm(dx, p) > ω`
 to stay at this threshold (unless `p==0`).
