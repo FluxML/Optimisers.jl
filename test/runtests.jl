@@ -1,5 +1,5 @@
 using Optimisers
-using ChainRulesCore, Functors, StaticArrays, Zygote, Yota
+using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
 using Base.Broadcast: broadcasted, instantiate, Broadcasted
@@ -38,12 +38,15 @@ function Optimisers.apply!(o::BiRule, state, x, dx, dx2)
   return state, dx
 end
 
-# Make Yota's output look like Zygote's:
-
-Yota_gradient(f, xs...) = map(y2z, Base.tail(Yota.grad(f, xs...)[2]))
-y2z(::AbstractZero) = nothing  # we don't care about different flavours of zero
-y2z(t::Tangent) = map(y2z, ChainRulesCore.backing(canonicalize(t)))  # namedtuples!
-y2z(x) = x
+@static if VERSION <= v"1.10-"
+  # In July 2023, Yota works on 1.9 but not nightly (1.11)
+  using Yota
+  # Make Yota's output look like Zygote's:
+  Yota_gradient(f, xs...) = map(y2z, Base.tail(Yota.grad(f, xs...)[2]))
+  y2z(::AbstractZero) = nothing  # we don't care about different flavours of zero
+  y2z(t::Tangent) = map(y2z, ChainRulesCore.backing(canonicalize(t)))  # namedtuples!
+  y2z(x) = x
+end
 
 @testset verbose=true "Optimisers.jl" begin
   @testset verbose=true "Features" begin

@@ -230,7 +230,7 @@ end
   end
 end
 
-VERSION < v"1.9-" && @testset "using Yota" begin
+VERSION < v"1.10-" && @testset "using Yota" begin
   @testset "$(name(o))" for o in RULES
     w′ = (abc = (α = rand(3, 3), β = rand(3, 3), γ = rand(3)), d = (δ = rand(3), ε = eps))
     w = (abc = (α = 5rand(3, 3), β = rand(3, 3), γ = rand(3)), d = (δ = rand(3), ε = eps))
