@@ -295,7 +295,7 @@ end
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-@def struct AdaMax{T} <: AbstractRule
+@def struct AdaMax <: AbstractRule
   eta = 0.001
   beta = (0.9, 0.999)
   epsilon = 1e-8
@@ -328,7 +328,7 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-@def struct OAdam{T} <: AbstractRule
+@def struct OAdam <: AbstractRule
   eta = 0.001
   beta = (0.5, 0.9)
   epsilon = 1e-8
@@ -391,7 +391,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-@def struct AdaDelta{T} <: AbstractRule
+@def struct AdaDelta <: AbstractRule
   rho = 0.9
   epsilon = 1e-8
 end
@@ -424,12 +424,11 @@ optimiser. Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-@def struct AMSGrad{T} <: AbstractRule
+@def struct AMSGrad <: AbstractRule
   eta = 0.001
   beta = (0.9, 0.999)
   epsilon = 1e-8
 end
-AMSGrad(η = 1f-3, β = (9f-1, 9.99f-1), ϵ = eps(typeof(η))) = AMSGrad{typeof(η)}(η, β, ϵ)
 
 init(o::AMSGrad, x::AbstractArray) =
   (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
@@ -460,7 +459,7 @@ Parameters don't need tuning.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-@def struct NAdam{T} <: AbstractRule
+@def struct NAdam <: AbstractRule
   eta = 0.001
   beta = (0.9, 0.999)
   epsilon = 1e-8
@@ -513,7 +512,7 @@ Adam optimiser.
 - Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
                                   (no need to change default)
 """
-@def struct AdaBelief{T} <: AbstractRule
+@def struct AdaBelief <: AbstractRule
   eta = 0.001
   beta = (0.9, 0.999)
   epsilon = 1e-16

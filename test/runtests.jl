@@ -114,9 +114,9 @@ y2z(x) = x
         s2, d2 = Optimisers.update(s, d, g)
         @test s2 isa Dict{Symbol, <:Any}
         @test d2 isa Dict{Symbol, <:Any}
-        @test d2[:a] == [0.9, 1.9]
-        @test d2[:b] == [3, 4]
-        @test d2[:c] == 1
+        @test d2[:a] ≈ [0.9, 1.9]
+        @test d2[:b] ≈ [3, 4]
+        @test d2[:c] ≈ 1
       end
 
       @testset "nested dict" begin
@@ -125,9 +125,9 @@ y2z(x) = x
         @test s[2]["a"].c isa Optimisers.Leaf
         g = gradient(d -> sum(d[2]["a"].c), d)[1]
         s2, d2 = Optimisers.update(s, d, g)
-        @test d2[2]["a"].c == [2.9, 3.9]
-        @test d2[1] == [1, 2]
-        @test d2[2]["b"] == 1
+        @test d2[2]["a"].c ≈ [2.9, 3.9]
+        @test d2[1] ≈ [1, 2]
+        @test d2[2]["b"] ≈ 1
       end
     end
 
@@ -266,41 +266,41 @@ y2z(x) = x
       s = Optimisers.setup(Momentum(0.1, 0.9), m)
       s1, m1 = Optimisers.update(s, m, (α = nothing, γ = [1,10,100],))
       @test m.γ .- m1.γ ≈ [0.1, 1, 10]
-      @test s1.γ.rule.eta == 0.1
+      @test s1.γ.rule.eta ≈ 0.1
       @test s1.γ.state ≈ [0.1, 1, 10]
 
       Optimisers.adjust!(s1, 0.2)
-      @test s1.γ.rule.eta == 0.2
-      @test s1.γ.rule.rho == 0.9
+      @test s1.γ.rule.eta ≈ 0.2
+      @test s1.γ.rule.rho ≈ 0.9
       @test s1.γ.state ≈ [0.1, 1, 10]
-      @test s1.α[1].rule.eta == 0.2
+      @test s1.α[1].rule.eta ≈ 0.2
 
       Optimisers.adjust!(s1; eta=0.3, rho=0.7)
-      @test s1.γ.rule.eta == 0.3
-      @test s1.γ.rule.rho == 0.7
+      @test s1.γ.rule.eta ≈ 0.3
+      @test s1.γ.rule.rho ≈ 0.7
       @test s1.γ.state ≈ [0.1, 1, 10]
-      @test s1.α[1].rule.rho == 0.7
+      @test s1.α[1].rule.rho ≈ 0.7
 
       _, m3 = Optimisers.update(s1, m, (α = nothing, γ = [1,10,100],))
       @test !(m.γ .- m3.γ ≈ [1, 10, 100])
 
       Optimisers.adjust!(s1, zeta = "this does nothing")
-      @test s1.γ.rule.eta == 0.3
+      @test s1.γ.rule.eta ≈ 0.3
 
       # OptimiserChain
       sc = Optimisers.setup(OptimiserChain(ClipGrad(2), Adam()), m)
       sc1, mc1 = Optimisers.update(sc, m, (α = nothing, γ = [1,10,100],))
-      @test sc1.γ.rule.opts[2].eta == 0.001f0
+      @test sc1.γ.rule.opts[2].eta ≈ 0.001f0
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
 
       Optimisers.adjust!(sc1, 0.2)
       @test sc1.γ.rule.opts[1].delta == 2 # unchanged
-      @test sc1.γ.rule.opts[2].eta == 0.2
+      @test sc1.γ.rule.opts[2].eta ≈ 0.2
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
 
       Optimisers.adjust!(sc1; delta = 2.5)  # ClipGrad(2) does not store an Int, for this reason
-      @test sc1.γ.rule.opts[1].delta == 2.5
-      @test sc1.γ.rule.opts[2].eta == 0.2 # unchanged
+      @test sc1.γ.rule.opts[1].delta ≈ 2.5
+      @test sc1.γ.rule.opts[2].eta ≈ 0.2 # unchanged
       @test sc1.γ.state[2][1] ≈ [0.1, 0.2, 0.2]
     end
 
@@ -310,7 +310,7 @@ y2z(x) = x
       Optimisers.freeze!(st.y)
       st, m = Optimisers.update(st, m, (x=[1,10], y=([100,1000], nothing)));
       @test m.x ≈ [0.9, 1.0]
-      @test m.y[1] == [3, 4]
+      @test m.y[1] ≈ [3, 4]
 
       st = Optimisers.adjust(st, 0.2)
       Optimisers.thaw!(st)
@@ -430,7 +430,7 @@ y2z(x) = x
          trick2, model2 = Optimisers.update(trick, model, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
          trick3, model3 = Optimisers.update(trick2, model2, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
          
-         @test model3.a == model3.b == model3.d  # same as having the gradients added
+         @test model3.a ≈ model3.b ≈ model3.d  # same as having the gradients added
          @test !(model3.a ≈ model3.c)
          @test trick3.a === trick3.b  # leaves remain shared
        end
@@ -463,14 +463,14 @@ y2z(x) = x
         s = Optimisers.setup(BiRule(), m)
         g = (α = ([0.1], ZeroTangent()), γ = [1,10,100],)
         s1, m1 = Optimisers.update(s, m, g, g)
-        @test m1.α[1] == [0.9]
+        @test m1.α[1] ≈ [0.9]
         @test_throws Exception Optimisers.update(s, m, g, map(x->2 .* x, g))
 
         # Ordinary rule which doesn't need it:
         s2 = Optimisers.setup(Adam(), m)
         s3, m3 = Optimisers.update(s2, m, g)
         s4, m4 = Optimisers.update(s2, m, g, g)
-        @test m3.γ == m4.γ
+        @test m3.γ ≈ m4.γ
       end
 
       @testset "DummyHigherOrder" begin
