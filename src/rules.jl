@@ -29,6 +29,12 @@ function apply!(o::Descent, state, x, dx)
   return state, @lazy dx * η  # @lazy creates a Broadcasted, will later fuse with x .= x .- dx
 end
 
+function Base.show(io::IO, o::Descent)
+  print(io, "Descent(")
+  show(io, o.eta)
+  print(io, ")")
+end
+
 """
     Momentum(η = 0.01, ρ = 0.9)
 
@@ -41,7 +47,7 @@ Gradient descent optimizer with learning rate `η` and momentum `ρ`.
                   prominent direction, in effect dampening oscillations.
 """
 @def struct Momentum <: AbstractRule
-  eta = 0.01
+  eta = 0.01  # Macro @def uses 0.01 as default value, and Float64 as the type
   rho = 0.9
 end
 

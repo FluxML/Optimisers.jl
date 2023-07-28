@@ -247,6 +247,7 @@ macro def(expr)
   lines = expr.args[3].args
   names, vals = [], []
   for i in eachindex(lines)
+    lines[i] isa Symbol && throw("@def requires a default for every field")
     Meta.isexpr(lines[i], :(=)) || continue
     name, val = lines[i].args
     push!(names, name)
