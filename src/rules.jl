@@ -653,7 +653,7 @@ julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 julia> m = (zeros(3),);
 
 julia> s = Optimisers.setup(o, m)
-(Leaf(OptimiserChain(ClipGrad{Float64}(1.0), Descent{Float64}(0.1)), (nothing, nothing)),)
+(Leaf(OptimiserChain(ClipGrad(1.0), Descent(0.1)), (nothing, nothing)),)
 
 julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 ([-0.03, -0.1, -0.1],)
@@ -715,7 +715,7 @@ julia> m  # model not yet changed
 julia> Optimisers.update!(s, m, (x=[0], y=[444]));
 
 julia> m  # n=2 gradients applied at once
-(x = Float32[-0.651], y = Float32[-20.202])
+(x = Float32[-0.651], y = Float32[-20.202002])
 ```
 """
 struct AccumGrad <: AbstractRule
