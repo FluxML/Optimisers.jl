@@ -760,9 +760,8 @@ end
 An optimiser that wraps another optimiser `opt` in order to perform mixed precision
 training [1]. 
 
-The state of `MixedPrecision` will contain a copy in precision `T` of the trainable parameter `x`, 
-call it `xT`. 
-The internal state of `opt` also operates at precision `T`.
+The state of `MixedPrecision{T}` will contain a copy in precision `T` of any trainable parameter `x`, 
+call it `xT`, as well as the internal state of `opt` also at precision `T`.
 If `T` is not specified, it defaults to `Float32`.
 
 Call `g` the gradient of `x`. Both `g` and `x` are typically in a precision lower than `T`
