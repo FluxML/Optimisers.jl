@@ -754,8 +754,7 @@ function apply!(o::AccumGrad, state, x, dx)
 end
 
 """
-    MixedPrecision(opt)
-    MixedPrecision{T}(opt)
+    MixedPrecision([T = Float32,] opt)
 
 An optimiser that wraps another optimiser `opt` in order to perform mixed precision
 training [1]. 
@@ -775,14 +774,14 @@ then `x` is updated with the value of `xT`.
 # Examples
 
 ```julia
-x = rand(Float16, 2) # a trainable parameter in low precision
+x = rand(Float16, 2) # A trainable parameter in low precision
 
-opt = MixedPrecision(Adam(1e-3)) 
-opt_state = Optimisers.setup(opt, x) # the state contains a copy of x in Float32 precision
+opt = MixedPrecision(Adam(1e-3)) # Equivalent to MixedPrecision(Float32, Adam(1e-3))
+opt_state = Optimisers.setup(opt, x) # The state contains a copy of x in Float32 precision
 
-g = rand(Float16, 2) # a gradient in low precision
+g = rand(Float16, 2) # A gradient in low precision
 
-# accumulation is performed in high precision,
+# Accumulation is performed in high precision,
 # then also the low precision x is synced
 Optimisers.update!(opt_state, x, g)  
 ```
@@ -794,7 +793,7 @@ end
 @functor MixedPrecision
 
 MixedPrecision(opt::AbstractRule) = MixedPrecision{Float32, typeof(opt)}(opt)
-MixedPrecision{T}(opt::AbstractRule) where T = MixedPrecision{T, typeof(opt)}(opt)
+MixedPrecision(T::Type, opt::AbstractRule) = MixedPrecision{T, typeof(opt)}(opt)
 
 function init(o::MixedPrecision{T}, x::AbstractArray) where T
   xT = T.(x)

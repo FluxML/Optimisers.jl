@@ -9,7 +9,7 @@ RULES = [
   Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
   AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
-  MixedPrecision{Float64}(Adam()),
+  MixedPrecision(Float64, Adam()),
   # A few chained combinations:
   OptimiserChain(WeightDecay(), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
@@ -280,7 +280,7 @@ end
   @test new_x ≈ x .- 1e-3 .* g
 
   x = rand(Float16, 2)
-  opt_state = Optimisers.setup(MixedPrecision{Float64}(Adam(1e-3)), x)
+  opt_state = Optimisers.setup(MixedPrecision(Float64, Adam(1e-3)), x)
   @test opt_state.state[1] isa Vector{Float64}
   @test opt_state.state[2][1] isa Vector{Float64}  
 end
