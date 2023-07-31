@@ -806,7 +806,7 @@ function apply!(o::MixedPrecision{T}, state, x, dx) where T
   xT = subtract!(xT, dx′)
   if maywrite(x)
     x .= xT
-    dx′ = Zero()
+    dx′ = nothing
   else
     dx′ = x .- eltype(x).(xT)
   end
