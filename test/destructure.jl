@@ -105,7 +105,7 @@ end
     # Diffractor error in perform_optic_transform
   end
   
-  VERSION < v"1.10-" && @testset "using Yota" begin
+  VERSION < v"1.9-" && @testset "using Yota" begin
     @test Yota_gradient(m -> destructure(m)[1][1], m1)[1] == [1,0,0]
     @test Yota_gradient(m -> destructure(m)[1][2], m2)[1] == ([0,1,0], [0,0,0])
     @test Yota_gradient(m -> destructure(m)[1][3], (m1, m1))[1] == ([0,0,1], nothing)
@@ -175,7 +175,7 @@ end
     # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
   end
   
-  VERSION < v"1.10-" && @testset "using Yota" begin
+  VERSION < v"1.9-" && @testset "using Yota" begin
     re1 = destructure(m1)[2]
     @test Yota_gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
     re2 = destructure(m2)[2]
