@@ -8,7 +8,7 @@ const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 abstract type AbstractRule end
 
 function Base.show(io::IO, rule::AbstractRule)  # makes Adam(0.01f0) prettier
-  invoke(show, Tuple{IO,Any}, IOContext(stdout, :compact => true), rule)
+  invoke(show, Tuple{IO,Any}, IOContext(io, :compact => true), rule)
 end
 
 ###
