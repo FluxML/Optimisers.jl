@@ -7,14 +7,15 @@ These act on one array of parameters:
 
 ```julia
 # Define a container to hold any optimiser specific parameters (if any):
-struct DecayDescent{T} <: Optimisers.AbstractRule
-  eta::T
+struct DecayDescent <: Optimisers.AbstractRule
+  eta::Float64
 end
 
 # Define an `apply!` rule which encodes how the gradients will be used to
 # update the parameters:
 function Optimisers.apply!(o::DecayDescent, state, x, x̄)
-  newx̄ = (o.eta / √state) .* x̄
+  T = eltype(x)
+  newx̄ = T(o.eta / √state) .* x̄
   nextstate = state + 1
   return nextstate, newx̄
 end

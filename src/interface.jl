@@ -7,6 +7,10 @@ const Zero = Union{Nothing, AbstractZero}  # Union{Zygote, Diffractor}
 
 abstract type AbstractRule end
 
+function Base.show(io::IO, rule::AbstractRule)  # makes Adam(0.01f0) prettier
+  invoke(show, Tuple{IO,Any}, IOContext(io, :compact => true), rule)
+end
+
 ###
 ### setup
 ###
@@ -224,4 +228,43 @@ Broadcast.materialize(x::Lazy) = Broadcast.instantiate(x.bc)
 
 onevalue(λ::T, x::AbstractArray{T}) where T = map(_ -> λ, x)
 onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
+
+nonneg(η::Real) = η < 0 ? throw(DomainError(η, "the learning rate cannot be negative")) : η
+
+"""
+  @def struct Rule; eta = 0.1; beta = (0.7, 0.8); end
+
+Helper macro for defining rules with default values.
+The types of the literal values are used in the `struct`,
+like this:
+```
+struct Rule
+  eta::Float64
+  beta::Tuple{Float64, Float64}
+  Rule(eta = 0.1, beta = (0.7, 0.8)) = eta < 0 ? error() : new(eta, beta)
+end
+```
+Any field called `eta` is assumed to be a learning rate, and cannot be negative.
+"""
+macro def(expr)
+  Meta.isexpr(expr, :struct) || throw("@def must act on a struct definition")
+  lines = expr.args[3].args
+  names, vals = [], []
+  for i in eachindex(lines)
+    lines[i] isa Symbol && throw("@def requires a default for every field")
+    Meta.isexpr(lines[i], :(=)) || continue
+    name, val = lines[i].args
+    push!(names, name)
+    push!(vals, val)
+    lines[i] = :($name::$typeof($val))
+  end
+  rule = Meta.isexpr(expr.args[2], :<:) ? expr.args[2].args[1] : expr.args[2]
+  check = :eta in names ? :(eta < 0 && throw(DomainError(eta, "the learning rate cannot be negative"))) : nothing
+  inner = :(function $rule($([Expr(:kw, nv...) for nv in zip(names,vals)]...))
+    $check
+    new($(names...))
+  end)
+  push!(lines, inner)
+  esc(expr)
+end
 

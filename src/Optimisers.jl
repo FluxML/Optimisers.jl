@@ -78,7 +78,7 @@ or [`update!`](@ref).
 julia> m = (x = rand(3), y = (true, false), z = tanh);
 
 julia> Optimisers.setup(Momentum(), m)  # same field names as m
-(x = Leaf(Momentum{Float32}(0.01, 0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = ())
+(x = Leaf(Momentum(0.01, 0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = ())
 ```
 
 The recursion into structures uses Functors.jl, and any new `struct`s containing parameters
@@ -91,7 +91,7 @@ julia> struct Layer; mat; fun; end
 julia> model = (lay = Layer([1 2; 3 4f0], sin), vec = [5, 6f0]);
 
 julia> Optimisers.setup(Momentum(), model)  # new struct is by default ignored
-(lay = (), vec = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0]))
+(lay = (), vec = Leaf(Momentum(0.01, 0.9), Float32[0.0, 0.0]))
 
 julia> destructure(model)
 (Float32[5.0, 6.0], Restructure(NamedTuple, ..., 2))
@@ -99,7 +99,7 @@ julia> destructure(model)
 julia> using Functors; @functor Layer  # annotate this type as containing parameters
 
 julia> Optimisers.setup(Momentum(), model)
-(lay = (mat = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0 0.0; 0.0 0.0]), fun = ()), vec = Leaf(Momentum{Float32}(0.01, 0.9), Float32[0.0, 0.0]))
+(lay = (mat = Leaf(Momentum(0.01, 0.9), Float32[0.0 0.0; 0.0 0.0]), fun = ()), vec = Leaf(Momentum(0.01, 0.9), Float32[0.0, 0.0]))
 
 julia> destructure(model)
 (Float32[1.0, 3.0, 2.0, 4.0, 5.0, 6.0], Restructure(NamedTuple, ..., 6))
@@ -120,13 +120,13 @@ See also [`update!`](@ref), which will be faster for models of ordinary `Array`s
 ```jldoctest
 julia> m = (x = Float32[1,2,3], y = tanh);
 
-julia> t = Optimisers.setup(Descent(0.1f0), m)
-(x = Leaf(Descent{Float32}(0.1), nothing), y = ())
+julia> t = Optimisers.setup(Descent(0.1), m)
+(x = Leaf(Descent(0.1), nothing), y = ())
 
 julia> g = (x = [1,1,1], y = nothing);  # fake gradient
 
 julia> Optimisers.update(t, m, g)
-((x = Leaf(Descent{Float32}(0.1), nothing), y = ()), (x = Float32[0.9, 1.9, 2.9], y = tanh))
+((x = Leaf(Descent(0.1), nothing), y = ()), (x = Float32[0.9, 1.9, 2.9], y = tanh))
 ```
 """
 update
@@ -152,7 +152,7 @@ julia> using StaticArrays, Zygote, Optimisers
 julia> m = (x = [1f0, 2f0], y = SA[4f0, 5f0]);  # partly mutable model
 
 julia> t = Optimisers.setup(Momentum(1/30, 0.9), m)  # tree of states
-(x = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.0, 0.0]), y = Leaf(Momentum{Float64}(0.0333333, 0.9), Float32[0.0, 0.0]))
+(x = Leaf(Momentum(0.0333333, 0.9), Float32[0.0, 0.0]), y = Leaf(Momentum(0.0333333, 0.9), Float32[0.0, 0.0]))
 
 julia> g = gradient(m -> sum(abs2.(m.x .+ m.y)), m)[1]  # structural gradient
 (x = Float32[10.0, 14.0], y = Float32[10.0, 14.0])
