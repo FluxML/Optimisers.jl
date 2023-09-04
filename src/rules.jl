@@ -206,7 +206,7 @@ end
   epsilon = 1e-8
 end
 
-init(o::Adam, x::AbstractArray) = (zero(x), zero(x), o.beta)
+init(o::Adam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
@@ -267,7 +267,7 @@ end
   epsilon = 1e-8
 end
 
-init(o::RAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, 1)
+init(o::RAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta), 1)
 
 function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
@@ -307,7 +307,7 @@ end
   epsilon = 1e-8
 end
 
-init(o::AdaMax, x::AbstractArray) = (zero(x), zero(x), o.beta)
+init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
@@ -340,7 +340,7 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
   epsilon = 1e-8
 end
 
-init(o::OAdam, x::AbstractArray) = (zero(x), zero(x), o.beta, zero(x))
+init(o::OAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta), zero(x))
 
 function apply!(o::OAdam, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
@@ -471,7 +471,7 @@ Parameters don't need tuning.
   epsilon = 1e-8
 end
 
-init(o::NAdam, x::AbstractArray) = (zero(x), zero(x), o.beta)
+init(o::NAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
@@ -524,7 +524,7 @@ Adam optimiser.
   epsilon = 1e-16
 end
 
-init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x), o.beta)
+init(o::AdaBelief, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
