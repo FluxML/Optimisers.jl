@@ -538,26 +538,32 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    WeightDecay(γ = 5e-4)
+    WeightDecay(γ = 5e-4, ζ = 0)
 
-Decay weights by ``γ``, that is, add `γ .* x` to the gradient `x̄` which will be
-subtracted from `x`.
+Decay weights by ``γ = 0.0005``, that is, add `γ .* x` to the gradient `x̄`
+which will be subtracted from parameters `x`.
+
+The second argument adds `ζ .* sign.(x)` to the gradient, at the same time.
+This is not traditional weight decay, but similarly discourages large weights.
 
 Typically composed  with other optimisers as the first transformation in an [`OptimiserChain`](@ref).
-This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss.
+This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss,
+and ``L_1`` regularization with coefficient ``ζ``.
 
 # Parameters
 - Weight decay (`γ`): Decay applied to weights during optimisation.
+- Sign decay (`ζ`): umm
 """
 @def struct WeightDecay <: AbstractRule
   gamma = 5e-4
+  zeta = 0.0
 end
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
-  γ = T(o.gamma)
-  dx′ = @lazy dx + γ * x
+  γ, ζ = T(o.gamma), T(o.zeta)
+  dx′ = @lazy dx + γ * x + ζ * sign(x)
 
   return state, dx′
 end
