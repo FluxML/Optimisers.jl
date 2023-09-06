@@ -497,7 +497,7 @@ weight decay regularization.
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Weight decay (`γ`): Decay applied to weights during optimisation.
+- Weight decay (`γ`): Controls the strength of ``L_2`` regularisation.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
@@ -540,19 +540,31 @@ end
 """
     WeightDecay(γ = 5e-4, ζ = 0)
 
-Decay weights by ``γ = 0.0005``, that is, add `γ .* x` to the gradient `x̄`
-which will be subtracted from parameters `x`.
+Decay weights by ``γ``, that is, add `γ .* x` to the gradient ``x̄ = ∂ℓ/∂x``,
+which will then be subtracted from `x`. This implements ``L_2`` regularisation:
+it is precisely the gradient of `γ/2 * sum(abs2, x)`, so is equivalent to adding
+this penaly to the loss function ``ℓ`` (for every parameter array `x`).
 
 The second argument adds `ζ .* sign.(x)` to the gradient, at the same time.
 This is not traditional weight decay, but similarly discourages large weights.
+It implements ``L_1`` regularisation, equivalent to adding `ζ * sum(abs, x)` to the loss.
 
-Typically composed  with other optimisers as the first transformation in an [`OptimiserChain`](@ref).
-This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss,
-and ``L_1`` regularization with coefficient ``ζ``.
+Typically composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
 
 # Parameters
-- Weight decay (`γ`): Decay applied to weights during optimisation.
-- Sign decay (`ζ`): umm
+- Weight decay (`γ`): Controls the strength of ``L_2`` regularisation.
+- Sign decay (`ζ`): Controls the strength of ``L_1`` regularisation, zero by default.
+
+# Example
+```jldoctest
+julia> st = Optimisers.setup(OptimiserChain(WeightDecay(), Momentum()), (weight = [1.0],))
+(weight = Leaf(OptimiserChain(WeightDecay(0.0005, 0.0), Momentum(0.01, 0.9)), (nothing, [0.0])),)
+
+julia> Optimisers.adjust!(st, gamma=0, zeta=0.033)  # replace L2 with L1
+
+julia> st
+(weight = Leaf(OptimiserChain(WeightDecay(0.0, 0.033), Momentum(0.01, 0.9)), (nothing, [0.0])),)
+```
 """
 @def struct WeightDecay <: AbstractRule
   gamma = 5e-4
