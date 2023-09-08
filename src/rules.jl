@@ -596,7 +596,7 @@ function adjust(r::WeightDecay; gamma = nothing, kw...)
   if isnothing(gamma)
     return _adjust(r, NamedTuple(kw))
   else
-    Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust, force=true)
+    Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust)
     nt = (; lambda = gamma, NamedTuple(kw)...)
     return _adjust(r, nt)
   end
