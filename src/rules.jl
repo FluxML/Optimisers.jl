@@ -497,12 +497,12 @@ weight decay regularization.
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Weight decay (`γ`): Controls the strength of ``L_2`` regularisation.
+- Weight decay (`λ`): Controls the strength of ``L_2`` regularisation.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-AdamW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = 1e-8) =
-  OptimiserChain(Adam(η, β, ϵ), WeightDecay(γ))
+AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8) =
+  OptimiserChain(Adam(η, β, ϵ), WeightDecay(λ))
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
@@ -538,46 +538,68 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    WeightDecay(γ = 5e-4, ζ = 0)
+    WeightDecay(λ = 5e-4, α = 0)
 
-Decay weights by ``γ``, that is, add `γ .* x` to the gradient ``x̄ = ∂ℓ/∂x``,
-which will then be subtracted from `x`. This implements ``L_2`` regularisation:
-it is precisely the gradient of `γ/2 * sum(abs2, x)`, so is equivalent to adding
-this penaly to the loss function ``ℓ`` (for every parameter array `x`).
+Implements two forms of regularisation, when composed  with other rules
+as the first transformation in an [`OptimiserChain`](@ref):
 
-The second argument adds `ζ .* sign.(x)` to the gradient, at the same time.
-This is not traditional weight decay, but similarly discourages large weights.
-It implements ``L_1`` regularisation, equivalent to adding `ζ * sum(abs, x)` to the loss.
+* At ` α== 0`, it decays weights by ``λ``, that is, adds `λ .* x` to the
+  gradient ``x̄ = ∂ℓ/∂x`` which will then be subtracted from `x`. 
+  This implements ``L_2`` regularisation: it is precisely the gradient of 
+  `λ/2 * sum(abs2, x)`, so is equivalent to adding this penaly to the loss
+  function ``ℓ`` (for every parameter array `x`).
 
-Typically composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
+* At `α == 1`, adds `λ .* sign.(x)` to the gradient. This implements ``L_1``
+  regularisation, equivalent to adding `ζ * sum(abs, x)` to the loss.
+
+In general, it adds `@. λ * (1-α) x + λ * α sign(x)`, thus implementing
+a mixture of the two effects (equivalent to adding two terms to the loss).
 
 # Parameters
-- Weight decay (`γ`): Controls the strength of ``L_2`` regularisation.
-- Sign decay (`ζ`): Controls the strength of ``L_1`` regularisation, zero by default.
+- Weight decay (`λ ≥ 0`): Controls the strength of the regularisation.
+- Mixture (`0 ≤ α ≤ 1`): Controls the proportion of ``L_1`` regularisation, zero by default.
 
 # Example
 ```jldoctest
-julia> st = Optimisers.setup(OptimiserChain(WeightDecay(), Momentum()), (weight = [1.0],))
+julia> rule = OptimiserChain(WeightDecay(), Momentum());
+
+julia> opt_state = Optimisers.setup(rule, (weight = [1.0],))
 (weight = Leaf(OptimiserChain(WeightDecay(0.0005, 0.0), Momentum(0.01, 0.9)), (nothing, [0.0])),)
 
-julia> Optimisers.adjust!(st, gamma=0, zeta=0.033)  # replace L2 with L1
+julia> Optimisers.adjust!(opt_state, alpha=0.5)  # replace L2 with a mix of L1 and L2
 
-julia> st
-(weight = Leaf(OptimiserChain(WeightDecay(0.0, 0.033), Momentum(0.01, 0.9)), (nothing, [0.0])),)
+julia> opt_state
+(weight = Leaf(OptimiserChain(WeightDecay(0.0005, 0.5), Momentum(0.01, 0.9)), (nothing, [0.0])),)
 ```
 """
 @def struct WeightDecay <: AbstractRule
-  gamma = 5e-4
-  zeta = 0.0
+  lambda = 5e-4
+  alpha = 0.0
 end
 
-init(o::WeightDecay, x::AbstractArray) = nothing
+function init(o::WeightDecay, x::AbstractArray)
+  o.lambda ≥ 0 || throw(DomainError())
+  0 ≤ o.alpha ≤ 1 || throw(DomainError())
+  return nothing
+end
 
 function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
-  γ, ζ = T(o.gamma), T(o.zeta)
-  dx′ = @lazy dx + γ * x + ζ * sign(x)
+  λ, α = T(o.lambda), T(o.alpha)
+  ℓ1 = λ * α
+  ℓ2 = λ * (1 - α)
+  dx′ = @lazy dx + ℓ2 * x + ℓ1 * sign(x)
 
   return state, dx′
+end
+
+function adjust(r::WeightDecay; gamma = nothing, kw...)
+  if isnothing(gamma)
+    return _adjust(r, NamedTuple(kw))
+  else
+    Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust, force=true)
+    nt = (; lambda = gamma, NamedTuple(kw)...)
+    return _adjust(r, nt)
+  end
 end
 
 """
