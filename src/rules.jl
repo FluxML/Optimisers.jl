@@ -550,10 +550,11 @@ as the first transformation in an [`OptimiserChain`](@ref):
   function ``ℓ`` (for every parameter array `x`).
 
 * At `α == 1`, adds `λ .* sign.(x)` to the gradient. This implements ``L_1``
-  regularisation, equivalent to adding `ζ * sum(abs, x)` to the loss.
+  regularisation, equivalent to adding `λ * sum(abs, x)` (which is `λ * norm(x, 1)`)
+  to the loss.
 
-In general, it adds `@. λ * (1-α) x + λ * α sign(x)`, thus implementing
-a mixture of the two effects (equivalent to adding two terms to the loss).
+In general, it adds `@. λ * (1-α) * x + λ * α * sign(x)` to the gradient, thus implementing
+a mixture of the two effects, equivalent to adding two terms to the loss.
 
 # Parameters
 - Weight decay (`λ ≥ 0`): Controls the strength of the regularisation.
@@ -607,6 +608,8 @@ end
 
 Restricts every gradient component to obey `-δ ≤ dx[i] ≤ δ`.
 
+Typically composed with other rules using [`OptimiserChain`](@ref).
+
 See also [`ClipNorm`](@ref).
 """
 @def struct ClipGrad <: AbstractRule
@@ -630,6 +633,8 @@ to stay at this threshold (unless `p==0`).
 
 Throws an error if the norm is infinite or `NaN`,
 which you can turn off with `throw = false`.
+
+Typically composed with other rules using [`OptimiserChain`](@ref).
 
 See also [`ClipGrad`](@ref).
 """
