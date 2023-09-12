@@ -241,7 +241,8 @@ like this:
 struct Rule
   eta::Float64
   beta::Tuple{Float64, Float64}
-  Rule(eta = 0.1, beta = (0.7, 0.8)) = eta < 0 ? error() : new(eta, beta)
+  Rule(eta, beta = (0.7, 0.8)) = eta < 0 ? error() : new(eta, beta)
+  Rule(; eta = 0.1, beta = (0.7, 0.8)) = Rule(eta, beta)
 end
 ```
 Any field called `eta` is assumed to be a learning rate, and cannot be negative.
@@ -259,12 +260,17 @@ macro def(expr)
     lines[i] = :($name::$typeof($val))
   end
   rule = Meta.isexpr(expr.args[2], :<:) ? expr.args[2].args[1] : expr.args[2]
+  params = [Expr(:kw, nv...) for nv in zip(names,vals)]
   check = :eta in names ? :(eta < 0 && throw(DomainError(eta, "the learning rate cannot be negative"))) : nothing
-  inner = :(function $rule($([Expr(:kw, nv...) for nv in zip(names,vals)]...))
+  # Positional-argument method, has defaults for all but the first arg:
+  inner = :(function $rule($(names[1]), $(params[2:end]...))
     $check
     new($(names...))
   end)
-  push!(lines, inner)
+  # Keyword-argument method. (Made an inner constructor only to allow
+  # resulting structs to be @doc... cannot if macro returns a block.)
+  kwmethod = :($rule(; $(params...)) = $rule($(names...)))
+  push!(lines, inner, kwmethod)
   esc(expr)
 end
 

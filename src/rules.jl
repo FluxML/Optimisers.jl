@@ -19,7 +19,7 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 struct Descent{T} <: AbstractRule
   eta::T
 end
-Descent() = Descent(1f-1)
+Descent(; eta = 1f-1) = Descent(eta)
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -115,10 +115,11 @@ struct RMSProp <: AbstractRule
   centred::Bool
 end
 
-function RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
+function RMSProp(η, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
   RMSProp(η, ρ, ϵ, centred | centered)
 end
+RMSProp(; eta = 0.001, rho = 0.9, epsilon = 1e-8, kw...) = RMSProp(eta, rho, epsilon; kw...)
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
@@ -501,8 +502,11 @@ weight decay regularization.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8) =
-  OptimiserChain(Adam(η, β, ϵ), WeightDecay(λ))
+AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8) =
+  OptimiserChain(Adam(η, β, ϵ), WeightDecay(γ))
+
+AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda = 0, epsilon = 1e-8) =
+  OptimiserChain(Adam(eta, beta, epsilon), WeightDecay(lambda))
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
