@@ -637,11 +637,11 @@ end
 
 """
     OptimiserChain(o1, o2, o34...)
-    o1 => o2 => o3
+    o1 >> o2 >> o3
 
 Compose a sequence of optimisers so that each `opt` in `(o1, o2, o34...)`
 updates the gradient, in the order specified.
-May be entered using `Pair` syntax with several `AbstractRule`s.
+May be entered using the `>>` operator with several `AbstractRule`s.
 
 With an empty sequence, `OptimiserChain()` is the identity,
 so `update!` will subtract the full gradient from the parameters.
@@ -650,8 +650,8 @@ This is equivalent to `Descent(1)`.
 # Example
 
 ```jldoctest
-julia> o = ClipGrad(1.0) => Descent(0.1)
-OptimiserChain(ClipGrad{Float64}(1.0), Descent{Float64}(0.1))
+julia> o = ClipGrad(1.0) >> Descent(0.1)
+OptimiserChain(ClipGrad(1.0), Descent(0.1))
 
 julia> m = (zeros(3),);
 
@@ -667,8 +667,10 @@ struct OptimiserChain{O<:Tuple} <: AbstractRule
 end
 OptimiserChain(opts...) = OptimiserChain(opts)
 
-Base.Pair(a::AbstractRule, b::AbstractRule) = OptimiserChain(a, b)
-Base.Pair(a::AbstractRule, bc::OptimiserChain) = OptimiserChain(a, bc.opts...)
+@doc @doc(OptimiserChain)
+Base.:(>>)(a::AbstractRule, b::AbstractRule) = OptimiserChain(a, b)
+Base.:(>>)(a::AbstractRule, bc::OptimiserChain) = OptimiserChain(a, bc.opts...)
+Base.:(>>)(ab::OptimiserChain, c::AbstractRule) = OptimiserChain(ab.opts..., c)
 
 @functor OptimiserChain
 
@@ -687,7 +689,7 @@ end
 
 function Base.show(io::IO, c::OptimiserChain)  # compact show
   if length(c.opts) > 1
-    join(io, c.opts, " => ")
+    join(io, c.opts, " >> ")
   else
     show(io, MIME"text/plain"(), c)
   end
