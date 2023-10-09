@@ -8,12 +8,13 @@
 
 """
     Descent(η = 1f-1)
+    Descent(; eta)
 
 Classic gradient descent optimiser with learning rate `η`.
 For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
 """
 struct Descent{T} <: AbstractRule
@@ -37,13 +38,14 @@ end
 
 """
     Momentum(η = 0.01, ρ = 0.9)
+    Momentum(; [eta, rho])
 
 Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Momentum (`ρ`): Controls the acceleration of gradient descent in the
+- Momentum (`ρ == rho`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
 @def struct Momentum <: AbstractRule
@@ -89,6 +91,7 @@ end
 
 """
     RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred = false)
+    RMSProp([eta, rho, epsilon, centred])
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -99,11 +102,11 @@ generally don't need tuning.
 gradients by an estimate their variance, instead of their second moment.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Momentum (`ρ`): Controls the acceleration of gradient descent in the
+- Momentum (`ρ == rho`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 - Keyword `centred` (or `centered`): Indicates whether to use centred variant
                                      of the algorithm.
