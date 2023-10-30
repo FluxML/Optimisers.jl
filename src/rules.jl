@@ -744,3 +744,66 @@ function apply!(o::AccumGrad, state, x, dx)
     return (accum_dx, counter + 1), nothing
   end
 end
+
+"""
+    MixedPrecision([T = Float32,] opt)
+
+An optimiser that wraps another optimiser `opt` in order to perform mixed precision
+training [1]. 
+
+The state of `MixedPrecision{T}` will contain a copy in precision `T` of any trainable parameter `x`, 
+call it `xT`, as well as the internal state of `opt` also at precision `T`.
+If `T` is not specified, it defaults to `Float32`.
+
+Call `g` the gradient of `x`. Both `g` and `x` are typically in a precision lower than `T`
+(e.g. `Float16`).
+
+In the `update!(opt_state, x, g)` call, `opt` is used to update `xT` instead of `x`, 
+then `x` is updated with the value of `xT`. 
+
+[1] Micikevicius et al. '17, "Mixed Precision Training", https://arxiv.org/abs/1710.03740 .
+
+# Examples
+
+```julia
+x = rand(Float16, 2) # A trainable parameter in low precision
+
+opt = MixedPrecision(Adam(1e-3)) # Equivalent to MixedPrecision(Float32, Adam(1e-3))
+opt_state = Optimisers.setup(opt, x) # The state contains a copy of x in Float32 precision
+
+g = rand(Float16, 2) # A gradient in low precision
+
+# Accumulation is performed in high precision,
+# then also the low precision x is synced
+Optimisers.update!(opt_state, x, g)  
+```
+"""
+struct MixedPrecision{T<:Number, O<:AbstractRule} <: AbstractRule
+  opt::O
+end
+
+@functor MixedPrecision
+
+MixedPrecision(opt::AbstractRule) = MixedPrecision{Float32, typeof(opt)}(opt)
+MixedPrecision(T::Type, opt::AbstractRule) = MixedPrecision{T, typeof(opt)}(opt)
+
+function init(o::MixedPrecision{T}, x::AbstractArray) where T
+  xT = T.(x)
+  return (xT, init(o.opt, xT))
+end
+
+function apply!(o::MixedPrecision{T}, state, x, dx) where T
+  xT, st = state
+  st′, dx′ = apply!(o.opt, st, xT, dx)
+  xT = subtract!(xT, dx′)
+  if maywrite(x)
+    x .= xT
+    dx′ = nothing
+  else
+    dx′ = x .- eltype(x).(xT)
+  end
+  return (xT, st′), dx′
+end
+
+adjust(o::MixedPrecision, eta::Real) = MixedPrecision(adjust(o.opt, eta))
+adjust(o::MixedPrecision; kw...) = MixedPrecision(adjust(o.opt; kw...))
