@@ -9,6 +9,8 @@ Copies all [`trainable`](@ref Optimisers.trainable), [`isnumeric`](@ref Optimise
 to a vector, and returns also a function which reverses this transformation.
 Differentiable.
 
+See also [`destructure!`](@ref).
+
 # Example
 ```jldoctest
 julia> v, re = destructure((x=[1.0, 2.0], y=(sin, [3.0 + 4.0im])))
@@ -30,6 +32,36 @@ function destructure(x)
   flat, off, len = _flatten(x)
   flat, Restructure(x, off, len)
 end
+
+"""
+    destructure!(model) -> vector, reconstructor
+
+This is a variant of [`destructure`](@ref), whose reconstruction function mutates the model.
+Requires that all trainable parameters in the model be mutable arrays!
+
+# Example
+```jldoctest
+julia> m = (x=[1.0, 2.0], y=(sin, Float32[3.0 4.0], cos))
+
+julia> v, re! = destructure!(m)
+([1.0, 2.0, 3.0, 4.0], Restructure!(NamedTuple, ..., 4))
+
+julia> m === re!([3, 5, 7, 9])  # mutates the original m, and returns it
+true
+
+julia> m
+(x = [3.0, 5.0], y = (sin, Float32[7.0 9.0], cos))
+```
+"""
+function destructure!(x)
+  flat, off, len = _flatten(x)
+  flat, Restructure!(x, off, len)
+end
+
+# function destructure!(flat::AbstractVector, x)
+#   flat, off, len = _flatten!(flat, x)
+#   flat, Restructure!(x, off, len)
+# end
 
 """
     Restructure(Model, ..., length)
@@ -55,11 +87,19 @@ struct Restructure{T,S}
   model::T
   offsets::S
   length::Int
+  mutate::Bool
 end
-(re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length)
+Restructure(model, offsets, length) = Restructure(model, offsets, length, false)
+Restructure!(model, offsets, length) = Restructure(model, offsets, length, true)
+
+(re::Restructure)(flat::AbstractVector) = re.mutate ? _rebuild!(re.model, re.offsets, flat, re.length) : _rebuild(re.model, re.offsets, flat, re.length)
 (re::Restructure)(x, flat::AbstractVector) = re(flat)(x)
-Base.show(io::IO, re::Restructure{T}) where T = print(io, "Restructure(", T.name.name, ", ..., ", re.length, ")")
 Base.length(re::Restructure) = re.length
+
+function Base.show(io::IO, re::Restructure{T}) where T
+  print(io, "Restructure", re.mutate ? "!" : "")
+  print(io, "(", T.name.name, ", ..., ", re.length, ")")
+end
 
 # This flattens a model, and returns a web of offsets for later use:
 function _flatten(x)
@@ -75,6 +115,17 @@ function _flatten(x)
   isempty(arrays) && return Bool[], off, 0
   return reduce(vcat, arrays), off, len[]
 end
+# function _flatten!(flat, x)
+#   isnumeric(x) && return copyto!(flat, _vec(x))  # trivial case
+#   len = Ref(0)
+#   off = fmap(x; exclude = isnumeric, walk = _TrainableStructWalk()) do y
+#     o = len[]
+#     copyto!(flat, o, _vec(y))
+#     len[] = o + length(y)
+#     o
+#   end
+#   flat, off, len[]
+# end
 
 struct TrainableStructWalk <: AbstractWalk end
 
@@ -97,10 +148,18 @@ function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _Trai
     _getat(y, o, flat)
   end
 end
+# (mutating version, same arguments & same return)
+function _rebuild!(x, off, flat::AbstractVector, len = length(flat); walk = _Trainable_biwalk(), kw...)
+  len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
+  fmap(x, off; exclude = isnumeric, walk, kw...) do y, o
+    copyto!(y, _getat(y, o, flat, view))
+  end
+  x
+end
 
-_getat(y::Number, o::Int, flat::AbstractVector) = ProjectTo(y)(flat[o + 1])
-_getat(y::AbstractArray, o::Int, flat::AbstractVector) =
-  ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+_getat(y::Number, o::Int, flat::AbstractVector, _...) = ProjectTo(y)(flat[o + 1])
+_getat(y::AbstractArray, o::Int, flat::AbstractVector, get=getindex) =
+  ProjectTo(y)(reshape(get(flat, o .+ (1:length(y))), axes(y)))  # ProjectTo is just correcting eltypes
 
 struct _Trainable_biwalk <: AbstractWalk end
 
@@ -134,6 +193,10 @@ end
 function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat, len; kw...)
   _rebuild_back(dx) = (NoT, NoT, NoT, _grad!(x, unthunk(dx), off, _zero(flat)), NoT)
   _rebuild(x, off, flat, len; kw...), _rebuild_back
+end
+function ChainRulesCore.rrule(::typeof(_rebuild!), x, off, flat, len; kw...)
+  _rebuild!_back(dx) = (NoT, NoT, NoT, _grad!(x, unthunk(dx), off, _zero(flat)), NoT)
+  _rebuild!(x, off, flat, len; kw...), _rebuild!_back
 end
 
 _zero(x) = map!(zero, similar(x, float(eltype(x))), x)  # mutable zero array for _grad!
