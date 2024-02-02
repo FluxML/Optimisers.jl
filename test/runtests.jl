@@ -137,7 +137,7 @@ end
     @testset "OptimiserChain" begin
       x = [1, 10, 100.0]; dx = [1, 2, 3.0];
       @test Optimisers.update(Optimisers.setup(WeightDecay(0.1), x), x, dx)[2] ≈ [1-0.1-1, 10-1-2, 100-10-3]
-      @test Optimisers.update(Optimisers.setup(NormReg(0.1, 1), x), x, dx)[2] ≈ [1-0.1-1, 10-0.1-2, 100-0.1-3]
+      @test Optimisers.update(Optimisers.setup(SignDecay(0.1), x), x, dx)[2] ≈ [1-0.1-1, 10-0.1-2, 100-0.1-3]
       @test Optimisers.update(Optimisers.setup(ClipGrad(2), x), x, dx)[2] ≈ [1-1, 10-2, 100-2]
 
       o2 = OptimiserChain(ClipGrad(2), WeightDecay(0.1))
@@ -158,7 +158,7 @@ end
 
       # L1 norm via sign
       xm = [1, -10, 100.0]; dxm = [3, 2, -1];
-      @test Optimisers.update(Optimisers.setup(NormReg(0.1, 1), xm), xm, dxm)[2] ≈ [1-0.1-3, -10+0.1-2, 100-0.1+1]
+      @test Optimisers.update(Optimisers.setup(SignDecay(0.1), xm), xm, dxm)[2] ≈ [1-0.1-3, -10+0.1-2, 100-0.1+1]
     end
 
     @testset "trainable subset" begin

@@ -540,15 +540,13 @@ end
 """
     WeightDecay(λ = 5e-4)
 
-Implements ``L_2`` regularisation, when composed  with other rules
-as the first transformation in an [`OptimiserChain`](@ref).
+Implements ``L_2`` regularisation, also known as ridge regression, 
+when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
 
-It does this by adding `2 .* x` to the gradient. This is equivalent to adding 
+It does this by adding `λ .* x` to the gradient. This is equivalent to adding 
 `λ/2 * sum(abs2, x) == λ/2 * norm(x)^2` to the loss.
 
-And also equivalent to [`NormReg`](@ref)`(λ/2, 0)`.
-This struct's convention of what `λ` means is the one used in most machine learning frameworks,
-while [`NormReg`] matches that used for ``L_1`` in other contexts.
+See also [`SignDecay`] for ``L_1`` normalisation.
 
 # Parameters
 - Weight decay (`λ ≥ 0`): Controls the strength of the regularisation.
@@ -560,69 +558,39 @@ end
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
-  λ, α = T(o.lambda), T(o.alpha)
-  ℓ1 = λ * α
-  ℓ2 = λ * (1 - α)
-  dx′ = @lazy dx + ℓ2 * x + ℓ1 * sign(x)
+  λ = T(o.lambda)
+  dx′ = @lazy dx + λ * x
 
   return state, dx′
 end
 
 """
-    NormReg(λ = 0.001, α = 1)
+    SignDecay(λ = 1e-3)
 
-Implements ``L_1`` and ``L_2`` regularisation, when composed  with other rules
-as the first transformation in an [`OptimiserChain`](@ref).
+Implements ``L_1`` regularisation, also known as LASSO regression,
+when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
 
-* At `α == 1` (the default), it adds `λ .* sign.(x)` to the gradient.
-  This is equivalent to adding `λ * sum(abs, x) == λ * norm(x, 1)`
-  to the loss (for every parameter array `x`), which is known as
-  L1 regularisation, or LASSO regression.
+It does this by adding `λ .* sign(x)` to the gradient. This is equivalent to adding 
+`λ * sum(abs, x) == λ * norm(x, 1)` to the loss.
 
-* At `α == 0`, instead adds `2λ .* x` to the gradient. This is equivalen to adding 
-  `λ * sum(abs2, x) == λ * norm(x)^2` to the loss, known as L2 regularisation, or ridge regression.
-  This is equivelent to [`WeightDecay`](@ref)`(2λ)`.
-
-At intermediate `α`, it adds `@. λ * (α*sign(x) + 2(1-α)*x)` to the gradient, thus implementing
-a mixture of the two effects, equivalent to adding two penalty terms to the loss.
+See also [`WeightDecay`] for ``L_2`` normalisation.
 
 # Parameters
-- Weight decay (`λ ≥ 0`): Controls the strength of the regularisation.
-- Mixture (`0 ≤ α ≤ 1`): Controls the proportion of ``L_1`` regularisation.
-
-# Example
-```jldoctest
-julia> rule = OptimiserChain(NormReg(), Momentum());
-
-julia> opt_state = Optimisers.setup(rule, (weight = [1.0],))
-(weight = Leaf(OptimiserChain(NormReg(0.0005, 1.0), Momentum(0.01, 0.9)), (nothing, [0.0])),)
-
-julia> Optimisers.adjust!(opt_state, alpha=0.5)  # replace L1 with a mix of L1 and L2
-
-julia> opt_state
-(weight = Leaf(OptimiserChain(NormReg(0.0005, 0.5), Momentum(0.01, 0.9)), (nothing, [0.0])),)
-```
+- Sign decay (`λ ≥ 0`): Controls the strength of the regularisation.
 """
-@def struct NormReg <: AbstractRule
+@def struct SignDecay <: AbstractRule
   lambda = 1e-3
-  alpha = 1.0
 end
 
-function init(o::NormReg, x::AbstractArray)
-  o.lambda ≥ 0 || throw(DomainError("NormReg does not allow a negative strength"))
-  0 ≤ o.alpha ≤ 1 || throw(DomainError("NormReg's mixture parameter must be between 0 and 1"))
-  return nothing
-end
+init(o::SignDecay, x::AbstractArray) = nothing
 
-function apply!(o::NormReg, state, x::AbstractArray{T}, dx) where T
-  λ, α = T(o.lambda), T(o.alpha)
-
-  ℓ1 = λ * α
-  ℓ2 = 2 * λ * (1 - α)
-  dx′ = @lazy dx + ℓ2 * x + ℓ1 * sign(x)
+function apply!(o::SignDecay, state, x::AbstractArray{T}, dx) where T
+  λ = T(o.lambda)
+  dx′ = @lazy dx + λ * sign(x)
 
   return state, dx′
 end
+
 
 """
     ClipGrad(δ = 10)
