@@ -38,7 +38,7 @@ function Optimisers.apply!(o::BiRule, state, x, dx, dx2)
   return state, dx
 end
 
-if VERSION <= v"1.9"
+if VERSION < v"1.9-"
   using Yota
 end
 # Make Yota's output look like Zygote's:
