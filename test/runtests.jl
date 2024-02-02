@@ -1,5 +1,5 @@
 using Optimisers
-using ChainRulesCore, Functors, StaticArrays, Zygote, Yota
+using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
 using Base.Broadcast: broadcasted, instantiate, Broadcasted
@@ -38,6 +38,9 @@ function Optimisers.apply!(o::BiRule, state, x, dx, dx2)
   return state, dx
 end
 
+if VERSION <= v"1.9"
+  using Yota
+end
 # Make Yota's output look like Zygote's:
 
 Yota_gradient(f, xs...) = map(y2z, Base.tail(Yota.grad(f, xs...)[2]))
