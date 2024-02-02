@@ -91,7 +91,7 @@ end
 
 """
     RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred = false)
-    RMSProp([eta, rho, epsilon, centred])
+    RMSProp(; [eta, rho, epsilon, centred])
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -492,17 +492,19 @@ end
 
 """
     AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8)
+    AdamW(; [eta, beta, lambda, epsilon])
 
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
+Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`](@ref)`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Weight decay (`λ`): Controls the strength of ``L_2`` regularisation.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Weight decay (`λ == lambda`): Controls the strength of ``L_2`` regularisation.
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8) =
