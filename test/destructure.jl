@@ -98,7 +98,7 @@ end
       sum(gradient(m -> sum(destructure(m)[1])^3, (v, [4,5,6.0]))[1][1])
     end[1] == [378, 378, 378]
 
-    @test_broken gradient([1,2,3.0]) do v
+    VERSION >= v"1.10" && @test gradient([1,2,3.0]) do v
       sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (x = v, y = sin, z = [4,5,6.0]))[1][1])
     end[1] ≈ [8,16,24]
     # Zygote error in (::typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple{(:x, :y, :z)
