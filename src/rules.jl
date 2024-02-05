@@ -549,7 +549,7 @@ It does this by adding `λ .* x` to the gradient. This is equivalent to adding
 See also [`SignDecay`] for ``L_1`` normalisation.
 
 # Parameters
-- Weight decay (`λ ≥ 0`): Controls the strength of the regularisation.
+- Penalty (`λ ≥ 0`): Controls the strength of the regularisation.
 """
 @def struct WeightDecay <: AbstractRule
   lambda = 5e-4
@@ -563,6 +563,16 @@ function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
 
   return state, dx′
 end
+
+function adjust(r::WeightDecay; gamma = nothing, kw...)
+   if isnothing(gamma)
+     return _adjust(r, NamedTuple(kw))
+   else
+     Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust, force=true)
+     nt = (; lambda = gamma, NamedTuple(kw)...)
+     return _adjust(r, nt)
+   end
+ end
 
 """
     SignDecay(κ = 1e-3)
