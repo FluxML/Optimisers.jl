@@ -80,25 +80,6 @@ Zygote's "implicit" mode `gradient(() -> loss(...), Flux.params(model))` -- see
 [Zygote's documentation](https://fluxml.ai/Zygote.jl/dev/#Explicit-and-Implicit-Parameters-1) for more about this difference.
 
 
-## Usage with [Yota.jl](https://github.com/dfdx/Yota.jl)
-
-Yota is another modern automatic differentiation package, an alternative to Zygote.
-
-Its main function is `Yota.grad`, which returns the loss as well as the gradient (like `Zygote.withgradient`)
-but also returns a gradient component for the loss function.
-To extract what Optimisers.jl needs, you can write (for the Flux model above):
-
-```julia
-using Yota
-
-loss, (∇function, ∇model, ∇image) = Yota.grad(model, image) do m, x
-  sum(m(x)
-end;
-
-# Or else, this may save computing ∇image:
-loss, (_, ∇model) = grad(m -> sum(m(image)), model);
-```
-
 ## Usage with [Lux.jl](https://github.com/avik-pal/Lux.jl)
 
 The main design difference of Lux from Flux is that the tree of parameters is separate from
