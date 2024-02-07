@@ -487,7 +487,7 @@ function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    AdamW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = 1e-8)
+    AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8)
 
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
@@ -497,12 +497,12 @@ weight decay regularization.
                        the weights.
 - Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Weight decay (`γ`): Decay applied to weights during optimisation.
+- Weight decay (`λ`): Controls the strength of ``L_2`` regularisation.
 - Machine epsilon (`ϵ`): Constant to prevent division by zero
                          (no need to change default)
 """
-AdamW(η = 0.001, β = (0.9, 0.999), γ = 0, ϵ = 1e-8) =
-  OptimiserChain(Adam(η, β, ϵ), WeightDecay(γ))
+AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8) =
+  OptimiserChain(Adam(η, β, ϵ), WeightDecay(λ))
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
@@ -538,34 +538,78 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    WeightDecay(γ = 5e-4)
+    WeightDecay(λ = 5e-4)
 
-Decay weights by ``γ``, that is, add `γ .* x` to the gradient `x̄` which will be
-subtracted from `x`.
+Implements ``L_2`` regularisation, also known as ridge regression, 
+when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
 
-Typically composed  with other optimisers as the first transformation in an [`OptimiserChain`](@ref).
-This is equivalent to adding ``L_2`` regularization with coefficient ``γ`` to the loss.
+It does this by adding `λ .* x` to the gradient. This is equivalent to adding 
+`λ/2 * sum(abs2, x) == λ/2 * norm(x)^2` to the loss.
+
+See also [`SignDecay`] for ``L_1`` normalisation.
 
 # Parameters
-- Weight decay (`γ`): Decay applied to weights during optimisation.
+- Penalty (`λ ≥ 0`): Controls the strength of the regularisation.
 """
 @def struct WeightDecay <: AbstractRule
-  gamma = 5e-4
+  lambda = 5e-4
 end
 
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
-  γ = T(o.gamma)
-  dx′ = @lazy dx + γ * x
+  λ = T(o.lambda)
+  dx′ = @lazy dx + λ * x
 
   return state, dx′
 end
+
+function adjust(r::WeightDecay; gamma = nothing, kw...)
+   if isnothing(gamma)
+     return _adjust(r, NamedTuple(kw))
+   else
+     Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust, force=true)
+     nt = (; lambda = gamma, NamedTuple(kw)...)
+     return _adjust(r, nt)
+   end
+ end
+
+"""
+    SignDecay(λ = 1e-3)
+
+Implements ``L_1`` regularisation, also known as LASSO regression,
+when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
+
+It does this by adding `λ .* sign(x)` to the gradient. This is equivalent to adding 
+`λ * sum(abs, x) == λ * norm(x, 1)` to the loss.
+
+See also [`WeightDecay`] for ``L_2`` normalisation.
+They can be used together: `OptimiserChain(SignDecay(0.012), WeightDecay(0.034), Adam())`
+is equivalent to adding `0.012 * norm(x, 1) + 0.017 * norm(x, 2)^2` to the loss function.
+
+# Parameters
+- Penalty (`λ ≥ 0`): Controls the strength of the regularisation.
+"""
+@def struct SignDecay <: AbstractRule
+  lambda = 1e-3
+end
+
+init(o::SignDecay, x::AbstractArray) = nothing
+
+function apply!(o::SignDecay, state, x::AbstractArray{T}, dx) where T
+  λ = T(o.lambda)
+  dx′ = @lazy dx + λ * sign(x)
+
+  return state, dx′
+end
+
 
 """
     ClipGrad(δ = 10)
 
 Restricts every gradient component to obey `-δ ≤ dx[i] ≤ δ`.
+
+Typically composed with other rules using [`OptimiserChain`](@ref).
 
 See also [`ClipNorm`](@ref).
 """
@@ -590,6 +634,8 @@ to stay at this threshold (unless `p==0`).
 
 Throws an error if the norm is infinite or `NaN`,
 which you can turn off with `throw = false`.
+
+Typically composed with other rules using [`OptimiserChain`](@ref).
 
 See also [`ClipGrad`](@ref).
 """

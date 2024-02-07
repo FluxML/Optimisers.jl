@@ -10,7 +10,7 @@ RULES = [
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
   AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
   # A few chained combinations:
-  OptimiserChain(WeightDecay(), Adam(0.001)),
+  OptimiserChain(SignDecay(0.001), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
