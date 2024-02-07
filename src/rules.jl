@@ -508,7 +508,7 @@ Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`]
                          (no need to change default)
 """
 AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8) =
-  OptimiserChain(Adam(η, β, ϵ), WeightDecay(γ))
+  OptimiserChain(Adam(η, β, ϵ), WeightDecay(λ))
 
 AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda = 0, epsilon = 1e-8) =
   OptimiserChain(Adam(eta, beta, epsilon), WeightDecay(lambda))
