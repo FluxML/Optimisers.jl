@@ -8,18 +8,19 @@
 
 """
     Descent(η = 1f-1)
+    Descent(; eta)
 
 Classic gradient descent optimiser with learning rate `η`.
 For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
 """
 struct Descent{T} <: AbstractRule
   eta::T
 end
-Descent() = Descent(1f-1)
+Descent(; eta = 1f-1) = Descent(eta)
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -37,13 +38,14 @@ end
 
 """
     Momentum(η = 0.01, ρ = 0.9)
+    Momentum(; [eta, rho])
 
 Gradient descent optimizer with learning rate `η` and momentum `ρ`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Momentum (`ρ`): Controls the acceleration of gradient descent in the
+- Momentum (`ρ == rho`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
 """
 @def struct Momentum <: AbstractRule
@@ -89,6 +91,7 @@ end
 
 """
     RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred = false)
+    RMSProp(; [eta, rho, epsilon, centred])
 
 Optimizer using the
 [RMSProp](https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf)
@@ -99,11 +102,11 @@ generally don't need tuning.
 gradients by an estimate their variance, instead of their second moment.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Momentum (`ρ`): Controls the acceleration of gradient descent in the
+- Momentum (`ρ == rho`): Controls the acceleration of gradient descent in the
                   prominent direction, in effect dampening oscillations.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 - Keyword `centred` (or `centered`): Indicates whether to use centred variant
                                      of the algorithm.
@@ -115,10 +118,11 @@ struct RMSProp <: AbstractRule
   centred::Bool
 end
 
-function RMSProp(η = 0.001, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
+function RMSProp(η, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
   RMSProp(η, ρ, ϵ, centred | centered)
 end
+RMSProp(; eta = 0.001, rho = 0.9, epsilon = 1e-8, kw...) = RMSProp(eta, rho, epsilon; kw...)
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
@@ -488,21 +492,26 @@ end
 
 """
     AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8)
+    AdamW(; [eta, beta, lambda, epsilon])
 
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
+Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`](@ref)`.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Weight decay (`λ`): Controls the strength of ``L_2`` regularisation.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Weight decay (`λ == lambda`): Controls the strength of ``L_2`` regularisation.
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
-AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8) =
+AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8) =
   OptimiserChain(Adam(η, β, ϵ), WeightDecay(λ))
+
+AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda = 0, epsilon = 1e-8) =
+  OptimiserChain(Adam(eta, beta, epsilon), WeightDecay(lambda))
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)

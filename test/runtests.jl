@@ -330,6 +330,12 @@ end
       @test_throws ArgumentError Optimisers.thaw!(m)
     end
 
+    @testset "keyword arguments" begin
+      @test Nesterov(rho=0.8, eta=0.1) === Nesterov(0.1, 0.8)
+      @test AdamW(lambda=0.3).opts[1] == Adam()
+      @test AdamW(lambda=0.3).opts[2] == WeightDecay(0.3)
+    end
+
     @testset "forgotten gradient" begin
       x = [1.0, 2.0]
       sx = Optimisers.setup(Descent(), x)
