@@ -26,6 +26,7 @@ In addition to the main course, you may wish to order some of these condiments:
 Optimisers.AccumGrad
 Optimisers.ClipGrad
 Optimisers.ClipNorm
+Optimisers.SignDecay
 Optimisers.WeightDecay
 Optimisers.OptimiserChain
 ```
