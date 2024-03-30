@@ -73,7 +73,7 @@ function _flatten(x)
     o
   end
   isempty(arrays) && return Bool[], off, 0
-  reduce(vcat, arrays), off, len[]
+  return reduce(vcat, arrays), off, len[]
 end
 
 struct _TrainableStructWalk <: AbstractWalk end
@@ -174,3 +174,4 @@ function ChainRulesCore.rrule(::typeof(_maybewarn))
   @warn "second derivatives of destructure may not work yet, sorry!" maxlog=3
   nothing, _ -> (NoT,)
 end
+

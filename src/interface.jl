@@ -167,6 +167,7 @@ and `trainable(x)` must contain a subset of these.
 """
 trainable(x) = functor(x)[1]
 
+# like trainable(x), but also tries to output non-trainable children giving value nothing
 _trainable(x) = _trainable(functor(x)[1], trainable(x))
 _trainable(ch::NamedTuple, tr::NamedTuple) = merge(map(_ -> nothing, ch), tr)
 _trainable(ch::Tuple{Vararg{Any,N}}, tr::Tuple{Vararg{Any,N}}) where N = tr
