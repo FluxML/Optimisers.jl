@@ -2,7 +2,7 @@
 
 ## An optimisation rule
 
-A new optimiser must overload two functions, [`apply!`](@ref) and [`init`](@ref).
+A new optimiser must overload two functions, [`apply!`](@ref Optimisers.apply!) and [`init`](@ref Optimisers.init).
 These act on one array of parameters:
 
 ```julia
@@ -33,8 +33,8 @@ It of course also makes it easier to store the state.
 
 ## Usage with [Flux.jl](https://github.com/FluxML/Flux.jl)
 
-To apply such an optimiser to a whole model, [`setup`](@ref) builds a tree containing any initial
-state for every trainable array. Then at each step, [`update`](@ref) uses this and the gradient
+To apply such an optimiser to a whole model, [`setup`](@ref Optmisers.setup) builds a tree containing any initial
+state for every trainable array. Then at each step, [`update`](@ref Optmisers.update) uses this and the gradient
 to adjust the model:
 
 ```julia
@@ -142,10 +142,10 @@ end;
 
 Optimisers.jl uses [Functors.jl](https://fluxml.ai/Functors.jl) to walk the `struct`s
 making up the model, for which they must be annotated `@functor Type`. 
-By default optimisation will alter all [`isnumeric`](@ref) arrays. 
+By default optimisation will alter all [`isnumeric`](@ref Optimisers.isnumeric) arrays. 
 
 If some arrays of a particular layer should not be treated this way,
-you can define a method for [`trainable`](@ref)
+you can define a method for [`trainable`](@ref Optimisers.trainable)
 
 ```julia
 struct Layer{T}
@@ -239,7 +239,7 @@ from StaticArrays.jl.
 ## Obtaining a flat parameter vector
 
 Instead of a nested tree-like structure, sometimes is is convenient to have all the
-parameters as one simple vector. Optimisers.jl contains a function [`destructure`](@ref)
+parameters as one simple vector. Optimisers.jl contains a function [`destructure`](@ref Optimisers.destructure)
 which creates this vector, and also creates way to re-build the original structure
 with new parameters. Both flattening and re-building may be used within `gradient` calls.
 
@@ -270,7 +270,7 @@ st, flat = Optimisers.update(st, flat, ∇flat)
 
 Here `flat` contains only the 283 trainable parameters, while the non-trainable
 ones are preserved inside `re`, an object of type `Restructure`.
-When defining new layers, these can be specified if necessary by overloading [`trainable`](@ref).
+When defining new layers, these can be specified if necessary by overloading [`trainable`](@ref Optimisers.trainable).
 By default, all numeric arrays visible to [Functors.jl](https://github.com/FluxML/Functors.jl)
 are assumed to contain trainable parameters.
 Tied parameters (arrays appearing in different layers) are included only once in `flat`.
