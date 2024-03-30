@@ -33,8 +33,8 @@ It of course also makes it easier to store the state.
 
 ## Usage with [Flux.jl](https://github.com/FluxML/Flux.jl)
 
-To apply such an optimiser to a whole model, [`setup`](@ref Optmisers.setup) builds a tree containing any initial
-state for every trainable array. Then at each step, [`update`](@ref Optmisers.update) uses this and the gradient
+To apply such an optimiser to a whole model, [`setup`](@ref Optimisers.setup) builds a tree containing any initial
+state for every trainable array. Then at each step, [`update`](@ref Optimisers.update) uses this and the gradient
 to adjust the model:
 
 ```julia
