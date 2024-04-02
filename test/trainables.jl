@@ -97,3 +97,19 @@ end
   @test g == (a = [2.0, 4.0, 6.0], b = Float32[8.0 12.0; 10.0 14.0], c = Array[Float32[8.0 12.0; 10.0 14.0], [2.0, 4.0, 6.0]])
 end
 
+@testset "second order derivatives" begin
+  struct DenseLayer
+    w
+    b
+  end
+
+  Functors.@functor DenseLayer
+
+  loss(m) = sum([sum(abs2, p) for p in trainables(m)])
+
+  model = DenseLayer([1. 2.; 3. 4.], [0., 0.])
+
+  g = gradient(m -> loss(gradient(loss, m)), model)[1]
+  @test g.w == [8.0 16.0; 24.0 32.0]
+  @test g.b == [0.0, 0.0]
+end
