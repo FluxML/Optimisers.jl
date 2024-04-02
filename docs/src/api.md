@@ -58,6 +58,7 @@ Such restrictions are also obeyed by this function for flattening a model:
 ```@docs
 Optimisers.destructure
 Optimisers.Restructure
+Optimisers.trainables
 ```
 
 ## Rule Definition

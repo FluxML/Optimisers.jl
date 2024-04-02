@@ -10,7 +10,7 @@ Random.seed!(1)
 
 struct Foo; x; y; end
 Functors.@functor Foo
-Optimisers.trainable(x::Foo) = (x.y, x.x)
+Optimisers.trainable(x::Foo) = (; x.y, x.x)
 
 struct TwoThirds a; b; c; end
 Functors.@functor TwoThirds (a, c)
@@ -538,6 +538,9 @@ end
   end
   @testset verbose=true "Destructure" begin
     include("destructure.jl")
+  end
+  @testset verbose=true "Trainables" begin
+    include("trainables.jl")
   end
   @testset verbose=true "Optimisation Rules" begin
     include("rules.jl")
