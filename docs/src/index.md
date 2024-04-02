@@ -290,3 +290,29 @@ flat, re = destructure(params)
 end
 ```
 
+## Collecting all trainable parameters
+
+Sometimes it is useful to collect all trainable parameters in a model,
+similarly to what [`destructure`](@ref Optimisers.destructure) does but keeping
+the arrays separate. 
+This is done by [`trainables`](@ref Optimisers.trainables), which returns a list of arrays:
+
+```julia
+julia> using Flux, Optimisers
+
+julia> model = Chain(Dense(2 => 3, tanh), BatchNorm(3), Dense(3 => 2));
+
+julia> trainables(model)
+6-element Vector{AbstractArray}:
+ Float32[0.5756773 -0.1975264; 0.4723181 -0.7546912; -0.91631395 0.07392061]
+ Float32[0.0, 0.0, 0.0]
+ Float32[0.0, 0.0, 0.0]
+ Float32[1.0, 1.0, 1.0]
+ Float32[-0.8764882 0.40812716 0.1919528; -0.9123545 -0.4462516 0.6751252]
+ Float32[0.0, 0.0]
+
+julia> l2reg(model) = sum([sum(abs2,p) for p in trainables(model)]);
+
+julia> g = gradient(l2reg, model)[1];
+```
+Notice that the `BatchNorm` layer has two trainable parameters, `γ` and `β`, which are included in the list, while the `μ ` and `σ²` buffers are not.
