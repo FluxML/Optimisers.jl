@@ -51,6 +51,7 @@ To further restrict this by ignoring some fields of a layer type, define `traina
 ```@docs
 Optimisers.trainable
 Optimisers.isnumeric
+Optimisers.maywrite
 ```
 
 Such restrictions are also obeyed by this function for flattening a model:
@@ -68,4 +69,5 @@ Optimisers.init
 Optimisers.@..
 Optimisers.@lazy
 Optimisers.adjust(::AbstractRule, ::Real)
+Optimisers.@def
 ```
