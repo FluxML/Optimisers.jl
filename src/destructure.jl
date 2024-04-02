@@ -5,7 +5,7 @@ const NoT = NoTangent()
 """
     destructure(model) -> vector, reconstructor
 
-Copies all [`trainable`](@ref), [`isnumeric`](@ref) parameters in the model
+Copies all [`trainable`](@ref Optimisers.trainable), [`isnumeric`](@ref Optimisers.isnumeric) parameters in the model
 to a vector, and returns also a function which reverses this transformation.
 Differentiable.
 
@@ -34,7 +34,7 @@ end
 """
     Restructure(Model, ..., length)
 
-This is what [`destructure`](@ref) returns, and `re(p)` will re-build the model with
+This is what [`destructure`](@ref Optimisers.destructure) returns, and `re(p)` will re-build the model with
 new parameters from vector `p`. If the model is callable, then `re(x, p) == re(p)(x)`.
 
 # Example

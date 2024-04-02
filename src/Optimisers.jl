@@ -48,7 +48,7 @@ apply!
     Optimisers.init(rule::RuleType, parameters) -> state
 
 Sets up the initial state for a given optimisation rule, and an array of parameters.
-This and [`apply!`](@ref) are the two functions which any new optimisation rule must define.
+This and [`apply!`](@ref Optimisers.apply!) are the two functions which any new optimisation rule must define.
 
 # Examples
 ```jldoctest
@@ -70,8 +70,8 @@ init
     Optimisers.setup(rule, model) -> state_tree
 
 Initialises the given optimiser for every trainable parameter within the model.
-Returns a tree of the relevant states, which must be passed to [`update`](@ref)
-or [`update!`](@ref).
+Returns a tree of the relevant states, which must be passed to [`update`](@ref Optimisers.update)
+or [`update!`](@ref Optimisers.update!).
 
 # Example
 ```jldoctest
@@ -112,9 +112,9 @@ setup
 
 Uses the optimiser and the gradient to change the trainable parameters in the model.
 Returns the improved model, and the optimiser states needed for the next update.
-The initial tree of states comes from [`setup`](@ref).
+The initial tree of states comes from [`setup`](@ref Optimisers.setup).
 
-See also [`update!`](@ref), which will be faster for models of ordinary `Array`s or `CuArray`s.
+See also [`update!`](@ref Optimisers.update!), which will be faster for models of ordinary `Array`s or `CuArray`s.
 
 # Example
 ```jldoctest
@@ -136,9 +136,9 @@ update
 
 Uses the optimiser and the gradient to change the trainable parameters in the model.
 Returns the improved model, and the optimiser states needed for the next update.
-The initial tree of states comes from [`setup`](@ref).
+The initial tree of states comes from [`setup`](@ref Optimisers.setup).
 
-This is used in exactly the same manner as [`update`](@ref), but because it may mutate
+This is used in exactly the same manner as [`update`](@ref Optimisers.update), but because it may mutate
 arrays within the old model (and the old state), it will be faster for models of ordinary
 `Array`s or `CuArray`s. However, you should not rely on the old model being fully updated
 but rather use the returned model.
