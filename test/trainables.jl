@@ -83,7 +83,7 @@ end
   @test g == (a = ((x = [2.0, 4.0, 6.0], y = nothing, z = [8.0, 10.0, 12.0]), nothing), b = ([2.0, 4.0, 6.0], nothing), c = ((x = [2.0, 4.0, 6.0], y = [2.0, 4.0, 6.0], z = [8.0, 10.0, 12.0]), nothing))
   
   g = gradient(loss, m6)[1]
-  @test g = (a = [2.0, 4.0, 6.0], b = ComplexF64[8.0 + 2.0im], c = [2.0, 4.0, 6.0])
+  @test g == (a = [2.0, 4.0, 6.0], b = ComplexF64[8.0 + 2.0im], c = [2.0, 4.0, 6.0])
   
   g = gradient(loss, m7)[1]
   @test g == (a = (nothing, [2.0, 4.0, 6.0]), b = nothing, c = nothing)
