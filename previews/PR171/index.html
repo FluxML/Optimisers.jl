@@ -134,7 +134,7 @@ flat, re = destructure(params)
   p = re(v)  # rebuild an object like params
   y, _ = Lux.apply(lux_model, images, p, lux_state)
   sum(y)
-end</code></pre><h2 id="Collecting-all-trainable-parameters"><a class="docs-heading-anchor" href="#Collecting-all-trainable-parameters">Collecting all trainable parameters</a><a id="Collecting-all-trainable-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Collecting-all-trainable-parameters" title="Permalink"></a></h2><p>Sometimes it is useful to collect all trainable parameters in a model, similarly to what <a href="api/#Optimisers.destructure"><code>destructure</code></a> does but keeping the arrays separate.  This is done by <a href="api/#Optimisers.trainables"><code>trainables</code></a>, which returns a list of arrays:</p><pre><code class="language-julia hljs">julia&gt; using Flux, Optimisers
+end</code></pre><h2 id="Collecting-all-trainable-parameters"><a class="docs-heading-anchor" href="#Collecting-all-trainable-parameters">Collecting all trainable parameters</a><a id="Collecting-all-trainable-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Collecting-all-trainable-parameters" title="Permalink"></a></h2><p>Sometimes it is useful to collect all trainable parameters in a model, similarly to what <a href="api/#Optimisers.destructure"><code>destructure</code></a> does but without concatenating the arrays into a flat vector. This is done by <a href="api/#Optimisers.trainables"><code>trainables</code></a>, which returns a list of arrays:</p><pre><code class="language-julia hljs">julia&gt; using Flux, Optimisers
 
 julia&gt; model = Chain(Dense(2 =&gt; 3, tanh), BatchNorm(3), Dense(3 =&gt; 2));
 
