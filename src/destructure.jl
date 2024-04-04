@@ -66,19 +66,19 @@ function _flatten(x)
   isnumeric(x) && return vcat(_vec(x)), 0, length(x)  # trivial case
   arrays = AbstractVector[]
   len = Ref(0)
-  off = fmap(x; exclude = isnumeric, walk = _TrainableStructWalk()) do y
+  off = fmap(x; exclude = isnumeric, walk = TrainableStructWalk()) do y
     push!(arrays, _vec(y))
     o = len[]
     len[] = o + length(y)
     o
   end
   isempty(arrays) && return Bool[], off, 0
-  reduce(vcat, arrays), off, len[]
+  return reduce(vcat, arrays), off, len[]
 end
 
-struct _TrainableStructWalk <: AbstractWalk end
+struct TrainableStructWalk <: AbstractWalk end
 
-(::_TrainableStructWalk)(recurse, x) = map(recurse, _trainable(x))
+(::TrainableStructWalk)(recurse, x) = map(recurse, _trainable(x))
 
 _vec(x::Number) = LinRange(x,x,1)
 _vec(x::AbstractArray) = vec(x)
@@ -174,3 +174,4 @@ function ChainRulesCore.rrule(::typeof(_maybewarn))
   @warn "second derivatives of destructure may not work yet, sorry!" maxlog=3
   nothing, _ -> (NoT,)
 end
+

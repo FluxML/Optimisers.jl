@@ -11,6 +11,9 @@ include("adjust.jl")
 include("destructure.jl")
 export destructure
 
+include("trainables.jl")
+export trainables
+
 include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
