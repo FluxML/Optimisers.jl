@@ -8,6 +8,8 @@ using LinearAlgebra
 include("interface.jl")
 export AbstractRule
 
+include("utils.jl")
+
 include("adjust.jl")
 
 include("destructure.jl")
