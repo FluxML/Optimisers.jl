@@ -2,7 +2,7 @@
 """
     trainables(x)
 
-Return an iterable over all the trainable parameters in `x`, that is all the numerical
+Return a list over all the trainable parameters in `x`, that is all the numerical
 arrays (see [`isnumeric`](@ref Optimisers.isnumeric)) which are reachable through [`trainable`](@ref Optimisers.trainable).
 
 Parameters appearing multiple times in the model (tied weights) will be present only once in the output.
