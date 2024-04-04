@@ -293,8 +293,8 @@ end
 ## Collecting all trainable parameters
 
 Sometimes it is useful to collect all trainable parameters in a model,
-similarly to what [`destructure`](@ref Optimisers.destructure) does but keeping
-the arrays separate. 
+similarly to what [`destructure`](@ref Optimisers.destructure) does but without
+concatenating the arrays into a flat vector.
 This is done by [`trainables`](@ref Optimisers.trainables), which returns a list of arrays:
 
 ```julia
