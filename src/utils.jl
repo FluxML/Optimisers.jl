@@ -7,9 +7,9 @@ mapkey(f, x::Dict) = Dict(k => f(k) for k in keys(x))
 mapkey(f, x::Tuple) = ntuple(i -> f(i), length(x))
 mapkey(f, x::AbstractArray) = [f(i) for i=1:length(x)]
 
-valueforeach(f, x...) = foreach(f, x...)
+foreachvalue(f, x...) = foreach(f, x...)
 
-valueforeach(f, x::Dict, ys...) = foreach(pairs(x)) do (k, v)
+foreachvalue(f, x::Dict, ys...) = foreach(pairs(x)) do (k, v)
   f(v, (get(y, k, nothing) for y in ys)...)
 end
 
