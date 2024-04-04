@@ -78,7 +78,7 @@ end
 
 struct TrainableStructWalk <: AbstractWalk end
 
-(::TrainableStructWalk)(recurse, x) = map(recurse, _trainable(x))
+(::TrainableStructWalk)(recurse, x) = mapvalue(recurse, _trainable(x))
 
 _vec(x::Number) = LinRange(x,x,1)
 _vec(x::AbstractArray) = vec(x)

@@ -1,6 +1,8 @@
 module Optimisers
 
-using Functors: functor, fmap, isleaf, @functor, fmapstructure, children, AbstractWalk
+using Functors: functor, fmap, fmap_with_path, 
+                KeyPath, haskeypath, getkeypath,
+                isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
 
 include("interface.jl")
@@ -13,6 +15,7 @@ export destructure
 
 include("trainables.jl")
 export trainables
+export KeyPath, haskeypath, getkeypath # from Functors.jl
 
 include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,

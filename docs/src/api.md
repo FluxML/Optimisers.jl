@@ -72,3 +72,14 @@ Optimisers.@lazy
 Optimisers.adjust(::AbstractRule, ::Real)
 Optimisers.@def
 ```
+
+## KeyPath
+
+A `KeyPath` is a sequence of keys that can be used to access a value within a nested structure.
+It is defined in Functors.jl and re-exported by Optimisers.jl here for convenience.
+
+```@docs
+Functors.KeyPath
+Functors.haskeypath
+Functors.getkeypath
+```
