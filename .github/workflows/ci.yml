@@ -53,27 +53,3 @@ jobs:
           file: lcov.info
         continue-on-error: ${{ matrix.julia-version == 'nightly' }}
 
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: '1.6'
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-      - run: |
-          julia --color=yes --project=docs/ -e '
-            using Optimisers
-            using Documenter
-            using Documenter: doctest
-            DocMeta.setdocmeta!(Optimisers, :DocTestSetup, :(using Optimisers); recursive = true)
-            doctest(Optimisers)'
-      - run: julia --project=docs docs/make.jl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
