@@ -1,8 +1,9 @@
 using Documenter, Optimisers, Zygote, StaticArrays, Functors
 
-DocMeta.setdocmeta!(Optimisers, :DocTestSetup, :(using Optimisers); recursive = true)
+DocMeta.setdocmeta!(Optimisers, :DocTestSetup, :(using Optimisers, Functors); recursive = true)
+DocMeta.setdocmeta!(Functors, :DocTestSetup, :(using Functors); recursive = true)
 
-makedocs(modules = [Optimisers],
+makedocs(modules = [Optimisers, Functors],
          doctest = false,
          sitename = "Optimisers.jl",
          pages = ["Home" => "index.md",
@@ -13,6 +14,7 @@ makedocs(modules = [Optimisers],
              assets = ["assets/flux.css"],
              prettyurls = get(ENV, "CI", nothing) == "true"
          ),
+         checkdocs = :none, # don't check that Functors' docstrings are all reported here
 )
 
 deploydocs(
