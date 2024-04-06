@@ -9,7 +9,7 @@ Parameters appearing multiple times in the model (tied weights) will be present 
 
 If `path = false`, the output is a list of numerical arrays.
 
-If `path = true`, the output is a list of `(KeyPath, AbstractArray)` pairs, where [`KeyPath`](@ref Functors.KeyPath) is a type
+If `path = true`, the output is a list of `(KeyPath, AbstractArray)` pairs, where [`KeyPath`](@ref) is a type
 representing the path to the array in the original structure.
 
 See also [`destructure`](@ref) for a similar operation that returns a single flat vector instead.
