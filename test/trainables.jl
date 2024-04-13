@@ -139,3 +139,22 @@ end
     @test g.y == [2.0, 4.0, 6.0]
     @test g.z === nothing
 end
+
+using Flux, Optimisers
+using ComponentArrays
+using Test
+
+
+model0 = Chain(
+  Dense(784, 32, relu),
+  Dense(32, 10))
+
+ps, re = trainables_nt(model0)
+@test ps.layers._1.weight === model0[1].weight
+model1 = re(ps)
+@test model1[1].weight === ps.layers._1.weight
+
+v = ComponentVector(ps)
+v2 = 2 * v
+model2 = re(v2)
+@test model2[1].weight === v2.layers._1.weight
