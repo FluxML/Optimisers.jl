@@ -155,26 +155,86 @@ true
 julia> v = ComponentVector(ps)
 
 julia> model2 = re(2 * v) 
-
+Chain(
+  Dense(784 => 32, relu),               # 25_120 parameters
+  Dense(32 => 10),                      # 330 parameters
+)                   # Total: 4 arrays, 25_450 parameters, 100.281 KiB.
 ```
 """
-function trainables_nt(x)
-    walknt = TrainableNamedTupleWalk()
-    ps = fmap(identity, x; exclude=isnumeric, walk=walknt, cache=nothing)
-    re = RestructureFromNT(x)
+function trainables_nt(model)
+    ps = _trainables_nt(model)
+    re = RestructureFromNT(model)
     return ps, re
 end
 
+function _trainables_nt(x)
+    walknt = TrainableNamedTupleWalk()
+    ps = fmap(identity, x; exclude=isnumeric, walk=walknt, cache=nothing)
+    return ps
+end
+
+function ChainRulesCore.rrule(::typeof(_trainables_nt), model)
+    ps = _trainables_nt(model)
+    function _trainables_nt_back(Δps)
+        walk = TrainableNamedTupleBackWalk()
+        Δmodel = fmap(model, Δps; exclude=isnumeric, walk, cache=nothing) do x, Δ
+                    return Δ
+                end
+        return (NoTangent(), Δmodel)
+    end
+    return ps, _trainables_nt_back
+end
 
 struct RestructureFromNT{T}
     x::T
 end
 
-function (re::RestructureFromNT)(ps)
+(re::RestructureFromNT)(ps) = rebuild_from_nt(re.x, ps)
+
+function rebuild_from_nt(model, ps)
     walk = RestructureFromNamedTupleWalk()
-    return fmap(re.x, ps; exclude=isnumeric, walk, cache=nothing) do y, p
+    return fmap(model, ps; exclude=isnumeric, walk, cache=nothing) do x, p
                 return p
             end
+end
+
+struct RestructureFromNamedTupleWalk <: AbstractWalk end
+
+function (::RestructureFromNamedTupleWalk)(recurse, x, nt)
+    @show 1 x nt
+    children, re = functor(x)
+    @show 2 children
+    newchildren = map_commons(recurse, children, nt)
+    @show 3 x nt children newchildren
+    return re(newchildren)
+end
+
+function ChainRulesCore.rrule(::typeof(rebuild_from_nt), x, ps)
+    model = rebuild_from_nt(x, ps)
+    function rebuild_from_nt_back(Δmodel_raw)
+        Δmodel = unthunk(Δmodel_raw)
+        walk = RestructureFromNamedTupleWalk()
+        Δps = fmap(ps, Δmodel; exclude=isnumeric, walk, cache=nothing) do p, Δ
+                    return Δ
+                end
+        return (NoTangent(), NoTangent(), Δps)
+    end
+    return model, rebuild_from_nt_back
+end
+
+
+struct TrainableNamedTupleBackWalk <: AbstractWalk end
+
+function (::TrainableNamedTupleBackWalk)(recurse, model, Δps)
+    @show 1 typeof(model) typeof(Δps)
+    ch = trainable(model)
+    Δ = unmake_named_tuple(ch, Δps)
+    @show 2 typeof(ch) typeof(Δ)
+    Δ === nothing && return nothing
+    Δ === ZeroTangent() && return ZeroTangent()
+    y = mapvalue(recurse, ch, Δ)
+    @show 3 typeof(model) typeof(ch) typeof(Δ) typeof(y)
+    return y
 end
 
 struct TrainableNamedTupleWalk <: AbstractWalk end
@@ -185,13 +245,6 @@ function (::TrainableNamedTupleWalk)(recurse, x)
     return y
 end
 
-struct RestructureFromNamedTupleWalk <: AbstractWalk end
-
-function (::RestructureFromNamedTupleWalk)(recurse, x, nt)
-    children, re = functor(x)
-    newchildren = map_commons(recurse, children, nt)
-    return re(newchildren)
-end
 
 function map_commons(f, x::NamedTuple{xkeys}, y) where {xkeys}
     ykeys = propertynames(y)
@@ -223,3 +276,17 @@ make_named_tuple(x::AbstractDict) = NamedTuple(Symbol("_", k) => v for (k, v) in
 make_named_tuple(x::Tuple) = NamedTuple{ntuple(i -> Symbol("_",i), length(x))}(x)
 make_named_tuple(x::Vector) = NamedTuple{ntuple(i -> Symbol("_",i), length(x))}(x)
 
+
+unmake_named_tuple(x::NamedTuple, ps) = ps
+
+function unmake_named_tuple(x::Tuple, ps)
+    return ntuple(length(x)) do i
+                ps[Symbol("_", i)]
+            end
+end
+
+function unmake_named_tuple(x::Vector, ps)
+    return map(1:length(x)) do i
+                ps[Symbol("_", i)]
+            end   
+end
