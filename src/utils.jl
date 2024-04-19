@@ -1,5 +1,9 @@
 
 mapvalue(f, x...) = map(f, x...)
+mapvalue(f, x::NamedTuple, ys::NamedTuple...) = map(f, x, ys...)
+mapvalue(f, x, y::NamedTuple{ykeys}) where {ykeys} = 
+  NamedTuple{ykeys}((f(getproperty(x ,k), yk) for (k, yk) in pairs(y)))  # used in rrule for restructure_from_nt
+
 mapvalue(f, x::Dict, ys...) = Dict(k => f(v, (get(y, k, nothing) for y in ys)...) for (k,v) in x)
 
 # without theses, tuples are returned instead of NamedTuples

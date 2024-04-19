@@ -200,153 +200,132 @@ end
         @test model′.a.b[1] === v2.a.b._1 # no copies
         @test model′.a.a === v2.a.a
     end
+
+    @testset "gradient of trainables_nt(m)[1]" begin
+        f(m) = trainables_nt(m)[1]
+        @test gradient(m -> f(m)[1], m1)[1] == [1,0,0]
+        @test gradient(m -> f(m)._1[2], m2)[1] == ([0.0, 1.0, 0.0], nothing)
+        @test gradient(m -> f(m)._1[3], (m1, m1))[1] == ([0,0,1], nothing)
+        @test gradient(m -> f(m).x[1], m3)[1] == (x = [1,0,0], y = nothing, z = nothing)
+        @test gradient(m -> f(m).x[2], m4)[1] == (x = [0,1,0], y = nothing, z = nothing)
+
+        g5 = gradient(m -> f(m).a._1.z[3], m5)[1]
+        @test g5.a[1].z == [0,0,1]
+        @test g5.a[2] === nothing
+
+        g6 = gradient(m -> imag(f(m).b[1]), m6)[1]
+        @test g6 == (a = nothing, b = ComplexF64[0.0 + 1.0im], c = nothing)
+        @test eltype(g6.b) == ComplexF64
+
+        # TODO add second derivative tests when support is ready
+        # @testset "second derivative" begin
+        #     @test gradient([1,2,3.0]) do v
+        #             sum(abs2, gradient(m -> sum(abs2, f(m)), (v, [4,5,6.0]))[1][1])
+        #         end[1] ≈ [8,16,24]
+        #     # With Diffractor, non-leaf _grad!(x, dx, off, flat::AbstractVector) gets double-wrapped dx:
+        #     # off = (0, 3), dx = Tangent{Tangent{Tuple{Vector{Float64}, Vector{Float64}}, ...
+        #     # until you add explicit double-unwrap: base(dx::Tangent{<:Tangent}) = backing(dx).backing
+        #     # With Zygote, instead:
+        #     # dx = Tangent{Any}(backing = Tangent{Any}([4.0, 8.0, 12.0], ZeroTangent()),)
+
+        #     @test gradient([1,2,3.0]) do v
+        #     sum(gradient(m -> sum(trainables_nt(m)[1])^3, (v, [4,5,6.0]))[1][1])
+        #     end[1] == [378, 378, 378]
+
+        #     VERSION >= v"1.10" && @test gradient([1,2,3.0]) do v
+        #     sum(abs2, gradient(m -> sum(abs2, trainables_nt(m)[1]), (x = v, y = sin, z = [4,5,6.0]))[1][1])
+        #     end[1] ≈ [8,16,24]
+        #     # Zygote error in (::typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple{(:x, :y, :z)
+        #     # Diffractor error in perform_optic_transform
+        # end
+    end
 end
 
-# @testset "gradient of flatten" begin
-#   @test gradient(m -> trainables_nt(m)[1][1], m1)[1] == [1,0,0]
-#   @test gradient(m -> trainables_nt(m)[1][2], m2)[1] == ([0,1,0], [0,0,0])
-#   @test gradient(m -> trainables_nt(m)[1][3], (m1, m1))[1] == ([0,0,1], nothing)
-#   @test gradient(m -> trainables_nt(m)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
-#   @test gradient(m -> trainables_nt(m)[1][2], m4)[1] == (x = [0,1,0], y = nothing, z = [0,0,0])
 
-#   g5 = gradient(m -> trainables_nt(m)[1][3], m5)[1]
-#   @test g5.a[1].x == [0,0,1]
-#   @test g5.a[2] === nothing
-
-#   g6 = gradient(m -> imag(trainables_nt(m)[1][4]), m6)[1]
-#   @test g6.a == [0,0,0]
-#   @test g6.a isa Vector{Float64}
-#   @test g6.b == [0+im]
-
-#   g8 = gradient(m -> sum(abs2, trainables_nt(m)[1]), m8)[1]
-#   @test g8[1].x == [2,4,6]
-#   @test g8[2].b.x == [8]
-#   @test g8[3] == [[10.0]]
-
-#   g9 = gradient(m -> sum(sqrt, trainables_nt(m)[1]), m9)[1]
-#   @test g9.c === nothing
-
-#   @testset "second derivative" begin
-#     @test gradient([1,2,3.0]) do v
-#       sum(abs2, gradient(m -> sum(abs2, trainables_nt(m)[1]), (v, [4,5,6.0]))[1][1])
-#     end[1] ≈ [8,16,24]
-#     # With Diffractor, non-leaf _grad!(x, dx, off, flat::AbstractVector) gets double-wrapped dx:
-#     # off = (0, 3), dx = Tangent{Tangent{Tuple{Vector{Float64}, Vector{Float64}}, ...
-#     # until you add explicit double-unwrap: base(dx::Tangent{<:Tangent}) = backing(dx).backing
-#     # With Zygote, instead:
-#     # dx = Tangent{Any}(backing = Tangent{Any}([4.0, 8.0, 12.0], ZeroTangent()),)
-
-#     @test gradient([1,2,3.0]) do v
-#       sum(gradient(m -> sum(trainables_nt(m)[1])^3, (v, [4,5,6.0]))[1][1])
-#     end[1] == [378, 378, 378]
-
-#     VERSION >= v"1.10" && @test gradient([1,2,3.0]) do v
-#       sum(abs2, gradient(m -> sum(abs2, trainables_nt(m)[1]), (x = v, y = sin, z = [4,5,6.0]))[1][1])
-#     end[1] ≈ [8,16,24]
-#     # Zygote error in (::typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple{(:x, :y, :z)
-#     # Diffractor error in perform_optic_transform
-#   end
-  
-#   false && @testset "using Yota" begin
-#     @test Yota_gradient(m -> trainables_nt(m)[1][1], m1)[1] == [1,0,0]
-#     @test Yota_gradient(m -> trainables_nt(m)[1][2], m2)[1] == ([0,1,0], [0,0,0])
-#     @test Yota_gradient(m -> trainables_nt(m)[1][3], (m1, m1))[1] == ([0,0,1], nothing)
-#     @test Yota_gradient(m -> trainables_nt(m)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
-#     @test Yota_gradient(m -> trainables_nt(m)[1][2], m4)[1] == (x = [0,1,0], y = nothing, z = [0,0,0])
-
-#     g5 = Yota_gradient(m -> trainables_nt(m)[1][3], m5)[1]
-#     @test g5.a[1].x == [0,0,1]
-#     @test g5.a[2] === nothing
-
-#     g6 = Yota_gradient(m -> imag(trainables_nt(m)[1][4]), m6)[1]
-#     @test g6.a == [0,0,0]
-#     @test g6.a isa Vector{Float64}
-#     @test g6.b == [0+im]
-
-#     g8 = Yota_gradient(m -> sum(abs2, trainables_nt(m)[1]), m8)[1]
-#     @test g8[1].x == [2,4,6]
-#     @test g8[2].b.x == [8]
-#     @test g8[3] == [[10.0]]
-
-#     g9 = Yota_gradient(m -> sum(sqrt, trainables_nt(m)[1]), m9)[1]
-#     @test g9.c === nothing
-#   end
-# end
-
-# @testset "gradient of rebuild" begin
-#   re1 = trainables_nt(m1)[2]
-#   @test gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
-#   re2 = trainables_nt(m2)[2]
-#   @test gradient(x -> re2(x)[1][2], rand(6))[1] == [0,1,0,0,0,0]
-#   re3 = trainables_nt(m3)[2]
-#   @test gradient(x -> re3(x).x[3], rand(6))[1] == [0,0,1,0,0,0]
-#   @test gradient(x -> re3(x).z[1], rand(6))[1] == [0,0,0,1,0,0]
-
-#   re4 = trainables_nt(m4)[2]
-#   @test gradient(x -> re4(x).x[1], rand(6))[1] == [1,0,0,0,0,0]
-#   @test gradient(x -> re4(x).y[2], rand(6))[1] == [0,1,0,0,0,0]
-#   @test gradient(rand(6)) do x
-#     m = re4(x)
-#     m.x[1] + 2*m.y[2] + 3*m.z[3]
-#   end[1] == [1,2,0, 0,0,3]
-
-#   re7 = trainables_nt(m7)[2]
-#   @test gradient(x -> re7(x).a[2][3], rand(3))[1] == [0,0,1]
-#   @test gradient(x -> re7(x).b[2][2], rand(3))[1] == [0,0,0]
-#   @test gradient(x -> re7(x).c[2][1], rand(3))[1] == [0,0,0]
-
-#   v8, re8 = trainables_nt(m8)
-#   @test gradient(x -> sum(abs2, re8(x)[1].y), v8)[1] == [2,4,6,0,0]
-#   @test gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
-
-#   re9 = trainables_nt(m9)[2]
-#   @test gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
-
-#   @testset "second derivative" begin
-#     @test_broken gradient(collect(1:6.0)) do y
-#       sum(abs2, gradient(x -> sum(abs2, re2(x)[1]), y)[1])
-#     end[1] ≈ [8,16,24,0,0,0]
-#     # ERROR: Need an adjoint for constructor ChainRulesCore.Tangent{Any, Tuple{Vector{Float64}, ChainRulesCore.ZeroTangent}}. Gradient is of type Tuple{Vector{Float64}, Vector{Float64}}
-#     # with Zygote, which can be fixed by:
-#     # Zygote.@adjoint Tangent{T,B}(x::Tuple) where {T,B<:Tuple} = Tangent{T,B}(x), dx -> (dx,)
-
-#     @test_broken gradient(collect(1:6.0)) do y
-#       sum(abs2, gradient(x -> sum(abs2, re3(x).z), y)[1])
-#     end[1] ≈ [0,0,0,32,40,48]
-#     # Not fixed by this:
-#     # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
-#   end
-  
-#   false && @testset "using Yota" begin
+# @testset "gradient of re(ps)" begin
 #     re1 = trainables_nt(m1)[2]
-#     @test Yota_gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
-#     re2 = trainables_nt(m2)[2]
-#     @test Yota_gradient(x -> re2(x)[1][2], rand(6))[1] == [0,1,0,0,0,0]
-#     re3 = trainables_nt(m3)[2]
-#     @test Yota_gradient(x -> re3(x).x[3], rand(6))[1] == [0,0,1,0,0,0]
-#     @test Yota_gradient(x -> re3(x).z[1], rand(6))[1] == [0,0,0,1,0,0]
+#     @test gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
+#     ps2, re2 = trainables_nt(m2)
+#     @test gradient(x -> re2(x)[1][2], ps2)[1] == (_1 = [0.0, 1.0, 0.0], _2 = nothing)
+#     ps3, re3 = trainables_nt(m3)
+#     @test gradient(x -> re3(x).x[3], ps3)[1] == (x = [0.0, 0.0, 1.0], y = nothing, z = nothing)
+#     @test gradient(x -> re3(x).z[1], ps3)[1] == (x = nothing, y = nothing, z = [1.0, 0.0, 0.0])
 
-#     re4 = trainables_nt(m4)[2]
-#     @test Yota_gradient(x -> re4(x).x[1], rand(6))[1] == [1,0,0,0,0,0]
-#     @test Yota_gradient(x -> re4(x).y[2], rand(6))[1] == [0,1,0,0,0,0]
-#     @test Yota_gradient(rand(6)) do x
-#       m = re4(x)
-#       m.x[1] + 2*m.y[2] + 3*m.z[3]
-#     end[1] == [1,2,0, 0,0,3]
+#     ps4, re4 = trainables_nt(m4)
+#     @test gradient(x -> re4(x).y[2], ps4)[1] == (x = nothing, y = [0.0, 1.0, 0.0], z = nothing)
+#     @test gradient(ps4) do x
+#             m = re4(x)
+#             m.x[1] + 2*m.y[2] + 3*m.z[3]
+#         end[1] == (x = [1.0, 0.0, 0.0], y = [0.0, 2.0, 0.0], z = [0.0, 0.0, 3.0])
 
-#     re7 = trainables_nt(m7)[2]
-#     @test Yota_gradient(x -> re7(x).a[2][3], rand(3))[1] == [0,0,1]
-#     @test Yota_gradient(x -> re7(x).b[2][2], rand(3))[1] == [0,0,0]
-#     @test Yota_gradient(x -> re7(x).c[2][1], rand(3))[1] == [0,0,0]
+#     ps7, re7 = trainables_nt(m7)
+#     @test gradient(x -> re7(x).a[2][3], ps7)[1] == (a = (_1 = nothing, _2 = [0.0, 0.0, 1.0]),)
+#     @test gradient(x -> re7(x).b[2][2], ps7)[1] === nothing
+#     @test gradient(x -> re7(x).c[2][1], ps7)[1] === nothing
 
-#     v8, re8 = trainables_nt(m8)
-#     @test Yota_gradient(x -> sum(abs2, re8(x)[1].y), v8)[1] == [2,4,6,0,0]
-#     @test Yota_gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
+#     ps8, re8 = trainables_nt(m8)
+#     @test gradient(x -> sum(abs2, re8(x)[1].y), ps8)[1] == (_1 = (y = [2.0, 4.0, 6.0], x = nothing), _2 = nothing, _3 = nothing)
+#     @test gradient(x -> only(sum(re8(x)[3]))^2, ps8)[1] == (_1 = nothing, _2 = nothing, _3 = (_1 = [10.0],))
 
-#     re9 = trainables_nt(m9)[2]
-#     @test Yota_gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
-#   end
+#     ps9, re9 = trainables_nt(m9)
+#     @test gradient(x -> sum(abs2, re9(x).c[1]), ps9)[1] == (a = nothing, b = nothing, c = (_1 = Float32[8.0 12.0; 10.0 14.0], _2 = nothing))
+
+#     # TODO add second derivative tests when support is ready
+# #   @testset "second derivative" begin
+# #     @test_broken gradient(collect(1:6.0)) do y
+# #       sum(abs2, gradient(x -> sum(abs2, re2(x)[1]), y)[1])
+# #     end[1] ≈ [8,16,24,0,0,0]
+# #     # ERROR: Need an adjoint for constructor ChainRulesCore.Tangent{Any, Tuple{Vector{Float64}, ChainRulesCore.ZeroTangent}}. Gradient is of type Tuple{Vector{Float64}, Vector{Float64}}
+# #     # with Zygote, which can be fixed by:
+# #     # Zygote.@adjoint Tangent{T,B}(x::Tuple) where {T,B<:Tuple} = Tangent{T,B}(x), dx -> (dx,)
+
+# #     @test_broken gradient(collect(1:6.0)) do y
+# #       sum(abs2, gradient(x -> sum(abs2, re3(x).z), y)[1])
+# #     end[1] ≈ [0,0,0,32,40,48]
+# #     # Not fixed by this:
+# #     # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
+# #   end
 # end
+
+Zygote.wrap_chainrules_output(::AbstractArray{Union{}}) = nothing
+
+# @testset "gradient of re(ps)" begin
+#     ps1, re1 = trainables_nt(m1)
+#     v1 = ComponentVector(ps1)
+#     @test gradient(x -> re1(x)[1], v1)[1] == [1,0,0]
+#     ps2, re2 = trainables_nt(m2)
+#     v2 = ComponentVector(ps2)
+#     @test gradient(x -> re2(x)[1][2], v2)[1] == (_1 = [0.0, 1.0, 0.0], _2 = nothing)
+#     ps3, re3 = trainables_nt(m3)
+#     @test gradient(x -> re3(x).x[3], ps3)[1] == (x = [0.0, 0.0, 1.0], y = nothing, z = nothing)
+#     @test gradient(x -> re3(x).z[1], ps3)[1] == (x = nothing, y = nothing, z = [1.0, 0.0, 0.0])
+
+#     ps4, re4 = trainables_nt(m4)
+#     @test gradient(x -> re4(x).y[2], ps4)[1] == (x = nothing, y = [0.0, 1.0, 0.0], z = nothing)
+#     @test gradient(ps4) do x
+#             m = re4(x)
+#             m.x[1] + 2*m.y[2] + 3*m.z[3]
+#         end[1] == (x = [1.0, 0.0, 0.0], y = [0.0, 2.0, 0.0], z = [0.0, 0.0, 3.0])
+
+#     ps7, re7 = trainables_nt(m7)
+#     @test gradient(x -> re7(x).a[2][3], ps7)[1] == (a = (_1 = nothing, _2 = [0.0, 0.0, 1.0]),)
+#     @test gradient(x -> re7(x).b[2][2], ps7)[1] === nothing
+#     @test gradient(x -> re7(x).c[2][1], ps7)[1] === nothing
+
+#     ps8, re8 = trainables_nt(m8)
+#     @test gradient(x -> sum(abs2, re8(x)[1].y), ps8)[1] == (_1 = (y = [2.0, 4.0, 6.0], x = nothing), _2 = nothing, _3 = nothing)
+#     @test gradient(x -> only(sum(re8(x)[3]))^2, ps8)[1] == (_1 = nothing, _2 = nothing, _3 = (_1 = [10.0],))
+
+#     ps9, re9 = trainables_nt(m9)
+#     @test gradient(x -> sum(abs2, re9(x).c[1]), ps9)[1] == (a = nothing, b = nothing, c = (_1 = Float32[8.0 12.0; 10.0 14.0], _2 = nothing))
+# end
+
+m = (collect(1:3.0), collect(4:6.0))
+ps, re = trainables_nt(m2)
+v = ComponentVector(ps)
+Zygote.refresh()
+gradient(x -> re(x)[1][2], v2)[1]
+
 
 # @testset "Flux issue 1826" begin
 #   v, re = trainables_nt((x=[1,2.0], y=[3,4,5.0]))
@@ -470,6 +449,8 @@ end[1]
 
 
 # # TODO
-# - [] Name?
+# - [] `trainables_nt` is ok or change name?
 # - [] Should the named tuple contain NamedTuple() leaves?
 # - [] Optimize performance and improve type stability
+# - [] Second order derivatives for `trainables_nt(m)[1]`
+# - [] Second order derivatives for `re(ps)`
