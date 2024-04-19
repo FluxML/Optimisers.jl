@@ -3,6 +3,7 @@ using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
 using Base.Broadcast: broadcasted, instantiate, Broadcasted
+using ComponentArrays: ComponentArrays, ComponentVector
 
 Random.seed!(1)
 
