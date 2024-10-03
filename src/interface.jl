@@ -24,6 +24,8 @@ Leaf(rule, state; frozen::Bool = false) = Leaf(rule, state, frozen)
 
 @functor Leaf
 
+Adapt.@adapt_structure Leaf
+
 Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
 
 function setup(rule::AbstractRule, model)
