@@ -1,6 +1,5 @@
 module Optimisers
 
-import Adapt
 using Functors: functor, fmap, fmap_with_path, 
                 KeyPath, haskeypath, getkeypath,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
