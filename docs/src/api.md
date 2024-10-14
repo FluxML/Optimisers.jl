@@ -85,4 +85,5 @@ It is defined in Functors.jl and re-exported by Optimisers.jl here for convenien
 Functors.KeyPath
 Functors.haskeypath
 Functors.getkeypath
+Functors.setkeypath!
 ```
