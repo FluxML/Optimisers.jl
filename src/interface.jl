@@ -68,9 +68,9 @@ function update(tree, model, grad, higher...)
 end
 
 function update!(::AbstractRule, model, grad, higher...)
-  error("""update! must be called with an optimiser state, not a rule.
+  throw(ArgumentError("""update! must be called with an optimiser state tree, not a rule.
   Call `opt_state = setup(rule, model)` first, then `update!(opt_state, model, grad)`.
-  """)
+  """))
 end
 
 function update!(tree, model, grad, higher...)
