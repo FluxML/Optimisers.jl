@@ -67,6 +67,12 @@ function update(tree, model, grad, higher...)
   update!(t′, x′, grad, higher...)
 end
 
+function update!(::AbstractRule, model, grad, higher...)
+  error("""update! must be called with an optimiser state, not a rule.
+  Call `opt_state = setup(rule, model)` first, then `update!(opt_state, model, grad)`.
+  """)
+end
+
 function update!(tree, model, grad, higher...)
   # First walk is to accumulate the gradient. This recursion visits every copy of
   # shared leaves, but stops when branches are absent from the gradient:

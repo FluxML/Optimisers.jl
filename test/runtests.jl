@@ -104,6 +104,11 @@ end
       @test isnan(m3n.γ[3])
     end
 
+    @testset "friendly error when using rule instead of state" begin
+      @test_throws ErrorException Optimisers.update!(Adam(), m, gs)  # friendly
+      @test_throws ErrorException Optimisers.update!(Adam(), m, gs[1])  # friendly
+    end
+
     @testset "Dict support" begin
       @testset "simple dict" begin
         d = Dict(:a => [1.0,2.0], :b => [3.0,4.0], :c => 1)
