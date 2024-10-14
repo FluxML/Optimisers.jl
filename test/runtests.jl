@@ -105,8 +105,7 @@ end
     end
 
     @testset "friendly error when using rule instead of state" begin
-      @test_throws ErrorException Optimisers.update!(Adam(), m, gs)  # friendly
-      @test_throws ErrorException Optimisers.update!(Adam(), m, gs[1])  # friendly
+      @test_throws ErrorException Optimisers.update!(Adam(), rand(2), rand(2))
     end
 
     @testset "Dict support" begin
