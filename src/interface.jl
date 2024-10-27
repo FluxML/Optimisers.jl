@@ -225,12 +225,12 @@ onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 nonneg(η::Real) = η < 0 ? throw(DomainError(η, "the learning rate cannot be negative")) : η
 
 """
-  @def struct Rule; eta = 0.1; beta = (0.7, 0.8); end
+    @def struct Rule; eta = 0.1; beta = (0.7, 0.8); end
 
 Helper macro for defining rules with default values.
 The types of the literal values are used in the `struct`,
 like this:
-```
+```julia
 struct Rule
   eta::Float64
   beta::Tuple{Float64, Float64}
