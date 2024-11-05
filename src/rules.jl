@@ -8,7 +8,7 @@
 
 """
     Descent(η = 1f-1)
-    Descent(; eta)
+    Descent(; [eta])
 
 Classic gradient descent optimiser with learning rate `η`.
 For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
@@ -17,15 +17,14 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 - Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
 """
-struct Descent{T} <: AbstractRule
-  eta::T
+@def struct Descent <: AbstractRule
+  eta = 0.1
 end
-Descent(; eta = 1f-1) = Descent(eta)
 
 init(o::Descent, x::AbstractArray) = nothing
 
 function apply!(o::Descent, state, x, dx)
-  η = convert(float(eltype(x)), o.eta)
+  η = ofeltype(x, o.eta)
 
   return state, @lazy dx * η  # @lazy creates a Broadcasted, will later fuse with x .= x .- dx
 end
@@ -64,6 +63,8 @@ end
 
 """
     Nesterov(η = 0.001, ρ = 0.9)
+    Nesterov(; [eta, rho])
+
 
 Gradient descent optimizer with learning rate `η` and Nesterov momentum `ρ`.
 
@@ -153,26 +154,25 @@ end
 
 """
     Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0))
+    Rprop(; [eta, ell, gamma])
 
 Optimizer using the
 [Rprop](https://ieeexplore.ieee.org/document/298623) algorithm. A full-batch
 learning algorithm that depends only on the sign of the gradient.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
 
-- Scaling factors (`ℓ::Tuple`): Multiplicative increase and decrease factors.
+- Scaling factors (`ℓ::Tuple == ell`): Multiplicative increase and decrease factors.
 
-- Step sizes (`Γ::Tuple`): Mminimal and maximal allowed step sizes.
+- Step sizes (`Γ::Tuple == gamma`): Mminimal and maximal allowed step sizes.
 """
-struct Rprop{T} <: AbstractRule
-    eta::T
-    ell::Tuple{T,T}
-    gamma::Tuple{T,T}
+@def struct Rprop <: AbstractRule
+    eta =  1f-3
+    ell = (5f-1, 1.2f0)
+    gamma = (1f-6, 50f0)
 end
-
-Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0)) = Rprop{typeof(η)}(η, ℓ, Γ)
 
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
@@ -193,15 +193,16 @@ end
 
 """
     Adam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
+    Adam(; [eta, beta, epsilon])
 
 [Adam](https://arxiv.org/abs/1412.6980) optimiser.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct Adam <: AbstractRule
@@ -225,12 +226,13 @@ end
 
 """
     Lion(η = 0.001, β = (0.9, 0.999))
+    Lion(; [eta, beta])
 
 [Lion](https://arxiv.org/abs/2302.06675) optimiser.
 
 # Parameters
-- Learning rate (`η`): Magnitude by which gradients are updating the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Learning rate (`η == eta`): Magnitude by which gradients are updating the weights.
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
 """
 @def struct Lion <: AbstractRule
@@ -254,15 +256,16 @@ end
 
 """
     RAdam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
+    RAdam(; [eta, beta, epsilon])
 
 [Rectified Adam](https://arxiv.org/abs/1908.03265) optimizer.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct RAdam <: AbstractRule
@@ -294,15 +297,16 @@ end
 
 """
     AdaMax(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
+    AdaMax(; [eta, beta, epsilon])
 
 [AdaMax](https://arxiv.org/abs/1412.6980) is a variant of Adam based on the ∞-norm.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct AdaMax <: AbstractRule
@@ -326,16 +330,17 @@ end
 
 """
     OAdam(η = 0.001, β = (0.5, 0.9), ϵ = 1e-8)
+    OAdam(; [eta, beta, epsilon])
 
 [OAdam](https://arxiv.org/abs/1711.00141) (Optimistic Adam)
 is a variant of Adam adding an "optimistic" term suitable for adversarial training.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct OAdam <: AbstractRule
@@ -361,15 +366,16 @@ end
 
 """
     AdaGrad(η = 0.1, ϵ = 1e-8)
+    AdaGrad(; [eta, epsilon])
 
 [AdaGrad](http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf) optimizer. It has
 parameter specific learning rates based on how frequently it is updated.
 Parameters don't need tuning.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct AdaGrad <: AbstractRule
@@ -391,14 +397,15 @@ end
 
 """
     AdaDelta(ρ = 0.9, ϵ = 1e-8)
+    AdaDelta(; [rho, epsilon])
 
 [AdaDelta](https://arxiv.org/abs/1212.5701) is a version of AdaGrad adapting its learning
 rate based on a window of past gradient updates.
 Parameters don't need tuning.
 
 # Parameters
-- Rho (`ρ`): Factor by which the gradient is decayed at each time step.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Rho (`ρ == rho`): Factor by which the gradient is decayed at each time step.
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct AdaDelta <: AbstractRule
@@ -422,16 +429,17 @@ end
 
 """
     AMSGrad(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
+    AMSGrad(; [eta, beta, epsilon])
 
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct AMSGrad <: AbstractRule
@@ -457,16 +465,17 @@ end
 
 """
     NAdam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
+    NAdam(; [eta, beta, epsilon])
 
 [NAdam](https://openreview.net/forum?id=OM0jvwB8jIp57ZJjtNEZ) is a Nesterov variant of Adam.
 Parameters don't need tuning.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
 """
 @def struct NAdam <: AbstractRule
@@ -515,16 +524,17 @@ AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda = 0, epsilon = 1e-8) =
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
+    AdaBelief(; [eta, beta, epsilon])
 
 The [AdaBelief](https://arxiv.org/abs/2010.07468) optimiser is a variant of the well-known
 Adam optimiser.
 
 # Parameters
-- Learning rate (`η`): Amount by which gradients are discounted before updating
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
-- Decay of momentums (`β::Tuple`): Exponential decay for the first (β1) and the
+- Decay of momentums (`β::Tuple == beta`): Exponential decay for the first (β1) and the
                                    second (β2) momentum estimate.
-- Machine epsilon (`ϵ::Float32`): Constant to prevent division by zero
+- Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                                   (no need to change default)
 """
 @def struct AdaBelief <: AbstractRule
@@ -548,6 +558,7 @@ end
 
 """
     WeightDecay(λ = 5e-4)
+    WeightDecay(; [lambda])
 
 Implements ``L_2`` regularisation, also known as ridge regression, 
 when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
@@ -585,6 +596,7 @@ function adjust(r::WeightDecay; gamma = nothing, kw...)
 
 """
     SignDecay(λ = 1e-3)
+    SignDecay(; [lambda])
 
 Implements ``L_1`` regularisation, also known as LASSO regression,
 when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
@@ -615,6 +627,7 @@ end
 
 """
     ClipGrad(δ = 10)
+    ClipGrad(; [delta])
 
 Restricts every gradient component to obey `-δ ≤ dx[i] ≤ δ`.
 
@@ -637,6 +650,7 @@ end
 
 """
     ClipNorm(ω = 10, p = 2; throw = true)
+    ClipNorm(; omega, p, throw)
 
 Scales any gradient array for which `norm(dx, p) > ω`
 to stay at this threshold (unless `p==0`).

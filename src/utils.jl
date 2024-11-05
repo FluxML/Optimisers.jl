@@ -13,3 +13,4 @@ foreachvalue(f, x::Dict, ys...) = foreach(pairs(x)) do (k, v)
   f(v, (get(y, k, nothing) for y in ys)...)
 end
 
+ofeltype(x, y) = convert(float(eltype(x)), y)
