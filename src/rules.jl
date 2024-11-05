@@ -17,9 +17,11 @@ For each parameter `p` and its gradient `dp`, this runs `p -= η*dp`.
 - Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
 """
-@def struct Descent <: AbstractRule
-  eta = 0.1
+struct Descent{T} <: AbstractRule
+  eta::T
 end
+
+Descent(; eta = 1f-1) = Descent(eta)
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -650,7 +652,6 @@ end
 
 """
     ClipNorm(ω = 10, p = 2; throw = true)
-    ClipNorm(; omega, p, throw)
 
 Scales any gradient array for which `norm(dx, p) > ω`
 to stay at this threshold (unless `p==0`).
