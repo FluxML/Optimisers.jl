@@ -21,8 +21,8 @@
 
 Optimisers.jl defines many standard gradient-based optimisation rules, and tools for applying them to deeply nested models.
 
-This is the future of training for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
-and the present for [Lux.jl](https://github.com/avik-pal/Lux.jl).
+This was written as the new training system for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
+and also used by [Lux.jl](https://github.com/avik-pal/Lux.jl).
 But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
 
 ## Installation
