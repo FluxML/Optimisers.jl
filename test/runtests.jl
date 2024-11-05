@@ -332,8 +332,7 @@ end
 
     @testset "keyword arguments" begin
       @test Nesterov(rho=0.8, eta=0.1) === Nesterov(0.1, 0.8)
-      @test AdamW(lambda=0.3).opts[1] == Adam()
-      @test AdamW(lambda=0.3).opts[2] == WeightDecay(0.3)
+      @test AdamW(lambda=0.3, eta=0.1) == AdamW(0.1, (0.9, 0.999), 0.3, 1.0e-8)
     end
 
     @testset "forgotten gradient" begin
