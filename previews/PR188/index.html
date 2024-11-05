@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Home · Optimisers.jl</title><meta name="title" content="Home · Optimisers.jl"/><meta property="og:title" content="Home · Optimisers.jl"/><meta property="twitter:title" content="Home · Optimisers.jl"/><meta name="description" content="Documentation for Optimisers.jl."/><meta property="og:description" content="Documentation for Optimisers.jl."/><meta property="twitter:description" content="Documentation for Optimisers.jl."/><meta property="og:url" content="https://fluxml.ai/Optimisers.jl/stable/"/><meta property="twitter:url" content="https://fluxml.ai/Optimisers.jl/stable/"/><link rel="canonical" href="https://fluxml.ai/Optimisers.jl/stable/"/><script async src="https://www.googletagmanager.com/gtag/js?id=UA-36890222-9"></script><script>  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-36890222-9', {'page_path': location.pathname + location.search + location.hash});
+</script><script data-outdated-warner src="assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="assets/documenter.js"></script><script src="search_index.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="assets/themeswap.js"></script><link href="assets/flux.css" rel="stylesheet" type="text/css"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href><img src="assets/logo.png" alt="Optimisers.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href>Optimisers.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li class="is-active"><a class="tocitem" href>Home</a><ul class="internal"><li><a class="tocitem" href="#An-optimisation-rule"><span>An optimisation rule</span></a></li><li><a class="tocitem" href="#Usage-with-[Flux.jl](https://github.com/FluxML/Flux.jl)"><span>Usage with Flux.jl</span></a></li><li><a class="tocitem" href="#Usage-with-[Lux.jl](https://github.com/avik-pal/Lux.jl)"><span>Usage with Lux.jl</span></a></li><li><a class="tocitem" href="#Non-trainable-Parameters"><span>Non-<code>trainable</code> Parameters</span></a></li><li><a class="tocitem" href="#Frozen-Parameters"><span>Frozen Parameters</span></a></li><li><a class="tocitem" href="#Adjusting-Hyperparameters"><span>Adjusting Hyperparameters</span></a></li><li><a class="tocitem" href="#Tied-Parameters"><span>Tied Parameters</span></a></li><li><a class="tocitem" href="#Obtaining-a-flat-parameter-vector"><span>Obtaining a flat parameter vector</span></a></li><li><a class="tocitem" href="#Collecting-all-trainable-parameters"><span>Collecting all trainable parameters</span></a></li></ul></li><li><a class="tocitem" href="api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Home</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Home</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/FluxML/Optimisers.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/FluxML/Optimisers.jl/blob/master/docs/src/index.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Optimisers.jl"><a class="docs-heading-anchor" href="#Optimisers.jl">Optimisers.jl</a><a id="Optimisers.jl-1"></a><a class="docs-heading-anchor-permalink" href="#Optimisers.jl" title="Permalink"></a></h1><h2 id="An-optimisation-rule"><a class="docs-heading-anchor" href="#An-optimisation-rule">An optimisation rule</a><a id="An-optimisation-rule-1"></a><a class="docs-heading-anchor-permalink" href="#An-optimisation-rule" title="Permalink"></a></h2><p>A new optimiser must overload two functions, <a href="api/#Optimisers.apply!"><code>apply!</code></a> and <a href="api/#Optimisers.init"><code>init</code></a>. These act on one array of parameters:</p><pre><code class="language-julia hljs"># Define a container to hold any optimiser specific parameters (if any):
+struct DecayDescent &lt;: Optimisers.AbstractRule
+  eta::Float64
+end
+
+# Define an `apply!` rule which encodes how the gradients will be used to
+# update the parameters:
+function Optimisers.apply!(o::DecayDescent, state, x, x̄)
+  T = eltype(x)
+  newx̄ = T(o.eta / √state) .* x̄
+  nextstate = state + 1
+  return nextstate, newx̄
+end
+
+# Define the function which sets up the initial state (if any):
+Optimisers.init(o::DecayDescent, x::AbstractArray) = 1</code></pre><p>The parameters will be immediately updated to <code>x .- newx̄</code>, while <code>nextstate</code> is caried to the next iteration.</p><p>Notice that the state is handled separately from the optimiser itself. This is a key design principle and allows users to manage their own state explicitly. It of course also makes it easier to store the state.</p><h2 id="Usage-with-[Flux.jl](https://github.com/FluxML/Flux.jl)"><a class="docs-heading-anchor" href="#Usage-with-[Flux.jl](https://github.com/FluxML/Flux.jl)">Usage with <a href="https://github.com/FluxML/Flux.jl">Flux.jl</a></a><a id="Usage-with-[Flux.jl](https://github.com/FluxML/Flux.jl)-1"></a><a class="docs-heading-anchor-permalink" href="#Usage-with-[Flux.jl](https://github.com/FluxML/Flux.jl)" title="Permalink"></a></h2><p>To apply such an optimiser to a whole model, <a href="api/#Optimisers.setup"><code>setup</code></a> builds a tree containing any initial state for every trainable array. Then at each step, <a href="api/#Optimisers.update"><code>update</code></a> uses this and the gradient to adjust the model:</p><pre><code class="language-julia hljs">
+using Flux, Metalhead, Zygote, Optimisers
+
+model = Metalhead.ResNet(18) |&gt; gpu  # define a model to train
+image = rand(Float32, 224, 224, 3, 1) |&gt; gpu;  # dummy data
+@show sum(model(image));  # dummy loss function
+
+rule = Optimisers.Adam()  # use the Adam optimiser with its default settings
+state_tree = Optimisers.setup(rule, model);  # initialise this optimiser&#39;s momentum etc.
+
+∇model, _ = gradient(model, image) do m, x  # calculate the gradients
+  sum(m(x))
+end;
+
+state_tree, model = Optimisers.update(state_tree, model, ∇model);
+@show sum(model(image));  # reduced
+</code></pre><p>Notice that a completely new instance of the model is returned. Internally, this is handled by <a href="https://fluxml.ai/Functors.jl">Functors.jl</a>, where we do a walk over the tree formed by the model and update the parameters using the gradients.</p><p>There is also <a href="api/#Optimisers.update!"><code>Optimisers.update!</code></a> which similarly returns a new model, but is free to mutate arrays within the old one for efficiency. (The method of <code>apply!</code> above is likewise free to mutate arrays within its state; they are defensively copied when this rule is used with <code>update</code>.) For <code>Adam()</code>, there are two momenta per parameter, thus <code>state</code> is about twice the size of <code>model</code>:</p><pre><code class="language-julia hljs">Base.summarysize(model) / 1024^2  # about 45MB
+Base.summarysize(state) / 1024^2  # about 90MB</code></pre><p>Optimisers.jl does not depend on any one automatic differentiation package, but for now the most likely source of gradients is <a href="https://fluxml.ai/Zygote.jl">Zygote.jl</a>. Note that <code>update</code> always wants the gradient from Zygote&#39;s &quot;explicit&quot; mode, as shown above. This <code>∇model</code> is another tree structure, rather than the dictionary-like object from  Zygote&#39;s &quot;implicit&quot; mode <code>gradient(() -&gt; loss(...), Flux.params(model))</code> – see  <a href="https://fluxml.ai/Zygote.jl/dev/#Explicit-and-Implicit-Parameters-1">Zygote&#39;s documentation</a> for more about this difference.</p><h2 id="Usage-with-[Lux.jl](https://github.com/avik-pal/Lux.jl)"><a class="docs-heading-anchor" href="#Usage-with-[Lux.jl](https://github.com/avik-pal/Lux.jl)">Usage with <a href="https://github.com/avik-pal/Lux.jl">Lux.jl</a></a><a id="Usage-with-[Lux.jl](https://github.com/avik-pal/Lux.jl)-1"></a><a class="docs-heading-anchor-permalink" href="#Usage-with-[Lux.jl](https://github.com/avik-pal/Lux.jl)" title="Permalink"></a></h2><p>The main design difference of Lux from Flux is that the tree of parameters is separate from the layer structure. It is these parameters which <code>setup</code> and <code>update</code> need to know about.</p><p>Lux describes this separation of parameter storage from model description as &quot;explicit&quot; parameters. Beware that it has nothing to do with Zygote&#39;s notion of &quot;explicit&quot; gradients. (If the same model is written in Flux and Lux, <code>∇model</code> above and <code>∇params</code> below will be nearly identical trees of nested <code>NamedTuple</code>s.)</p><pre><code class="language-julia hljs">
+using Lux, Boltz, Zygote, Optimisers
+
+lux_model, params, lux_state = Boltz.resnet(:resnet18) |&gt; gpu;  # define and initialise model
+images = rand(Float32, 224, 224, 3, 4) |&gt; gpu;  # batch of dummy data
+y, lux_state = Lux.apply(lux_model, images, params, lux_state);  # run the model
+@show sum(y);  # initial dummy loss
+
+rule = Optimisers.Adam()
+opt_state = Optimisers.setup(rule, params);  # optimiser state based on model parameters
+
+(loss, lux_state), back = Zygote.pullback(params, images) do p, x
+  y, st = Lux.apply(lux_model, x, p, lux_state)
+  sum(y), st  # return both the loss, and the updated lux_state
+end;
+∇params, _ = back((one.(loss), nothing));  # gradient of only the loss, with respect to parameter tree
+loss == sum(y)  # not yet changed
+
+opt_state, params = Optimisers.update!(opt_state, params, ∇params);
+
+y, lux_state = Lux.apply(lux_model, images, params, lux_state);
+@show sum(y);  # now reduced
+</code></pre><p>Besides the parameters stored in <code>params</code> and gradually optimised, any other model state is stored in <code>lux_state</code>, and updated by <code>Lux.apply</code>. (In this example, BatchNorm has state.) This is completely unrelated to Optimisers.jl&#39;s state, although designed in a similar spirit.</p><pre><code class="language-julia hljs">Base.summarysize(lux_model) / 1024   # just 2KB
+Base.summarysize(params) / 1024^2    # about 45MB, same as Flux model
+Base.summarysize(lux_state) / 1024   # 40KB
+Base.summarysize(opt_state) / 1024^2 # about 90MB, with Adam</code></pre><p>If you are certain there is no model state, then the gradient calculation can be simplified to use <code>Zygote.gradient</code> instead of <code>Zygote.pullback</code>:</p><pre><code class="language-julia hljs">∇params, _ = gradient(params, images) do p, x
+  y, _ = Lux.apply(lux_model, x, p, lux_state)  # discards new lux_state
+  sum(y)
+end;</code></pre><h2 id="Non-trainable-Parameters"><a class="docs-heading-anchor" href="#Non-trainable-Parameters">Non-<code>trainable</code> Parameters</a><a id="Non-trainable-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Non-trainable-Parameters" title="Permalink"></a></h2><p>Optimisers.jl uses <a href="https://fluxml.ai/Functors.jl">Functors.jl</a> to walk the <code>struct</code>s making up the model, for which they must be annotated <code>@functor Type</code>.  By default optimisation will alter all <a href="api/#Optimisers.isnumeric"><code>isnumeric</code></a> arrays. </p><p>If some arrays of a particular layer should not be treated this way, you can define a method for <a href="api/#Optimisers.trainable"><code>trainable</code></a></p><pre><code class="language-julia hljs">struct Layer{T}
+  alpha::T
+  beta::T
+  length::Int
+end
+Layer(n::Int) = Layer(randn(n), zeros(n), n)
+
+Functors.@functor Layer
+
+# Both array fields will be, for example, moved to the GPU:
+Functors.children(Layer(3))  # (alpha = [...], beta = [...], length)
+
+Optimisers.trainable(x::Layer) = (; alpha = x.alpha)  # must be a subset of children
+
+# Only the first field will be optimised:
+st = Optimisers.setup(DecayDescent(0.1), Layer(3))</code></pre><h2 id="Frozen-Parameters"><a class="docs-heading-anchor" href="#Frozen-Parameters">Frozen Parameters</a><a id="Frozen-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Frozen-Parameters" title="Permalink"></a></h2><p>To temporarily prevent training from affecting some parameters, use <a href="api/#Optimisers.freeze!">freeze!</a> and <code>thaw!</code>. They work by mutating all <code>Leaf</code>s of the state tree, or part of it.</p><pre><code class="language-julia hljs">using Flux, Optimisers
+
+x = randn(Float32, 28, 28, 1, 1);
+net = @autosize (size(x)...,) Chain(
+  Conv((3, 3), 1 =&gt; 3, stride=2, bias=false), Flux.flatten, Dense(_ =&gt; 2, relu),
+)
+opt = Optimisers.setup(Optimisers.Momentum(), net);
+
+net.layers[3] isa Dense  # now freeze this layer&#39;s parameters:
+Optimisers.freeze!(opt.layers[3])
+opt.layers[3].bias  # confirm: Leaf(Momentum(...), [0.0, 0.0], frozen = true)
+
+Optimisers.update!(opt, net, gradient(m -&gt; sum(m(x)), net)...);
+
+net.layers[3].bias  # stil zero, and its momentum is too:
+
+Optimisers.thaw!(opt)
+opt.layers[3].bias  # Leaf(Momentum(...), [0.0, 0.0])</code></pre><h2 id="Adjusting-Hyperparameters"><a class="docs-heading-anchor" href="#Adjusting-Hyperparameters">Adjusting Hyperparameters</a><a id="Adjusting-Hyperparameters-1"></a><a class="docs-heading-anchor-permalink" href="#Adjusting-Hyperparameters" title="Permalink"></a></h2><p>To change the learning rate during training, use <a href="api/#Optimisers.adjust!"><code>adjust!</code></a>. This works much like <code>freeze!</code> by mutating the state tree, or part of it, without discarding the momenta. For the Flux model from just above:</p><pre><code class="language-julia hljs">Optimisers.adjust!(opt, 0.03)  # change η for the whole model...
+
+Optimisers.adjust!(opt.layers[3], 0.04)  # ... or just for one layer.</code></pre><p>To change other fields of the optimisation rule, it accepts keyword arguments:</p><pre><code class="language-julia hljs">Momentum |&gt; fieldnames  # (:eta, :rho)
+
+Optimisers.adjust!(opt, rho = 0.95)  # change ρ for the whole model.</code></pre><h2 id="Tied-Parameters"><a class="docs-heading-anchor" href="#Tied-Parameters">Tied Parameters</a><a id="Tied-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Tied-Parameters" title="Permalink"></a></h2><p>If the same array appears twice (or more) in the model, <a href="https://fluxml.ai/Functors.jl">Functors.jl</a> should recognise this. Within Optimisers.jl, <code>setup</code> will initialise once, and use the same <code>Leaf</code> for both parameters.  Then <code>update</code> will accumulate the gradient from both, and the updated model returned will have the tie maintained.</p><pre><code class="language-julia hljs">using Flux, Optimisers
+
+enc = Chain(Dense(40 =&gt; 20, tanh), Dense(20 =&gt; 10));
+dec = Chain(Dense(enc[1].weight&#39;, true, tanh), Dense(enc[2].weight&#39;, true, tanh));
+model = Chain(; enc, dec)
+
+st = Optimisers.setup(Optimisers.Adam(), model);
+
+st.layers.enc.layers[1].weight === st.layers.dec.layers[1].weight.parent  # true</code></pre><p>This identification relies on <code>===</code>, and will work for ordinary <code>Array</code>s and <code>CuArray</code>s. It will not at present work for <code>reshape</code>d arrays, nor for immutable arrays such as those from StaticArrays.jl.</p><h2 id="Obtaining-a-flat-parameter-vector"><a class="docs-heading-anchor" href="#Obtaining-a-flat-parameter-vector">Obtaining a flat parameter vector</a><a id="Obtaining-a-flat-parameter-vector-1"></a><a class="docs-heading-anchor-permalink" href="#Obtaining-a-flat-parameter-vector" title="Permalink"></a></h2><p>Instead of a nested tree-like structure, sometimes is is convenient to have all the parameters as one simple vector. Optimisers.jl contains a function <a href="api/#Optimisers.destructure"><code>destructure</code></a> which creates this vector, and also creates way to re-build the original structure with new parameters. Both flattening and re-building may be used within <code>gradient</code> calls.</p><p>An example with Flux&#39;s <code>model</code>:</p><pre><code class="language-julia hljs">using ForwardDiff  # an example of a package which only likes one array
+
+model = Chain(  # much smaller model example, as ForwardDiff is a slow algorithm here
+          Conv((3, 3), 3 =&gt; 5, pad=1, bias=false), 
+          BatchNorm(5, relu), 
+          Conv((3, 3), 5 =&gt; 3, stride=16),
+        )
+image = rand(Float32, 224, 224, 3, 1);
+@show sum(model(image));
+
+flat, re = destructure(model)
+st = Optimisers.setup(rule, flat)  # state is just one Leaf now
+
+∇flat = ForwardDiff.gradient(flat) do v
+  m = re(v)      # rebuild a new object like model
+  sum(m(image))  # call that as before
+end
+
+st, flat = Optimisers.update(st, flat, ∇flat)
+@show sum(re(flat)(image));</code></pre><p>Here <code>flat</code> contains only the 283 trainable parameters, while the non-trainable ones are preserved inside <code>re</code>, an object of type <code>Restructure</code>. When defining new layers, these can be specified if necessary by overloading <a href="api/#Optimisers.trainable"><code>trainable</code></a>. By default, all numeric arrays visible to <a href="https://github.com/FluxML/Functors.jl">Functors.jl</a> are assumed to contain trainable parameters. Tied parameters (arrays appearing in different layers) are included only once in <code>flat</code>.</p><p>Lux stores only the trainable parameters in <code>params</code>. This can also be flattened to a plain <code>Vector</code> in the same way:</p><pre><code class="language-julia hljs">params, lux_state = Lux.setup(Random.default_rng(), lux_model);
+
+flat, re = destructure(params)
+
+∇flat = ForwardDiff.gradient(flat) do v
+  p = re(v)  # rebuild an object like params
+  y, _ = Lux.apply(lux_model, images, p, lux_state)
+  sum(y)
+end</code></pre><h2 id="Collecting-all-trainable-parameters"><a class="docs-heading-anchor" href="#Collecting-all-trainable-parameters">Collecting all trainable parameters</a><a id="Collecting-all-trainable-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Collecting-all-trainable-parameters" title="Permalink"></a></h2><p>Sometimes it is useful to collect all trainable parameters in a model, similarly to what <a href="api/#Optimisers.destructure"><code>destructure</code></a> does but without concatenating the arrays into a flat vector. This is done by <a href="api/#Optimisers.trainables"><code>trainables</code></a>, which returns a list of arrays:</p><pre><code class="language-julia hljs">julia&gt; using Flux, Optimisers
+
+julia&gt; model = Chain(Dense(2 =&gt; 3, tanh), BatchNorm(3), Dense(3 =&gt; 2));
+
+julia&gt; trainables(model)
+6-element Vector{AbstractArray}:
+ Float32[0.5756773 -0.1975264; 0.4723181 -0.7546912; -0.91631395 0.07392061]
+ Float32[0.0, 0.0, 0.0]
+ Float32[0.0, 0.0, 0.0]
+ Float32[1.0, 1.0, 1.0]
+ Float32[-0.8764882 0.40812716 0.1919528; -0.9123545 -0.4462516 0.6751252]
+ Float32[0.0, 0.0]
+
+julia&gt; l2reg(model) = sum([sum(abs2,p) for p in trainables(model)]);
+
+julia&gt; g = gradient(l2reg, model)[1];</code></pre><p>Notice that the <code>BatchNorm</code> layer has two trainable parameters, <code>γ</code> and <code>β</code>, which are included in the list, while the <code>μ</code> and <code>σ²</code> buffers are not.</p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Tuesday 5 November 2024 16:05">Tuesday 5 November 2024</span>. Using Julia version 1.10.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
