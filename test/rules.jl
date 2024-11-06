@@ -267,3 +267,13 @@ end
   tree, x4 = Optimisers.update(tree, x3, g4)
   @test x4 ≈ x3
 end
+
+@testset "Float16 epsilon" begin
+  # issue https://github.com/FluxML/Optimisers.jl/issues/167
+  x = Float16[0.579, -0.729, 0.5493]
+  δx = Float16[-0.001497, 0.0001875, -0.013176]
+
+  os = Optimisers.setup(Adam(Float16(1e-4)), x);
+  os, x = Optimisers.update(os, x, δx)
+  @test x ≈ Float16[3.09, -1.044, 0.5493]
+end

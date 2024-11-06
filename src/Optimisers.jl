@@ -4,6 +4,7 @@ using Functors: functor, fmap, fmap_with_path,
                 KeyPath, haskeypath, getkeypath,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
+using Compat: @compat
 
 include("interface.jl")
 export AbstractRule
@@ -24,6 +25,8 @@ export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, SignDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
        AccumGrad
+
+@compat public apply!, init, setup, update, update!
 
 ###
 ### one-array functions
