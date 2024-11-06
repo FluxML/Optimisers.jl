@@ -273,7 +273,7 @@ end
   x = Float16[0.579, -0.729, 0.5493]
   δx = Float16[-0.001497, 0.0001875, -0.013176]
 
-  os = Optimisers.setup(Adam(Float16(1e-4)), x);
+  os = Optimisers.setup(Adam(1e-4), x);
   os, x = Optimisers.update(os, x, δx)
-  @test x ≈ Float16[3.09, -1.044, 0.5493]
+  @test x ≈ Float16[1.835, -0.886, 0.5493] rtol=1e-3
 end

@@ -14,4 +14,9 @@ foreachvalue(f, x::Dict, ys...) = foreach(pairs(x)) do (k, v)
 end
 
 ofeltype(x, y) = convert(float(eltype(x)), y)
-_eps(T, x) = max(x, real(float(T))(0))
+
+_eps(T::Type{<:AbstractFloat}, e) = T(e)
+# catch complex and integers
+_eps(T::Type{<:Number}, e) = _eps(real(float(T)), e) 
+# avoid small e being rounded to zero
+_eps(::Type{Float16}, e) = e == 0 ? Float16(0) : max(Float16(1e-7), Float16(e))
