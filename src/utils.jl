@@ -14,3 +14,4 @@ foreachvalue(f, x::Dict, ys...) = foreach(pairs(x)) do (k, v)
 end
 
 ofeltype(x, y) = convert(float(eltype(x)), y)
+_eps(T, x) = max(x, real(float(T))(0))
