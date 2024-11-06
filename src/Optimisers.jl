@@ -5,6 +5,7 @@ using Functors: functor, fmap, fmap_with_path,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
 
+
 include("interface.jl")
 export AbstractRule
 
@@ -16,7 +17,7 @@ include("destructure.jl")
 export destructure
 
 include("trainables.jl")
-export trainables
+export trainables, trainables_nt
 export KeyPath, haskeypath, getkeypath # from Functors.jl
 
 include("rules.jl")
