@@ -324,7 +324,7 @@ of a moving average model with the parameters of the model:
 ```julia
 for (kp, p_avg) in trainables(model_avg, path=true)
     p = getkeypath(model, kp)  
-    p_avg .= 0.99 .* p_avg .+ 0.01 .* pnew
+    p_avg .= 0.99 .* p_avg .+ 0.01 .* p
 end
 ```
 
