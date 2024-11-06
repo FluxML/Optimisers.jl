@@ -19,4 +19,4 @@ _eps(T::Type{<:AbstractFloat}, e) = T(e)
 # catch complex and integers
 _eps(T::Type{<:Number}, e) = _eps(real(float(T)), e) 
 # avoid small e being rounded to zero
-_eps(::Type{Float16}, e) = e == 0 ? Float16(0) : max(Float16(1e-7), Float16(e))
+_eps(T::Type{Float16}, e) = e == 0 ? T(0) : max(T(1e-7), T(e))

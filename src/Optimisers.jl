@@ -4,7 +4,6 @@ using Functors: functor, fmap, fmap_with_path,
                 KeyPath, haskeypath, getkeypath,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
-using Compat: @compat
 
 include("interface.jl")
 export AbstractRule
