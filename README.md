@@ -2,7 +2,7 @@
 
 # Optimisers.jl
 
-<!-- [![][docs-stable-img]][docs-stable-url] -->
+[![][docs-stable-img]][docs-stable-url]
 [![][docs-dev-img]][docs-dev-url]
 [![][action-img]][action-url]
 [![][coverage-img]][coverage-url] 
