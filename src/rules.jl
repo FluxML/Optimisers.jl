@@ -501,8 +501,8 @@ function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8)
-    AdamW(; [eta, beta, lambda, epsilon])
+    AdamW(η = 0.001, β = (0.9, 0.999), λ = 0, ϵ = 1e-8; couple = true)
+    AdamW(; [eta, beta, lambda, epsilon, couple])
 
 [AdamW](https://arxiv.org/abs/1711.05101) is a variant of Adam fixing (as in repairing) its
 weight decay regularization.
@@ -516,12 +516,54 @@ Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`]
 - Weight decay (`λ == lambda`): Controls the strength of ``L_2`` regularisation.
 - Machine epsilon (`ϵ == epsilon`): Constant to prevent division by zero
                          (no need to change default)
-"""
-AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8) =
-  OptimiserChain(Adam(η, β, ϵ), WeightDecay(λ))
+- Keyword `couple`: If `true`, the weight decay is coupled with the learning rate, as in pytorch's AdamW.
+                    This corresponds to an update of the form `x = x - η * (dx + λ * x)`, where `dx` is the
+                    update from Adam with learning rate 1.
+                    If `false`, the weight decay is decoupled from the learning rate, in the spirit of the original paper.
+                    This corresponds to an update of the form `x = x - η * dx - λ * x`.
+                    Default is `true`.
 
-AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda = 0, epsilon = 1e-8) =
-  OptimiserChain(Adam(eta, beta, epsilon), WeightDecay(lambda))
+!!! warning "Breaking change in v0.4"
+    With version 0.4 the default update rule for AdamW has changed to match the pytorch implementation.
+    The previous rule, which is closer to the original paper, can be obtained by setting `AdamW(..., couple=false)`.
+    See [this issue](https://github.com/FluxML/Flux.jl/issues/2433) for more details.
+"""
+struct AdamW{T1,T2,T3,T4} <: AbstractRule
+  eta::T1
+  beta::T2
+  epsilon::T3
+  lambda::T4
+  couple::Bool
+end
+
+function AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8; couple::Bool = true)
+  η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
+  AdamW(η, β, λ, ϵ, couple)
+end
+
+AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
+  AdamW(eta, beta, lambda, epsilon; kw...)
+
+init(o::AdamW, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
+
+function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
+  η, β, ϵ, λ = T(o.eta), T.(o.beta), T(o.epsilon), T(o.lambda)
+  mt, vt, βt = state
+
+  # standard Adam update with learning rate eta=1
+  @.. mt = β[1] * mt + (1 - β[1]) * dx
+  @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
+  dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
+
+  # apply learning rate and weight decay
+  if o.couple
+    dx′′ = @lazy η * (dx′ + λ * x)
+  else
+    dx′′ = @lazy η * dx′ + λ * x
+  end
+
+  return (mt, vt, βt .* β), dx′′
+end
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
