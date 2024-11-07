@@ -130,7 +130,7 @@ RMSProp(; eta = 0.001, rho = 0.9, epsilon = 1e-8, kw...) = RMSProp(eta, rho, eps
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
 function apply!(o::RMSProp, state, x::AbstractArray{T}, dx) where T
-  η, ρ, ϵ = T(o.eta), T(o.rho), T(o.epsilon)
+  η, ρ, ϵ = T(o.eta), T(o.rho), _eps(T, o.epsilon)
   quad, lin = state
 
   @.. quad = ρ * quad + (1 - ρ) * abs2(dx)
@@ -216,7 +216,7 @@ end
 init(o::Adam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -279,7 +279,7 @@ end
 init(o::RAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta), 1)
 
 function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   ρ∞ = 2/(1-β[2]) - 1 |> real
 
   mt, vt, βt, t = state
@@ -320,7 +320,7 @@ end
 init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, ut, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -354,7 +354,7 @@ end
 init(o::OAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta), zero(x))
 
 function apply!(o::OAdam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, vt, βt, term = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -388,7 +388,7 @@ end
 init(o::AdaGrad, x::AbstractArray) = onevalue(o.epsilon, x)
 
 function apply!(o::AdaGrad, state, x::AbstractArray{T}, dx) where T
-  η, ϵ = T(o.eta), T(o.epsilon)
+  η, ϵ = T(o.eta), _eps(T, o.epsilon)
   acc = state
 
   @.. acc = acc + abs2(dx)
@@ -418,7 +418,7 @@ end
 init(o::AdaDelta, x::AbstractArray) = (zero(x), zero(x))
 
 function apply!(o::AdaDelta, state, x::AbstractArray{T}, dx) where T
-  ρ, ϵ = T(o.rho), T(o.epsilon)
+  ρ, ϵ = T(o.rho), _eps(T, o.epsilon)
   acc, Δacc = state
 
   @.. acc = ρ * acc + (1 - ρ) * abs2(dx)
@@ -454,7 +454,7 @@ init(o::AMSGrad, x::AbstractArray) =
   (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
 
 function apply!(o::AMSGrad, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, vt, v̂t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -489,8 +489,7 @@ end
 init(o::NAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
-
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -548,7 +547,7 @@ end
 init(o::AdaBelief, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), T(o.epsilon)
+  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, st, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
