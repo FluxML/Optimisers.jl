@@ -536,25 +536,25 @@ end
     end
 
     @testset "Enzyme Duplicated" begin
-        x_dx = Duplicated(Float16[1,2,3], Float16[1,0,-4])
-        st = Optimisers.setup(Momentum(1/9), x_dx)  # acts only on x not on dx
-        @test st isa Optimisers.Leaf
-        @test nothing === Optimisers.update!(st, x_dx)  # mutates both arguments
-        @test x_dx.val ≈ Float16[0.8887, 2.0, 3.445]
+      x_dx = Duplicated(Float16[1,2,3], Float16[1,0,-4])
+      st = Optimisers.setup(Momentum(1/9), x_dx)  # acts only on x not on dx
+      @test st isa Optimisers.Leaf
+      @test nothing === Optimisers.update!(st, x_dx)  # mutates both arguments
+      @test x_dx.val ≈ Float16[0.8887, 2.0, 3.445]
 
-        shared = [1.0]
-        model = (x=shared, y=shared)
-        grad = deepcopy(model) # Enzyme produces something like this, grad.x === grad.y, already accumulated.
-        dup = Duplicated(model, model)
-        st2 = Optimisers.setup(Descent(0.1), model)
-        Optimisers.update!(st2, dup)
-        @test model.x ≈ [0.9]
-        shared .= 1
-        Optimisers.update!(st2, model, grad)
-        model.x ≈ [0.8]  # This is wrong, but don't make it a test.
-        # Ideally, perhaps the 3-arg update! could notice that grad.x===grad.y, and not accumulate the gradient in this case?
+      shared = [1.0]
+      model = (x=shared, y=shared)
+      grad = deepcopy(model) # Enzyme produces something like this, grad.x === grad.y, already accumulated.
+      dup = Duplicated(model, model)
+      st2 = Optimisers.setup(Descent(0.1), model)
+      Optimisers.update!(st2, dup)
+      @test model.x ≈ [0.9]
+      shared .= 1
+      Optimisers.update!(st2, model, grad)
+      model.x ≈ [0.8]  # This is wrong, but don't make it a test.
+      # Ideally, perhaps the 3-arg update! could notice that grad.x===grad.y, and not accumulate the gradient in this case?
 
-        @test_throws ArgumentError Optimisers.setup(Adam(), (; a=[1,2,3.], b=x_dx))  # Duplicated deep inside is not allowed
+      @test_throws ArgumentError Optimisers.setup(Adam(), (; a=[1,2,3.], b=x_dx))  # Duplicated deep inside is not allowed
     end
   end
   @testset verbose=true "Destructure" begin
