@@ -358,3 +358,12 @@ julia> Optimisers.update!(opt_state, x, g);
 julia> opt_state # the state in `a` and `b` differ
 (a = Leaf(Adam(0.1, (0.9, 0.999), 1.0e-8), ([0.09, 0.09], [0.000999, 0.000999], (0.729, 0.997003))), b = Leaf(Adam(0.1, (0.9, 0.999), 1.0e-8), ([0.1, 0.1], [0.001, 0.001], (0.81, 0.998001))))
 ```
+
+## Usage with [Enzyme.jl](https://github.com/EnzymeAD/Enzyme.jl)
+
+Enzyme.jl is a new automatic differentiation package, an alternative to Zygote.jl.
+It likes to store the model and the gradient together, as an object `Duplicated(x, dx)`.
+
+Optimisers.jl now has some methods to handle this:
+* `update!(opt_state, Duplicated(model, grad))` uses the gradient to update both the model and the optimiser state, and
+* `setup(::AbstractRule, ::Duplicated)` ignores the gradient and returns `setup(rule, model)`.
