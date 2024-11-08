@@ -1,5 +1,5 @@
 using Optimisers
-using ChainRulesCore, Functors, StaticArrays, Zygote
+using ChainRulesCore, Functors, StaticArrays, Zygote, EnzymeCore
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
 using Base.Broadcast: broadcasted, instantiate, Broadcasted
@@ -533,6 +533,16 @@ end
         @test Optimisers._norm(bc2, p) ≈ norm(arr2, p)
         @test Optimisers._norm(bc2, p) isa Float64
       end
+    end
+
+    @testset "Enzyme Duplicated" begin
+        x_dx = Duplicated(Float16[1,2,3], Float16[1,0,-4])
+        st = Optimisers.setup(Momentum(1/9), x_dx)  # acts only on x not on dx
+        @test st isa Optimisers.Leaf
+        @test nothing === Optimisers.update!(st, x_dx)  # mutates both arguments
+        @test x_dx.val ≈ Float16[0.8887, 2.0, 3.445]
+
+        @test_throws ArgumentError Optimisers.setup(Adam(), (; a=[1,2,3.], b=x_dx))
     end
   end
   @testset verbose=true "Destructure" begin

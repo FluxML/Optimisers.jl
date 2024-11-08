@@ -1,13 +1,12 @@
 module OptimisersEnzymeCoreExt
 
-import Optimisers: trainable, setup, update!, isnumeric, AbstractRule
+import Optimisers: trainable, setup, update!, isnumeric, AbstractRule, _setup
 import EnzymeCore: Duplicated, Const
 
 using Functors: fmapstructure
 
-println("loaded!")
-
 trainable(x::Duplicated) = (; val = x.val)
+trainable(x::Const) = (;)
 
 """
     setup(rule::AbstractRule, model_grad::Duplicated)
@@ -15,6 +14,11 @@ trainable(x::Duplicated) = (; val = x.val)
 For use with Enzyme's Duplicated, this just calls `setup(rule, model_grad.val)`.
 """
 setup(rule::AbstractRule, model_grad::Duplicated) = setup(rule, model_grad.val)
+
+_setup(rule, x::Duplicated; cache) = throw(ArgumentError(
+    """Objects of type `Duplicated` are only supported by Optimisers.jl at top level,
+    they may not appear deep inside other objects."""
+))
 
 """
     update!(opt_state, model_grad::Duplicated)
