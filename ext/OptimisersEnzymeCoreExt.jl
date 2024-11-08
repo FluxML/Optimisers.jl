@@ -38,7 +38,6 @@ julia> st = Optimisers.setup(Momentum(1/9), x_dx)  # acts only on x not on dx
 Leaf(Momentum(0.111111, 0.9), Float16[0.0, 0.0, 0.0])
 
 julia> Optimisers.update!(st, x_dx)  # mutates both arguments
-model_grad.val = Float16[0.8887, 2.0, 3.445]
 
 julia> x_dx
 Duplicated{Vector{Float16}}(Float16[0.8887, 2.0, 3.445], Float16[1.0, 0.0, -4.0])
