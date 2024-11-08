@@ -52,7 +52,8 @@ function update!(opt_state, model_grad::Duplicated)
   nothing
 end
 
-# This function strips the returned gradient to be Zygote-like:
+# This function strips the returned gradient to be Zygote-like,
+# most importantly prune=nothing removes 2nd appearance of shared gradient to avoid double-counting.
 _grad_or_nothing(dup::Duplicated) = fmapstructure(_grad_or_nothing, dup.dval; prune=nothing)
 _grad_or_nothing(::Const) = nothing
 _grad_or_nothing(x) = isnumeric(x) ? x : nothing
