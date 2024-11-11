@@ -2,7 +2,7 @@
 
 # Optimisers.jl
 
-<!-- [![][docs-stable-img]][docs-stable-url] -->
+[![][docs-stable-img]][docs-stable-url]
 [![][docs-dev-img]][docs-dev-url]
 [![][action-img]][action-url]
 [![][coverage-img]][coverage-url] 
@@ -21,9 +21,15 @@
 
 Optimisers.jl defines many standard gradient-based optimisation rules, and tools for applying them to deeply nested models.
 
-This is the future of training for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
-and the present for [Lux.jl](https://github.com/avik-pal/Lux.jl).
+This was written as the new training system for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
+and also used by [Lux.jl](https://github.com/avik-pal/Lux.jl).
 But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
+
+
+> [!WARNING]
+> With version 0.4 the default update rule for AdamW has changed to match the pytorch implementation.
+> The previous rule, which is closer to the original paper, can be obtained by setting `AdamW(..., couple=false)`.
+> See [this issue](https://github.com/FluxML/Flux.jl/issues/2433) for more details.
 
 ## Installation
 

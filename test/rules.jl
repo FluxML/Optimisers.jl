@@ -15,7 +15,7 @@ RULES = [
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
   # Not the default:
-  RMSProp(centred = true),
+  RMSProp(centred = true), AdamW(couple=false),
 ]
 
 name(o) = typeof(o).name.name  # just for printing testset headings
@@ -266,4 +266,14 @@ end
   
   tree, x4 = Optimisers.update(tree, x3, g4)
   @test x4 ≈ x3
+end
+
+@testset "Float16 epsilon" begin
+  # issue https://github.com/FluxML/Optimisers.jl/issues/167
+  x = Float16[0.579, -0.729, 0.5493]
+  δx = Float16[-0.001497, 0.0001875, -0.013176]
+
+  os = Optimisers.setup(Adam(1e-4), x);
+  os, x = Optimisers.update(os, x, δx)
+  @test x ≈ Float16[1.835, -0.886, 0.5493] rtol=1e-3
 end

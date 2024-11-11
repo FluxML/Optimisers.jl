@@ -1,5 +1,5 @@
 using Optimisers
-using ChainRulesCore, Functors, StaticArrays, Zygote
+using ChainRulesCore, Functors, StaticArrays, Zygote, EnzymeCore
 using LinearAlgebra, Statistics, Test, Random
 using Optimisers: @.., @lazy
 using Base.Broadcast: broadcasted, instantiate, Broadcasted
@@ -332,8 +332,7 @@ end
 
     @testset "keyword arguments" begin
       @test Nesterov(rho=0.8, eta=0.1) === Nesterov(0.1, 0.8)
-      @test AdamW(lambda=0.3).opts[1] == Adam()
-      @test AdamW(lambda=0.3).opts[2] == WeightDecay(0.3)
+      @test AdamW(lambda=0.3, eta=0.1) == AdamW(0.1, (0.9, 0.999), 0.3, 1.0e-8)
     end
 
     @testset "forgotten gradient" begin
@@ -534,6 +533,28 @@ end
         @test Optimisers._norm(bc2, p) ≈ norm(arr2, p)
         @test Optimisers._norm(bc2, p) isa Float64
       end
+    end
+
+    @testset "Enzyme Duplicated" begin
+      x_dx = Duplicated(Float16[1,2,3], Float16[1,0,-4])
+      st = Optimisers.setup(Momentum(1/9), x_dx)  # acts only on x not on dx
+      @test st isa Optimisers.Leaf
+      @test nothing === Optimisers.update!(st, x_dx)  # mutates both arguments
+      @test x_dx.val ≈ Float16[0.8887, 2.0, 3.445]
+
+      shared = [1.0]
+      model = (x=shared, y=shared)
+      grad = deepcopy(model) # Enzyme produces something like this, grad.x === grad.y, already accumulated.
+      dup = Duplicated(model, model)
+      st2 = Optimisers.setup(Descent(0.1), model)
+      Optimisers.update!(st2, dup)
+      @test model.x ≈ [0.9]
+      shared .= 1
+      Optimisers.update!(st2, model, grad)
+      model.x ≈ [0.8]  # This is wrong, but don't make it a test.
+      # Ideally, perhaps the 3-arg update! could notice that grad.x===grad.y, and not accumulate the gradient in this case?
+
+      @test_throws ArgumentError Optimisers.setup(Adam(), (; a=[1,2,3.], b=x_dx))  # Duplicated deep inside is not allowed
     end
   end
   @testset verbose=true "Destructure" begin

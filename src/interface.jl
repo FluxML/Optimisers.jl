@@ -103,13 +103,21 @@ end
 subtract!(x, x̄) = maywrite(x) ? (x .= x .- x̄) : eltype(x).(x .- x̄)
 subtract!(x, x̄::Zero) = x
 
+# If we get Zero from AD on a leaf we skip the optimizer step. See
+# https://github.com/FluxML/Optimisers.jl/issues/140
 _grads!(dict::IdDict, ℓ::Leaf, x, ::Zero...) = nothing
+
 function _grads!(dict::IdDict, ℓ::Leaf, x, x̄s...)
   x̄s₀ = get(dict, ℓ, map(_ -> ZeroTangent(), x̄s))
   dict[ℓ] = map(+, x̄s, x̄s₀)  # adding Zero should be free. Lazy accumulation broadcasted(+, x̄, x̄₀) also possible.
   nothing
 end
+
+# If we get Zero from AD in correspondence of a non-leaf node
+# we end the recursion. The optimizer step won't be taken.
+# https://github.com/FluxML/Optimisers.jl/issues/140
 _grads!(dict::IdDict, t, x, ::Zero...) = nothing
+
 function _grads!(dict::IdDict, tree, x, x̄s...)
   # The only reason _grads! takes model is that functor(typeof(x), base(x̄)) may differ from 
   # functor(typeof(tree), base(x̄)), for things like Transpose
@@ -225,12 +233,12 @@ onevalue(λ, x::AbstractArray{T}) where T = onevalue(convert(float(T), λ), x)
 nonneg(η::Real) = η < 0 ? throw(DomainError(η, "the learning rate cannot be negative")) : η
 
 """
-  @def struct Rule; eta = 0.1; beta = (0.7, 0.8); end
+    @def struct Rule; eta = 0.1; beta = (0.7, 0.8); end
 
 Helper macro for defining rules with default values.
 The types of the literal values are used in the `struct`,
 like this:
-```
+```julia
 struct Rule
   eta::Float64
   beta::Tuple{Float64, Float64}
