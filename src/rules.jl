@@ -181,7 +181,7 @@ init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 function apply!(o::Rprop, state, x::AbstractArray{T}, dx) where T
     ℓ, Γ = T.(o.ell), T.(o.gamma)
     g, η = state
-  
+
     η = broadcast(g, η, dx) do g, η, dx
         g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
     end
@@ -254,6 +254,87 @@ function apply!(o::Lion, state, x::AbstractArray{T}, dx) where T
   dx′ = @lazy η * sign((β[2]-β[1]) * dx + β[1] * state)
 
   return state, dx′
+end
+
+"""
+    Muon(η = 0.02, ρ = 0.95; steps = 5)
+    Muon(; [eta, rho, steps])
+
+Muon - MomentUm Orthogonalized by Newton-schulz
+
+Muon internally runs standard SGD-momentum, and then performs an orthogonalization post-processing step,
+in which each 2D parameter's update is replaced with the nearest orthogonal matrix using Newton-Schulz iteration.
+
+# Parameters
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating the weights
+- Momentum (`ρ == rho`): Controls the acceleration of gradient descent in the prominent direction
+- Steps: Number of Newton-Schulz iteration steps for orthogonalization
+
+Note: This optimizer only acts on arrays with 2 or more dimensions (matrices, tensors).
+Parameters with fewer dimensions are silently ignored. Works best with large batch sizes
+and may not be suitable for fine-tuning.
+"""
+@def struct Muon <: AbstractRule
+    eta = 0.02
+    rho = 0.95
+    steps = 5
+end
+
+function init(o::Muon, x::AbstractArray)
+    ndims(x) < 2 ? nothing : zero(x)
+end
+
+function apply!(o::Muon, state, x::AbstractArray{T}, dx) where T
+    # Silently pass through 1D arrays unchanged
+    if ndims(x) < 2
+        return nothing, dx
+    end
+
+    η, ρ = T(o.eta), T(o.rho)
+
+    # Update momentum buffer
+    @.. state = ρ * state + dx
+
+    # For higher dimensional tensors, reshape to matrix, orthogonalize, then reshape back
+    original_size = size(state)
+    if ndims(state) > 2
+        state_mat = reshape(state, size(state,1), :)
+        dx_orth = _newton_schulz_orthogonalize(state_mat, o.steps)
+        dx_orth = reshape(dx_orth, original_size)
+    else
+        dx_orth = _newton_schulz_orthogonalize(state, o.steps)
+    end
+
+    # Scale based on matrix dimensions
+    scale = sqrt(max(1, size(dx_orth,1)/size(dx_orth,2)))
+    dx′ = @lazy η * scale * dx_orth
+
+    return state, dx′
+end
+
+# _newton_schulz_orthogonalize remains unchanged
+function _newton_schulz_orthogonalize(G::AbstractMatrix, steps::Int)
+    a, b, c = (3.4445f0, -4.7750f0, 2.0315f0)
+
+    X = G
+    X = X / (norm(X) + eps())
+
+    transposed = size(G, 1) > size(G, 2)
+    if transposed
+        X = X'
+    end
+
+    for _ in 1:steps
+        A = X * X'
+        B = b * A + c * A * A
+        X = a * X + B * X
+    end
+
+    if transposed
+        X = X'
+    end
+
+    X
 end
 
 """
@@ -603,10 +684,10 @@ end
     WeightDecay(λ = 5e-4)
     WeightDecay(; [lambda])
 
-Implements ``L_2`` regularisation, also known as ridge regression, 
+Implements ``L_2`` regularisation, also known as ridge regression,
 when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
 
-It does this by adding `λ .* x` to the gradient. This is equivalent to adding 
+It does this by adding `λ .* x` to the gradient. This is equivalent to adding
 `λ/2 * sum(abs2, x) == λ/2 * norm(x)^2` to the loss.
 
 See also [`SignDecay`] for ``L_1`` normalisation.
@@ -644,7 +725,7 @@ function adjust(r::WeightDecay; gamma = nothing, kw...)
 Implements ``L_1`` regularisation, also known as LASSO regression,
 when composed  with other rules as the first transformation in an [`OptimiserChain`](@ref).
 
-It does this by adding `λ .* sign(x)` to the gradient. This is equivalent to adding 
+It does this by adding `λ .* sign(x)` to the gradient. This is equivalent to adding
 `λ * sum(abs, x) == λ * norm(x, 1)` to the loss.
 
 See also [`WeightDecay`] for ``L_2`` normalisation.
@@ -783,7 +864,7 @@ function apply!(o::OptimiserChain, states, x, dx, dxs...)
   foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
     if dx′ isa Zero
       return (states′..., state), dx′
-    else 
+    else
       state′, dx′ = apply!(opt, state, x, dx′, dxs...)
       return (states′..., state′), dx′
     end
@@ -831,10 +912,10 @@ julia> m  # n=2 gradients applied at once
 """
 struct AccumGrad <: AbstractRule
   n::Int
-  
+
   function AccumGrad(n::Int)
     n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
-    return new(n)  
+    return new(n)
   end
 end
 
