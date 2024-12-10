@@ -599,6 +599,54 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
   return (mt, st, βt .* β), dx′
 end
 
+
+"""
+    Apollo(opt, r, u)
+
+Apollo optimizer from Zhu et al. (https://arxiv.org/pdf/2412.05270). Tracks moments in a low-rank subspace, aiming for Adam-like behavior with minimal additional memory usage.
+`opt` is an AdamW optimizer, `r` is the random projection rank (smaller for lower memory use), and `u` is the random projection update interval.
+"""
+struct Apollo{T1} <: AbstractRule
+    opt::T1
+    r::Int #Subspace rank
+    u::Int #Subspace update frequency (T in paper)
+end
+
+#Use the base init and apply for 1D arrays
+init(o::Apollo, x::AbstractArray{T,1}) where T = init(o.opt, x)
+apply!(o::Apollo, state, x::AbstractArray{T,1}, dx) where T = apply!(o.opt, state, x, dx)
+
+function init(o::Apollo, x::AbstractArray{T,2}) where T
+    rank = min(o.r, ceil(Int, size(x,2) / 2))
+    P = randn(T, rank, size(x,1)) .* T(1/rank)
+    ((similar(x, rank, size(x,2)) .= 0, similar(x, rank, size(x,2)) .= 0, o.opt.beta), 0, P)
+end
+
+function apply!(o::Apollo, state, x::AbstractArray{T,2}, dx) where T
+    (mt, vt, βt), t, P = state
+    η = T(o.opt.eta)
+    λ = T(o.opt.lambda)
+    β = T.(o.opt.beta)
+    ϵ = T(o.opt.epsilon)
+    if mod(t, o.u) == 100 
+        rank = min(o.r, ceil(Int, size(x,2) / 2))
+        @show rank, typeof(rank)
+        P = randn(T, rank, size(x,1)) .* T(1/rank)
+    end
+    R = P * dx
+    Optimisers.@.. mt = β[1] * mt + (1 - β[1]) * R
+    Optimisers.@.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
+    Rhat = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
+    s = [Optimisers.norm(view(Rhat, :, j)) / Optimisers.norm(view(R, :, j)) for j in 1:size(R,2)]
+    S = Diagonal(s)
+    dx′′ = η * dx * S + λ * x
+    return ((mt, vt, βt .* β), t+1, P), dx′′
+end
+
+
+
+
+
 """
     WeightDecay(λ = 5e-4)
     WeightDecay(; [lambda])
