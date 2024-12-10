@@ -637,7 +637,7 @@ function apply!(o::Apollo, state, x::AbstractArray{T,2}, dx) where T
     Optimisers.@.. mt = β[1] * mt + (1 - β[1]) * R
     Optimisers.@.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
     Rhat = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-    s = [Optimisers.norm(view(Rhat, :, j)) / Optimisers.norm(view(R, :, j)) for j in 1:size(R,2)]
+    s = sqrt.(sum(abs2.(Rhat), dims=1))[:] ./ (sqrt.(sum(abs2.(R), dims=1))[:] .+ ϵ)
     S = Diagonal(s)
     dx′′ = η * dx * S + λ * x
     return ((mt, vt, βt .* β), t+1, P), dx′′
