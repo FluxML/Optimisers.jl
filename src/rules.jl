@@ -601,50 +601,127 @@ end
 
 
 """
-    Apollo(opt, r, u)
+    GradNormGrowthLimiter(γ = 1.1; m = 1e-3, ϵ = 1e-8, throw = true, paramscale_min = true)
+
+Gradient norm growth limiter from Chen et al. (https://arxiv.org/pdf/2410.01623) and used with Apollo in Zhu et al. (https://arxiv.org/pdf/2412.05270).
+With Optimisers.jl this will apply per-tensor, which may not be the same as the implementations in these papers. It still seems to help, but the ideal settings may vary.
+This also introduces `m` a hard minimum on the gradient norm, and never rescales grads below this, preventing a tensor from getting "trapped" near zero.
+This can be a fixed min, or scaled by the number of parameters in the tensor (with `paramscale_min = true`).
+"""
+struct GradNormGrowthLimiter <: AbstractRule
+    γ::Float64
+    m::Float64 #Min grad norm, to stop a tensor getting stuck near zero
+    ϵ::Float64
+    throw::Bool
+    paramscale_min::Bool
+end
+
+GradNormGrowthLimiter(γ = 1.1; m = 1e-3, ϵ = 1e-8, throw = true, paramscale_min = true) = GradNormGrowthLimiter(γ, m, ϵ, throw, paramscale_min)
+
+init(o::GradNormGrowthLimiter, x::AbstractArray{T}) where T = T(0)
+
+function apply!(o::GradNormGrowthLimiter, state, x::AbstractArray{T}, dx) where T
+    current_norm = Optimisers._norm(dx, 2)
+    if o.throw && !isfinite(current_norm)
+        throw(DomainError("gradient has L2-norm $current_norm, for array $(summary(x))"))
+    end
+    if state == 0
+        return (current_norm), dx
+    else
+        #If you're below the hard min, then don't scale
+        if o.paramscale_min
+            minthresh = o.m * length(dx)
+        else
+            minthresh = o.m
+        end
+        if current_norm < minthresh
+            return current_norm, dx
+        end
+        ratio = current_norm / (state + o.ϵ)
+        if ratio > o.γ
+            λ = T((o.γ * state) / (current_norm + o.ϵ))
+            print(":", current_norm, ":")
+            return current_norm * λ, dx * λ
+        else
+            return current_norm, dx
+        end
+    end
+end
+
+nonfirstdims(x) = prod(size(x)[2:end])
+
+"""
+    Apollo(η::Real, rank::Int; u = 100, sort_dims = false)
+    Apollo(η::Real; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
+    Apollo(opt::Optimisers.AdamW, rank::Int; u = 100, sort_dims = false)
+    Apollo(opt::Optimisers.AdamW; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
 
 Apollo optimizer from Zhu et al. (https://arxiv.org/pdf/2412.05270). Tracks moments in a low-rank subspace, aiming for Adam-like behavior with minimal additional memory usage.
-`opt` is an AdamW optimizer, `r` is the random projection rank (smaller for lower memory use), and `u` is the random projection update interval.
+First argument can be an AdamW optimizer, or a learning rate (which will use the default AdamW optimizer with that learning rate). Second argument can be a rank, or a function
+to compute the rank from the second dimension (or the product of all dims > 1) of the weight matrix (or tensor).
 """
 struct Apollo{T1} <: AbstractRule
     opt::T1
-    r::Int #Subspace rank
+    r::Function #Maps non-first dims to rank
     u::Int #Subspace update frequency (T in paper)
+    sort_dims::Bool #Whether to swap the dims of x and dx when the second dim is smaller than the first
 end
+
+
+Apollo() = Apollo(AdamW(0.001), dim -> ceil(Int, sqrt(dim)), 100, true)
+Apollo(η::Real, rank::Int; u = 100, sort_dims = true) = Apollo(AdamW(η), dim -> max(dim, rank), u, sort_dims)
+Apollo(η::Real; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = true) = Apollo(AdamW(η), rank_function, u, sort_dims)
+Apollo(opt::AdamW, rank::Int; u = 100, sort_dims = true) = Apollo(AdamW(η), dim -> max(dim, rank), u, sort_dims)
+Apollo(opt::AdamW; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = true) = Apollo(opt, rank_function, u, sort_dims)
 
 #Use the base init and apply for 1D arrays
 init(o::Apollo, x::AbstractArray{T,1}) where T = init(o.opt, x)
 apply!(o::Apollo, state, x::AbstractArray{T,1}, dx) where T = apply!(o.opt, state, x, dx)
 
-function init(o::Apollo, x::AbstractArray{T,2}) where T
-    rank = min(o.r, ceil(Int, size(x,2) / 2))
-    P = randn(T, rank, size(x,1)) .* T(1/rank)
-    ((similar(x, rank, size(x,2)) .= 0, similar(x, rank, size(x,2)) .= 0, o.opt.beta), 0, P)
+function init(o::Apollo, x::AbstractArray{T}) where T
+    first_dim, second_dim = size(x,1), nonfirstdims(x)
+    if o.sort_dims && second_dim < first_dim
+        first_dim, second_dim = second_dim, first_dim
+    end
+    rank = o.r(second_dim)
+    P = randn(T, rank, first_dim) .* T(1/rank)
+    ((similar(x, rank, second_dim) .= 0, similar(x, rank, second_dim) .= 0, o.opt.beta), 1, P)
 end
 
-function apply!(o::Apollo, state, x::AbstractArray{T,2}, dx) where T
+function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
+    swapped = false
+    original_size = size(x)
+    x = reshape(x, size(x,1), nonfirstdims(x))
+    dx = reshape(dx, size(dx,1), nonfirstdims(dx))
+
+    first_dim, second_dim = size(x,1), size(x,2)
+    if o.sort_dims && second_dim < first_dim
+        first_dim, second_dim = second_dim, first_dim
+        x = x'
+        dx = dx'
+        swapped = true
+    end
     (mt, vt, βt), t, P = state
     η = T(o.opt.eta)
     λ = T(o.opt.lambda)
     β = T.(o.opt.beta)
     ϵ = T(o.opt.epsilon)
-    if mod(t, o.u) == 100 
-        rank = min(o.r, ceil(Int, size(x,2) / 2))
-        @show rank, typeof(rank)
-        P = randn(T, rank, size(x,1)) .* T(1/rank)
+    if mod(t, o.u) == 0 
+        rank = o.r(second_dim)
+        P = randn(T, rank, first_dim) .* T(1/rank)
     end
     R = P * dx
-    Optimisers.@.. mt = β[1] * mt + (1 - β[1]) * R
-    Optimisers.@.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
+    @.. mt = β[1] * mt + (1 - β[1]) * R
+    @.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
     Rhat = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
     s = sqrt.(sum(abs2.(Rhat), dims=1))[:] ./ (sqrt.(sum(abs2.(R), dims=1))[:] .+ ϵ)
     S = Diagonal(s)
     dx′′ = η * dx * S + λ * x
-    return ((mt, vt, βt .* β), t+1, P), dx′′
+    if swapped
+        dx′′ = dx′′'
+    end
+    return ((mt, vt, βt .* β), t+1, P), reshape(dx′′, original_size)
 end
-
-
-
 
 
 """
