@@ -621,7 +621,7 @@ GradNormGrowthLimiter(γ = 1.1; m = 1e-3, ϵ = 1e-8, throw = true, paramscale_mi
 init(o::GradNormGrowthLimiter, x::AbstractArray{T}) where T = T(0)
 
 function apply!(o::GradNormGrowthLimiter, state, x::AbstractArray{T}, dx) where T
-    current_norm = Optimisers._norm(dx, 2)
+    current_norm = _norm(dx, 2)
     if o.throw && !isfinite(current_norm)
         throw(DomainError("gradient has L2-norm $current_norm, for array $(summary(x))"))
     end
@@ -640,7 +640,6 @@ function apply!(o::GradNormGrowthLimiter, state, x::AbstractArray{T}, dx) where 
         ratio = current_norm / (state + o.ϵ)
         if ratio > o.γ
             λ = T((o.γ * state) / (current_norm + o.ϵ))
-            print(":", current_norm, ":")
             return current_norm * λ, dx * λ
         else
             return current_norm, dx
@@ -653,8 +652,8 @@ nonfirstdims(x) = prod(size(x)[2:end])
 """
     Apollo(η::Real, rank::Int; u = 100, sort_dims = false)
     Apollo(η::Real; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
-    Apollo(opt::Optimisers.AdamW, rank::Int; u = 100, sort_dims = false)
-    Apollo(opt::Optimisers.AdamW; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
+    Apollo(opt::AdamW, rank::Int; u = 100, sort_dims = false)
+    Apollo(opt::AdamW; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
 
 Apollo optimizer from Zhu et al. (https://arxiv.org/pdf/2412.05270). Tracks moments in a low-rank subspace, aiming for Adam-like behavior with minimal additional memory usage.
 First argument can be an AdamW optimizer, or a learning rate (which will use the default AdamW optimizer with that learning rate). Second argument can be a rank, or a function
