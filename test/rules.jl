@@ -8,12 +8,13 @@ RULES = [
   # All the rules at default settings:
   Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
-  AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
+  AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(), Apollo(),
   # A few chained combinations:
   OptimiserChain(SignDecay(0.001), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
+  OptimiserChain(GradNormGrowthLimiter(1.1), Apollo()),
   # Not the default:
   RMSProp(centred = true), AdamW(couple=false),
 ]
