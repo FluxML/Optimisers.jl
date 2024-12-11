@@ -531,8 +531,8 @@ Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`]
 struct AdamW{T1,T2,T3,T4} <: AbstractRule
   eta::T1
   beta::T2
-  epsilon::T3
   lambda::T4
+  epsilon::T3
   couple::Bool
 end
 
