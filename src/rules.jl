@@ -538,7 +538,7 @@ end
 
 function AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8; couple::Bool = true)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
-  AdamW(η, β, λ, ϵ, couple)
+  AdamW(η, β, ϵ, λ, couple)
 end
 
 AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
