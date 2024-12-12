@@ -691,7 +691,7 @@ function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
     swapped = false
     original_size = size(x)
     x = reshape(x, size(x,1), nonfirstdims(x))
-    dx = reshape(dx, size(dx,1), nonfirstdims(dx))
+    dx = reshape(dx, size(x,1), nonfirstdims(dx))
 
     first_dim, second_dim = size(x,1), size(x,2)
     if o.sort_dims && second_dim < first_dim
