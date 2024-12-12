@@ -528,11 +528,11 @@ Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`]
     The previous rule, which is closer to the original paper, can be obtained by setting `AdamW(..., couple=false)`.
     See [this issue](https://github.com/FluxML/Flux.jl/issues/2433) for more details.
 """
-struct AdamW{T1,T2,T3,T4} <: AbstractRule
-  eta::T1
-  beta::T2
-  lambda::T4
-  epsilon::T3
+struct AdamW <: AbstractRule
+  eta::Float64
+  beta::Float64
+  lambda::Float64
+  epsilon::Float64
   couple::Bool
 end
 
