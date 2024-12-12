@@ -530,7 +530,7 @@ Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`]
 """
 struct AdamW <: AbstractRule
   eta::Float64
-  beta::Float64
+  beta::Tuple{Float64, Float64}
   lambda::Float64
   epsilon::Float64
   couple::Bool
