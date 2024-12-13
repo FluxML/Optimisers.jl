@@ -691,41 +691,41 @@ end
 
 
 function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
-    swapped = false
-    original_size = size(x)
-    x = reshape(x, size(x,1), nonfirstdims(x))
-    
-    dx = Broadcast.materialize(dx) #This is to stop the "gradient type" @lazy test from failing due to reshape.
-    dx = reshape(dx, size(x,1), nonfirstdims(x))
+  swapped = false
+  original_size = size(x)
+  x = reshape(x, size(x,1), nonfirstdims(x))
+  
+  dx = Broadcast.materialize(dx) #This is to stop the "gradient type" @lazy test from failing due to reshape.
+  dx = reshape(dx, size(x,1), nonfirstdims(x))
 
-    first_dim, second_dim = size(x,1), size(x,2)
-    if o.sort_dims && second_dim < first_dim
-        first_dim, second_dim = second_dim, first_dim
-        x = x'
-        dx = dx'
-        swapped = true
-    end
-    (mt, vt, βt), t, P = state
-    η = T(o.opt.eta)
-    λ = T(o.opt.lambda)
-    β = T.(o.opt.beta)
-    ϵ = T(o.opt.epsilon)
-    if mod(t, o.u) == 0 
-        rank = o.r(second_dim)
-        randn!(P)
-        P .*= T(sqrt(1/rank))
-    end
-    R = P * dx
-    @.. mt = β[1] * mt + (1 - β[1]) * R
-    @.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
-    Rhat = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-    s = sqrt.(sum(abs2.(Rhat), dims=1))[:] ./ (sqrt.(sum(abs2.(R), dims=1))[:] .+ ϵ)
-    S = Diagonal(s)
-    dx′′ = η * dx * S + λ * x
-    if swapped
-        dx′′ = dx′′'
-    end
-    return ((mt, vt, βt .* β), t+1, P), reshape(dx′′, original_size)
+  first_dim, second_dim = size(x,1), size(x,2)
+  if o.sort_dims && second_dim < first_dim
+      first_dim, second_dim = second_dim, first_dim
+      x = x'
+      dx = dx'
+      swapped = true
+  end
+  (mt, vt, βt), t, P = state
+  η = T(o.opt.eta)
+  λ = T(o.opt.lambda)
+  β = T.(o.opt.beta)
+  ϵ = T(o.opt.epsilon)
+  βt = T.(βt)
+  if mod(t, o.u) == 0 
+      rank = o.r(second_dim)
+      randn!(P)
+      P .*= T(sqrt(1/rank))
+  end
+  R = P * dx
+  @.. mt = β[1] * mt + (1 - β[1]) * R
+  @.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
+  Rhat = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
+  s = sqrt.(sum(abs2.(Rhat), dims=1))[:] ./ (sqrt.(sum(abs2.(R), dims=1))[:] .+ ϵ)
+  dx′′ = η * (dx .* reshape(s, 1, :)) + λ * x
+  if swapped
+      dx′′ = dx′′'
+  end
+  return ((mt, vt, βt .* β), t+1, P), reshape(dx′′, original_size)
 end
 
 
