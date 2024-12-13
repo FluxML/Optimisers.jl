@@ -683,9 +683,12 @@ function init(o::Apollo, x::AbstractArray{T}) where T
         first_dim, second_dim = second_dim, first_dim
     end
     rank = o.r(second_dim)
-    P = randn(T, rank, first_dim) .* T(1/rank)
+    P = similar(x, rank, first_dim)
+    randn!(P)
+    P .*= T(sqrt(1/rank))
     ((similar(x, rank, second_dim) .= 0, similar(x, rank, second_dim) .= 0, o.opt.beta), 1, P)
 end
+
 
 function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
     swapped = false
@@ -709,7 +712,8 @@ function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
     ϵ = T(o.opt.epsilon)
     if mod(t, o.u) == 0 
         rank = o.r(second_dim)
-        P = randn(T, rank, first_dim) .* T(1/rank)
+        randn!(P)
+        P .*= T(sqrt(1/rank))
     end
     R = P * dx
     @.. mt = β[1] * mt + (1 - β[1]) * R

@@ -5,6 +5,8 @@ using Functors: functor, fmap, fmap_with_path,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
 
+using Random: randn!
+
 include("interface.jl")
 export AbstractRule
 
