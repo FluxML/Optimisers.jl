@@ -6,6 +6,18 @@ This was written as the new training system for [Flux.jl](https://github.com/Flu
 and also used by [Lux.jl](https://github.com/LuxDL/Lux.jl).
 But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
 
+## Installation
+
+In the Julia REPL, type
+```julia
+]add Optimisers
+```
+
+or
+```julia-repl
+julia> import Pkg; Pkg.add("Optimisers")
+```
+
 ## An optimisation rule
 
 A new optimiser must overload two functions, [`apply!`](@ref Optimisers.apply!) and [`init`](@ref Optimisers.init).
