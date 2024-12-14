@@ -293,7 +293,7 @@ similarly to what [`destructure`](@ref Optimisers.destructure) does but without
 concatenating the arrays into a flat vector.
 This is done by [`trainables`](@ref Optimisers.trainables), which returns a list of arrays:
 
-```julia
+```julia-repl
 julia> using Flux, Optimisers
 
 julia> model = Chain(Dense(2 => 3, tanh), BatchNorm(3), Dense(3 => 2));
