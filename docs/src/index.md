@@ -1,5 +1,11 @@
 # Optimisers.jl
 
+Optimisers.jl defines many standard gradient-based optimisation rules, and tools for applying them to deeply nested models.
+
+This was written as the new training system for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
+and also used by [Lux.jl](https://github.com/LuxDL/Lux.jl).
+But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
+
 ## An optimisation rule
 
 A new optimiser must overload two functions, [`apply!`](@ref Optimisers.apply!) and [`init`](@ref Optimisers.init).
