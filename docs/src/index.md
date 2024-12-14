@@ -38,7 +38,6 @@ state for every trainable array. Then at each step, [`update`](@ref Optimisers.u
 to adjust the model:
 
 ```julia
-
 using Flux, Metalhead, Zygote, Optimisers
 
 model = Metalhead.ResNet(18) |> gpu  # define a model to train
@@ -54,7 +53,6 @@ end;
 
 state_tree, model = Optimisers.update(state_tree, model, ∇model);
 @show sum(model(image));  # reduced
-
 ```
 
 Notice that a completely new instance of the model is returned. Internally, this
@@ -91,7 +89,6 @@ Beware that it has nothing to do with Zygote's notion of "explicit" gradients.
 identical trees of nested `NamedTuple`s.)
 
 ```julia
-
 using Lux, Boltz, Zygote, Optimisers
 
 lux_model, params, lux_state = Boltz.resnet(:resnet18) |> gpu;  # define and initialise model
@@ -113,7 +110,6 @@ opt_state, params = Optimisers.update!(opt_state, params, ∇params);
 
 y, lux_state = Lux.apply(lux_model, images, params, lux_state);
 @show sum(y);  # now reduced
-
 ```
 
 Besides the parameters stored in `params` and gradually optimised, any other model state
