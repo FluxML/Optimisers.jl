@@ -1,5 +1,23 @@
 # Optimisers.jl
 
+Optimisers.jl defines many standard gradient-based optimisation rules, and tools for applying them to deeply nested models.
+
+This was written as the new training system for [Flux.jl](https://github.com/FluxML/Flux.jl) neural networks,
+and also used by [Lux.jl](https://github.com/LuxDL/Lux.jl).
+But it can be used separately on any array, or anything else understood by [Functors.jl](https://github.com/FluxML/Functors.jl).
+
+## Installation
+
+In the Julia REPL, type
+```julia
+]add Optimisers
+```
+
+or
+```julia-repl
+julia> import Pkg; Pkg.add("Optimisers")
+```
+
 ## An optimisation rule
 
 A new optimiser must overload two functions, [`apply!`](@ref Optimisers.apply!) and [`init`](@ref Optimisers.init).
@@ -38,7 +56,6 @@ state for every trainable array. Then at each step, [`update`](@ref Optimisers.u
 to adjust the model:
 
 ```julia
-
 using Flux, Metalhead, Zygote, Optimisers
 
 model = Metalhead.ResNet(18) |> gpu  # define a model to train
@@ -54,7 +71,6 @@ end;
 
 state_tree, model = Optimisers.update(state_tree, model, ∇model);
 @show sum(model(image));  # reduced
-
 ```
 
 Notice that a completely new instance of the model is returned. Internally, this
@@ -91,7 +107,6 @@ Beware that it has nothing to do with Zygote's notion of "explicit" gradients.
 identical trees of nested `NamedTuple`s.)
 
 ```julia
-
 using Lux, Boltz, Zygote, Optimisers
 
 lux_model, params, lux_state = Boltz.resnet(:resnet18) |> gpu;  # define and initialise model
@@ -113,7 +128,6 @@ opt_state, params = Optimisers.update!(opt_state, params, ∇params);
 
 y, lux_state = Lux.apply(lux_model, images, params, lux_state);
 @show sum(y);  # now reduced
-
 ```
 
 Besides the parameters stored in `params` and gradually optimised, any other model state
@@ -297,7 +311,7 @@ similarly to what [`destructure`](@ref Optimisers.destructure) does but without
 concatenating the arrays into a flat vector.
 This is done by [`trainables`](@ref Optimisers.trainables), which returns a list of arrays:
 
-```julia
+```julia-repl
 julia> using Flux, Optimisers
 
 julia> model = Chain(Dense(2 => 3, tanh), BatchNorm(3), Dense(3 => 2));

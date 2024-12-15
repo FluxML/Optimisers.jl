@@ -32,10 +32,10 @@ julia> trainables(x)
 1-element Vector{AbstractArray}:
  [1.0, 2.0, 3.0]
 
- julia> x = MyLayer((a=[1.0,2.0], b=[3.0]), [4.0,5.0,6.0]);
+julia> x = MyLayer((a=[1.0,2.0], b=[3.0]), [4.0,5.0,6.0]);
 
- julia> trainables(x) # collects nested parameters
- 2-element Vector{AbstractArray}:
+julia> trainables(x) # collects nested parameters
+2-element Vector{AbstractArray}:
  [1.0, 2.0]
  [3.0]
 ```
