@@ -599,28 +599,29 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
   return (mt, st, βt .* β), dx′
 end
 
-
 """
-    GradNormGrowthLimiter(γ = 1.1; m = 1e-3, ϵ = 1e-8, throw = true, paramscale_min = true)
+    NormGrowthCap(τ = 1.01; ϵ = 1e-8, lb = 1e-7, throw = true, scale = true)
 
-Gradient norm growth limiter. Inspired by [Chen et al.](https://arxiv.org/abs/2410.01623) and used with Apollo in [Zhu et al.](https://arxiv.org/abs/2412.05270), but
-with Optimisers.jl this will apply per-tensor instead of per-model, and as a result the defaults are different. `γ` controls the maximum that the gradient norm can grow
-from one step to the next. This implementation also introduces `m` a hard minimum on the gradient norm threshold, and never rescales grads below this, preventing a tensor
-from getting "trapped" near zero. This can be a fixed min, or scaled by the square root of the number of parameters in the tensor (with `paramscale_min = true`).
+Gradient norm growth limiter. `τ` controls the maximum that the gradient norm can grow from one step to the next, such that
+if `||dx||/||dx_prev|| > τ` & `||dx|| > lb`, then `dx = dx * τ*||dx_prev||/(||dx||+ϵ)`
+Inspired by [Chen et al.](https://arxiv.org/abs/2410.01623) and used with Apollo in [Zhu et al.](https://arxiv.org/abs/2412.05270), but
+with Optimisers.jl this will apply per-tensor instead of per-model. This implementation also introduces `lb` as a hard minimum on the gradient norm threshold,
+and never rescales grads below this, preventing a tensor from getting "trapped" near zero. This can be a fixed min, or scaled by the square root of the
+number of parameters in the tensor (with `scale = true`).
 """
-struct GradNormGrowthLimiter <: AbstractRule
-    γ::Float64
-    m::Float64 #Min grad norm, to stop a tensor getting stuck near zero
-    ϵ::Float64
+struct NormGrowthCap <: AbstractRule
+    tau::Float64
+    epsilon::Float64
+    lb::Float64 #Min grad norm, to stop a tensor getting stuck near zero
     throw::Bool
-    paramscale_min::Bool
+    scale::Bool
 end
 
-GradNormGrowthLimiter(γ = 1.1; m = 1e-3, ϵ = 1e-8, throw = true, paramscale_min = true) = GradNormGrowthLimiter(γ, m, ϵ, throw, paramscale_min)
+NormGrowthCap(τ = 1.01; ϵ = 1e-8, lb = 1e-7, throw = true, scale = true) = NormGrowthCap(τ, ϵ, lb, throw, scale)
 
-init(o::GradNormGrowthLimiter, x::AbstractArray{T}) where T = T(0)
+init(o::NormGrowthCap, x::AbstractArray{T}) where T = T(0)
 
-function apply!(o::GradNormGrowthLimiter, state, x::AbstractArray{T}, dx) where T
+function apply!(o::NormGrowthCap, state, x::AbstractArray{T}, dx) where T
     current_norm = _norm(dx, 2)
     if o.throw && !isfinite(current_norm)
         throw(DomainError("gradient has L2-norm $current_norm, for array $(summary(x))"))
@@ -629,18 +630,18 @@ function apply!(o::GradNormGrowthLimiter, state, x::AbstractArray{T}, dx) where 
         return (current_norm), dx
     else
         #If you're below the hard min, then don't scale
-        if o.paramscale_min
-            minthresh = o.m * sqrt(length(dx))
+        if o.scale
+            minthresh = o.lb * sqrt(length(dx))
         else
-            minthresh = o.m
+            minthresh = o.lb
         end
         if current_norm < minthresh
             return current_norm, dx
         end
-        ratio = current_norm / (state + o.ϵ)
-        if ratio > o.γ
-            λ = T((o.γ * state) / (current_norm + o.ϵ))
-            return current_norm * λ, dx * λ
+        ratio = current_norm / (state + o.epsilon)
+        if ratio > o.tau
+            lambda = T((o.tau * state) / (current_norm + o.epsilon))
+            return current_norm * lambda, dx * lambda
         else
             return current_norm, dx
         end
@@ -650,29 +651,36 @@ end
 nonfirstdims(x) = prod(size(x)[2:end])
 
 """
-    Apollo(η::Real, rank::Int; u = 100, sort_dims = false)
-    Apollo(η::Real; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
-    Apollo(opt::AdamW, rank::Int; u = 100, sort_dims = false)
-    Apollo(opt::AdamW; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = false)
+    Apollo(opt::AdamW = AdamW(), r::Function = dim -> ceil(Int, sqrt(dim)); u = 100, sort_dims = true)
+    Apollo(η::Real, args...; kw...)
+    Apollo(arg, rank::Int; kw...)
+    Apollo(η::Real, rank::Int; kw...)
 
-Apollo optimizer from Zhu et al. (https://arxiv.org/pdf/2412.05270). Tracks moments in a low-rank subspace, aiming for Adam-like behavior with minimal additional memory usage.
+Apollo optimizer from Zhu et al. (https://arxiv.org/abs/2412.05270). Tracks moments in a low-rank subspace, aiming for Adam-like behavior with minimal additional memory usage.
 First argument can be an AdamW optimizer, or a learning rate (which will use the default AdamW optimizer with that learning rate). Second argument can be a rank, or a function
 to compute the rank from the second dimension (or the product of all dims > 1) of the weight matrix (or tensor).
 """
-struct Apollo{T1, T2, T3, T4, T5} <: AbstractRule
+struct Apollo{T1, T2} <: AbstractRule
     opt::T1
-    eta::T2
-    r::T3 #Maps non-first dims to rank
-    u::T4 #Subspace update frequency (T in paper)
-    sort_dims::T5 #Whether to swap the dims of x and dx when the second dim is smaller than the first
+    r::T2 #Maps non-first dims to rank
+    u::Int #Subspace update frequency (T in paper)
+    sort_dims::Bool #Whether to swap the dims of x and dx when the second dim is smaller than the first
 end
 
+function adjust(r::Apollo; kw...)
+  if (:u in keys(kw)) || (:r in keys(kw)) || (:sort_dims in keys(kw))
+    @error "Apollo does not support adjusting: u, r, sort_dims"
+  end
+  return Apollo(adjust(r.opt, NamedTuple(kw)), r.r, r.u, r.sort_dims)
+end
+adjust(r::Apollo, η::Real) = Apollo(adjust(r.opt, η), r.r, r.u, r.sort_dims)
 
-Apollo() = Apollo(AdamW(0.001), 0.001, dim -> ceil(Int, sqrt(dim)), 100, true)
-Apollo(η::Real, rank::Int; u = 100, sort_dims = true) = Apollo(AdamW(η), η, dim -> max(dim, rank), u, sort_dims)
-Apollo(η::Real; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = true) = Apollo(AdamW(η), η, rank_function, u, sort_dims)
-Apollo(opt::AdamW, rank::Int; u = 100, sort_dims = true) = Apollo(opt, opt.eta, dim -> max(dim, rank), u, sort_dims)
-Apollo(opt::AdamW; rank_function::Function = dim -> ceil(Int, sqrt(dim)), u = 100, sort_dims = true) = Apollo(opt, opt.eta, rank_function, u, sort_dims)
+
+Apollo(opt::AdamW = AdamW(), r::Function = dim -> ceil(Int, sqrt(dim)); u = 100, sort_dims = true) = Apollo(opt, r, u, sort_dims)
+Apollo(η::Real, args...; kw...) = Apollo(AdamW(η), args...; kw...)
+Apollo(arg, rank::Int; kw...) = Apollo(arg, dim -> min(dim, rank); kw...)
+Apollo(η::Real, rank::Int; kw...) = Apollo(AdamW(η), rank; kw...)
+
 
 #Use the base init and apply for 1D arrays
 init(o::Apollo, x::AbstractArray{T,1}) where T = init(o.opt, x)
@@ -707,7 +715,7 @@ function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
       swapped = true
   end
   (mt, vt, βt), t, P = state
-  η = T(o.eta) #This is what will get modified by adjust
+  η = T(o.opt.eta) #This is what will get modified by adjust
   λ = T(o.opt.lambda)
   β = T.(o.opt.beta)
   ϵ = T(o.opt.epsilon)
@@ -721,16 +729,17 @@ function apply!(o::Apollo, state, x::AbstractArray{T}, dx) where T
   @.. mt = β[1] * mt + (1 - β[1]) * R
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(R)
   Rhat = @. mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
-  s = sqrt.(sum(abs2.(Rhat), dims=1))[:] ./ (sqrt.(sum(abs2.(R), dims=1))[:] .+ ϵ)
-  dx′′ = η * (dx .* reshape(s, 1, :)) + λ * x
+
+  R2sum = sum(abs2, R; dims=1) 
+  Rhat2sum = sum(abs2, Rhat; dims=1)
+  s = @. sqrt(Rhat2sum) / (sqrt(R2sum) + ϵ)
+  dx′′ = η * (dx .* s) + λ * x 
+
   if swapped
-      dx′′ = dx′′'
+      dx′′ = transpose(dx′′)
   end
   return ((mt, vt, βt .* β), t+1, P), reshape(dx′′, original_size)
 end
-
-#Notes: chuck the AdamW from the struct, so that adjust will just work.
-
 
 
 """
