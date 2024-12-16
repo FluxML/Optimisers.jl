@@ -14,7 +14,7 @@ RULES = [
   OptimiserChain(ClipNorm(), Adam(0.001)),
   OptimiserChain(ClipGrad(0.5), Momentum()),
   OptimiserChain(WeightDecay(), OAdam(), ClipGrad(1)),
-  OptimiserChain(GradNormGrowthLimiter(1.1), Apollo()),
+  OptimiserChain(NormGrowthCap(1.1), Apollo()),
   # Not the default:
   RMSProp(centred = true), AdamW(couple=false),
 ]
