@@ -38,7 +38,7 @@ This is what [`destructure`](@ref Optimisers.destructure) returns, and `re(p)` w
 new parameters from vector `p`. If the model is callable, then `re(x, p) == re(p)(x)`.
 
 # Example
-```julia
+```julia-repl
 julia> using Flux, Optimisers
 
 julia> _, re = destructure(Dense([1 2; 3 4], [0, 0], sigmoid))
