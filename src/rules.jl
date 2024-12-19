@@ -671,7 +671,7 @@ function adjust(r::Apollo; kw...)
   if (:u in keys(kw)) || (:r in keys(kw)) || (:sort_dims in keys(kw))
     @error "Apollo does not support adjusting: u, r, sort_dims"
   end
-  return Apollo(adjust(r.opt, NamedTuple(kw)), r.r, r.u, r.sort_dims)
+  return Apollo(_adjust(r.opt, NamedTuple(kw)), r.r, r.u, r.sort_dims)
 end
 adjust(r::Apollo, η::Real) = Apollo(adjust(r.opt, η), r.r, r.u, r.sort_dims)
 
