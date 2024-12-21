@@ -624,13 +624,15 @@ In nanoGPT speedrun experiments, Muon is used for the internal layer >2D weights
 `Optimisers.adjust!(optimiser_state, η::Real)` will adjust the fallback optimizer's `eta` to `η * (opt.eta / eta)`, and Muon's `eta` to `η`, preserving their ratio,
 but `Optimisers.adjust!(optimiser, eta = η)` will only adjust Muon's learning rate (allowing you to adjust the fallback optimizer's learning rate separately).
 """
-@def struct Muon <: AbstractRule
-    opt = AdamW(eta = 0.0003, beta = (0.9,0.95), lambda = 0.01)
-    eta = 0.02
-    mu = 0.95
-    lambda = 0.01
-    fallback = Returns(false)
+struct Muon <: AbstractRule
+    opt::AbstractRule
+    eta::Float64
+    mu::Float64
+    lambda::Float64
+    fallback::Function
 end
+
+Muon(;opt = AdamW(eta = 0.0003, beta = (0.9,0.95), lambda = 0.01), eta = 0.02, mu = 0.95, lambda = 0.01, fallback = x -> false) = Muon(opt, eta, mu, lambda, fallback)
 
 function init(o::Muon, x::AbstractArray)
   if nonfirstdims(x) == 1 || o.fallback(x)
