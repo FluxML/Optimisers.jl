@@ -646,7 +646,7 @@ function apply!(o::Muon, state, x::AbstractArray{T}, dx) where T
   else
     η, μ, λ = T(o.eta), T(o.mu), T(o.lambda)
     @.. state = μ * state + dx
-    Ot = _newton_schulz5(μ .* state .+ dx)
+    Ot = _newton_schulz5(μ .* state .+ dx) * T(sqrt(max(1, size(x,1)/nonfirstdims(x))))
     dx′ = @lazy η * (Ot + λ * x)
     return state, dx′
   end
