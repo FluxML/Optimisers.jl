@@ -654,22 +654,22 @@ function apply!(o::Muon, state, x::AbstractArray{T}, dx) where T
   end
 end
 
+function _inner_newton_schulz5(X::AbstractMatrix{T}) where T
+  a, b, c = (T(3.4445f0), T(-4.7750f0), T(2.0315f0))
+  for _ in 1:5
+    A = X * X'
+    B = b * A + c * A * A
+    X = a * X + B * X
+  end 
+  X
+end
 function _newton_schulz5(G::AbstractMatrix{T}) where T
-    a, b, c = (T(3.4445f0), T(-4.7750f0), T(2.0315f0))
     X = G / (norm(G) + eps(T))
-    transposed = size(G, 1) > size(G, 2)
-    if transposed
-        X = X'
+    if size(G, 1) > size(G, 2)
+      transpose(_inner_newton_schulz5(transpose(X)))
+    else
+      _inner_newton_schulz5(X)
     end
-    for _ in 1:5
-        A = X * X'
-        B = b * A + c * A * A
-        X = a * X + B * X
-    end
-    if transposed
-        X = X'
-    end
-    X
 end
 _newton_schulz5(G::AbstractArray) = reshape(_newton_schulz5(reshape(G, size(G,1), :)), size(G))
 
