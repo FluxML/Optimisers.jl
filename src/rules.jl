@@ -256,86 +256,6 @@ function apply!(o::Lion, state, x::AbstractArray{T}, dx) where T
   return state, dx′
 end
 
-"""
-    Muon(η = 0.02, ρ = 0.95; steps = 5)
-    Muon(; [eta, rho, steps])
-
-Muon - MomentUm Orthogonalized by Newton-schulz
-
-Muon internally runs standard SGD-momentum, and then performs an orthogonalization post-processing step,
-in which each 2D parameter's update is replaced with the nearest orthogonal matrix using Newton-Schulz iteration.
-
-# Parameters
-- Learning rate (`η == eta`): Amount by which gradients are discounted before updating the weights
-- Momentum (`ρ == rho`): Controls the acceleration of gradient descent in the prominent direction
-- Steps: Number of Newton-Schulz iteration steps for orthogonalization
-
-Note: This optimizer only acts on arrays with 2 or more dimensions (matrices, tensors).
-Parameters with fewer dimensions are silently ignored. Works best with large batch sizes
-and may not be suitable for fine-tuning.
-"""
-@def struct Muon <: AbstractRule
-    eta = 0.02
-    rho = 0.95
-    steps = 5
-end
-
-function init(o::Muon, x::AbstractArray)
-    ndims(x) < 2 ? nothing : zero(x)
-end
-
-function apply!(o::Muon, state, x::AbstractArray{T}, dx) where T
-    # Silently pass through 1D arrays unchanged
-    if ndims(x) < 2
-        return nothing, dx
-    end
-
-    η, ρ = T(o.eta), T(o.rho)
-
-    # Update momentum buffer
-    @.. state = ρ * state + dx
-
-    # For higher dimensional tensors, reshape to matrix, orthogonalize, then reshape back
-    original_size = size(state)
-    if ndims(state) > 2
-        state_mat = reshape(state, size(state,1), :)
-        dx_orth = _newton_schulz_orthogonalize(state_mat, o.steps)
-        dx_orth = reshape(dx_orth, original_size)
-    else
-        dx_orth = _newton_schulz_orthogonalize(state, o.steps)
-    end
-
-    # Scale based on matrix dimensions
-    scale = sqrt(max(1, size(dx_orth,1)/size(dx_orth,2)))
-    dx′ = @lazy η * scale * dx_orth
-
-    return state, dx′
-end
-
-# _newton_schulz_orthogonalize remains unchanged
-function _newton_schulz_orthogonalize(G::AbstractMatrix, steps::Int)
-    a, b, c = (3.4445f0, -4.7750f0, 2.0315f0)
-
-    X = G
-    X = X / (norm(X) + eps())
-
-    transposed = size(G, 1) > size(G, 2)
-    if transposed
-        X = X'
-    end
-
-    for _ in 1:steps
-        A = X * X'
-        B = b * A + c * A * A
-        X = a * X + B * X
-    end
-
-    if transposed
-        X = X'
-    end
-
-    X
-end
 
 """
     RAdam(η = 0.001, β = (0.9, 0.999), ϵ = 1e-8)
@@ -679,6 +599,79 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 
   return (mt, st, βt .* β), dx′
 end
+
+nonfirstdims(x) = prod(size(x)[2:end])
+
+"""
+    Muon(opt = AdamW(eta = 0.0003, beta = (0.9,0.95), lambda = 0.01), η = 0.02, μ = 0.95, λ = 0.01, fallback = Returns(false))
+    Muon(; [opt, eta, mu, lambda, fallback])
+
+Muon - MomentUm Orthogonalized by Newton-schulz (https://github.com/KellerJordan/Muon)
+
+Muon internally runs standard SGD-momentum, and then performs an orthogonalization post-processing step,
+in which each 2D parameter's update is replaced with the nearest orthogonal matrix using Newton-Schulz iteration.
+
+# Parameters
+- Fallback optimizer (`opt`): Optimizer to use for 1D parameters or when the `fallback` function returns true
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating the weights
+- Momentum (`μ == mu`): Controls the acceleration of gradient descent in the prominent direction
+- Weight decay (`λ == lambda`): Controls the strength of ``L_2`` regularisation.
+- Fallback function (`fallback`): Function to control when, in addition to 1D arrays, the fallback optimizer should be used. Will be passed the parameter array and must return a boolean.
+
+Note: Works best with large batch sizes and may not be suitable for fine-tuning.
+In nanoGPT speedrun experiments, Muon is used for the internal layer >2D weights, and AdamW is used for the 1D weights, embeddings, and heads.
+
+`Optimisers.adjust!(optimiser_state, η::Real)` will adjust the fallback optimizer's `eta` to `η * (opt.eta / eta)`, and Muon's `eta` to `η`, preserving their ratio,
+but `Optimisers.adjust!(optimiser, eta = η)` will only adjust Muon's learning rate (allowing you to adjust the fallback optimizer's learning rate separately).
+"""
+@def struct Muon <: AbstractRule
+    opt = AdamW(eta = 0.0003, beta = (0.9,0.95), lambda = 0.01)
+    eta = 0.02
+    mu = 0.95
+    lambda = 0.01
+    fallback = Returns(false)
+end
+
+function init(o::Muon, x::AbstractArray)
+  if nonfirstdims(x) == 1 || o.fallback(x)
+    return init(o.opt, x)
+  else
+    return zero(x)
+  end
+end
+
+function apply!(o::Muon, state, x::AbstractArray{T}, dx) where T
+  if nonfirstdims(x) == 1 || o.fallback(x)
+    return apply!(o.opt, state, x, dx)
+  else
+    η, μ, λ = T(o.eta), T(o.mu), T(o.lambda)
+    @.. state = μ * state + dx
+    Ot = _newton_schulz5(μ .* state .+ dx)
+    dx′ = @lazy η * (Ot + λ * x)
+    return state, dx′
+  end
+end
+
+function _newton_schulz5(G::AbstractMatrix{T}) where T
+    a, b, c = (T(3.4445f0), T(-4.7750f0), T(2.0315f0))
+    X = G / (norm(G) + eps(T))
+    transposed = size(G, 1) > size(G, 2)
+    if transposed
+        X = X'
+    end
+    for _ in 1:5
+        A = X * X'
+        B = b * A + c * A * A
+        X = a * X + B * X
+    end
+    if transposed
+        X = X'
+    end
+    X
+end
+_newton_schulz5(G::AbstractArray) = reshape(_newton_schulz5(reshape(G, size(G,1), :)), size(G))
+
+adjust(r::Muon, η::Real) = adjust(r, eta = η, opt = adjust(r.opt, eta = (r.opt.eta / r.eta) * η))
 
 """
     WeightDecay(λ = 5e-4)
