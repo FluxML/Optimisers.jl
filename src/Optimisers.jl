@@ -78,17 +78,28 @@ init
 
 """
     Optimisers.setup(rule, model) -> state_tree
+    Optimisers.setup(f::Function, model) -> state_tree
 
 Initialises the given optimiser for every trainable parameter within the model.
 Returns a tree of the relevant states, which must be passed to [`update`](@ref Optimisers.update)
 or [`update!`](@ref Optimisers.update!).
 
 # Example
-```jldoctest
-julia> m = (x = rand(3), y = (true, false), z = tanh);
+```jldoctest setup1
+julia> m = (x = rand(3), y = (true, false), z = randn(2, 2));
 
 julia> Optimisers.setup(Momentum(), m)  # same field names as m
-(x = Leaf(Momentum(0.01, 0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = ())
+(x = Leaf(Momentum(0.01, 0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = Leaf(Momentum(0.01, 0.9), [0.0 0.0; 0.0 0.0]))
+```
+
+The method accepting a function `f(x::AbstractArray)::AbstractRule` lets you use different
+optimisation rules on different trainable arrays, by `size` or `ndims` or other properties:
+
+```jldoctest setup1
+julia> Optimisers.setup(m) do a
+         ndims(a) == 1 ? Descent() : Adam()
+       end
+(x = Leaf(Descent(0.1), nothing), y = ((), ()), z = Leaf(Adam(0.001, (0.9, 0.999), 1.0e-8), ([0.0 0.0; 0.0 0.0], [0.0 0.0; 0.0 0.0], (0.9, 0.999))))
 ```
 
 The recursion into structures uses Functors.jl, and any new `struct`s containing parameters
