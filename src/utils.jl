@@ -17,6 +17,6 @@ ofeltype(x, y) = convert(float(eltype(x)), y)
 
 _eps(T::Type{<:AbstractFloat}, e) = T(e)
 # catch complex and integers
-_eps(T::Type{<:Number}, e) = _eps(real(float(T)), e) 
+_eps(T::Type{<:Number}, e) = real(float(T))(e) 
 # avoid small e being rounded to zero
 _eps(T::Type{Float16}, e) = e == 0 ? T(0) : max(T(1e-7), T(e))
