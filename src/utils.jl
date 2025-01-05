@@ -25,5 +25,4 @@ But for Float16, it imposes a minimum of `Float16(1e-7)`, unless `val==0`.
 This is basically a hack to increase the default epsilon, to help many optimisers avoid NaN.
 """
 _eps(T::Type{<:Number}, e) = real(float(T))(e) 
-# avoid small e being rounded to zero
 _eps(T::Type{Float16}, e) = e == 0 ? T(0) : max(T(1e-7), T(e))
