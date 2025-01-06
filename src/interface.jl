@@ -26,17 +26,19 @@ Leaf(rule, state; frozen::Bool = false) = Leaf(rule, state, frozen)
 
 Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
 
-function setup(rule::AbstractRule, model)
+setup(rule::AbstractRule, model) = setup(Returns(rule), model)
+function setup(fun::Function, model)
   cache = IdDict()
-  tree = _setup(rule, model; cache)
+  tree = _setup(fun, model; cache)
   isempty(cache) && @warn "setup found no trainable parameters in this model"
   tree
 end
 
 # _setup is almost fmapstructure, but needs a _trainable_walk, and a cache which ignores numbers etc.
-function _setup(rule, x; cache)
+function _setup(fun::Function, x; cache)
   haskey(cache, x) && return cache[x]
   if isnumeric(x)
+    rule = fun(x)::AbstractRule
     ℓ = Leaf(rule, init(rule, x))
     if isbits(x)
       cache[nothing] = nothing  # just to disable the warning
@@ -45,7 +47,7 @@ function _setup(rule, x; cache)
       cache[x] = ℓ
     end
   else
-    mapvalue(xᵢ -> _setup(rule, xᵢ; cache), _trainable(x))
+    mapvalue(xᵢ -> _setup(fun, xᵢ; cache), _trainable(x))
   end
 end
 
