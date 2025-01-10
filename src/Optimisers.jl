@@ -1,9 +1,10 @@
 module Optimisers
 
-using Functors: functor, fmap, fmap_with_path, 
+using Functors: functor, fmap, fmap_with_path,
                 KeyPath, haskeypath, getkeypath,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
+import LinearAlgebra: norm
 
 include("interface.jl")
 export AbstractRule
@@ -23,7 +24,7 @@ include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, SignDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
-       AccumGrad
+       AccumGrad, Muon
 
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public apply!, init, setup, update, update!"))
 

@@ -8,7 +8,7 @@ RULES = [
   # All the rules at default settings:
   Descent(), Adam(), Momentum(), Nesterov(), Rprop(), RMSProp(),
   AdaGrad(), AdaMax(), AdaDelta(), AMSGrad(), NAdam(),
-  AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(),
+  AdamW(), RAdam(), OAdam(), AdaBelief(), Lion(), Muon(),
   # A few chained combinations:
   OptimiserChain(SignDecay(0.001), Adam(0.001)),
   OptimiserChain(ClipNorm(), Adam(0.001)),
@@ -183,7 +183,7 @@ end
               # The Flux PR had 1e-2 for all. But AdaDelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
               Adam(1e-2), RMSProp(1e-2), RAdam(1e-2), OAdam(1e-2), AdaGrad(1e-2), AdaDelta(0.9, 1e-5), NAdam(1e-2), AdaBelief(1e-2),
               # These weren't in Flux PR:
-              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), AdamW(1e-2), 
+              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), AdamW(1e-2),
               ]
     # Our "model" is just a complex number
     model = (w = zeros(ComplexF64, 1),)
@@ -226,7 +226,7 @@ end
       @test static_loss(static_model) < last_loss
       last_loss = static_loss(static_model)
     end
-    @test static_loss(static_model) < 1.9 
+    @test static_loss(static_model) < 1.9
   end
 end
 
@@ -254,16 +254,16 @@ end
   g1 = rand(5)
   tree, x1 = Optimisers.update(tree, x, g1)
   @test x1 ≈ x
-  @test x1 ≈ x0 
+  @test x1 ≈ x0
   g2 = rand(5)
   tree, x2 = Optimisers.update(tree, x1, g2)
   @test x2 ≈ x
-  @test x2 ≈ x0 
+  @test x2 ≈ x0
   g3 = rand(5)
   tree, x3 = Optimisers.update(tree, x2, g3)
   @test x3 ≈ x0 .- lr .* (g1 .+ g2 .+ g3) ./ 3
   g4 = rand(5)
-  
+
   tree, x4 = Optimisers.update(tree, x3, g4)
   @test x4 ≈ x3
 end
