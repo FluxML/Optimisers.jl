@@ -9,6 +9,8 @@ Copies all [`trainable`](@ref Optimisers.trainable), [`isnumeric`](@ref Optimise
 to a vector, and returns also a function which reverses this transformation.
 Differentiable.
 
+See also [`destructure!`](@ref).
+
 # Example
 ```jldoctest
 julia> v, re = destructure((x=[1.0, 2.0], y=(sin, [3.0 + 4.0im])))
@@ -29,6 +31,52 @@ At present, a mixture of GPU and ordinary CPU arrays is undefined behaviour.
 function destructure(x)
   flat, off, len = _flatten(x)
   flat, Restructure(x, off, len)
+end
+
+"""
+    destructure!(model) -> vector, reconstructor
+    destructure!(vector, model) -> vector, reconstructor
+
+These are variants of [`destructure`](@ref), returning a reconstruction function
+which mutates the original model, instead of making a new one.
+The second method also mutates an existing flat vector.
+
+They require that all trainable parameters in the model be mutable arrays,
+else `re!` will give an error.
+
+!!! warning "Gradients"
+    Despite using mutation, they should be safe to use within Zygote,
+    with the important caveat that you must use the model returned, `m2 = re!(v)`, not the original.
+    Even though `m2 === m`, for Zygote to trace what results are used where, it has to see
+    the returned object being used.
+    If you discard `m2` and call for example `Flux.mse(m(x), y)` with the original model `m`,
+    Zygote will give silently wrong results.
+
+# Example
+```jldoctest
+julia> m = (x=[1.0, 2.0], y=(sin, Float32[3.0 4.0], cos))
+
+julia> v, re! = destructure!(m)
+([1.0, 2.0, 3.0, 4.0], Restructure!(NamedTuple, ..., 4))
+
+julia> m === re!([3, 5, 7, 9])  # mutates the original m, and returns it
+true
+
+julia> m
+(x = [3.0, 5.0], y = (sin, Float32[7.0 9.0], cos))
+
+julia> v2, re2! = destructure!(rand(4), m)  # works the same way
+([3.0, 5.0, 7.0, 9.0], Restructure!(NamedTuple, ..., 4))
+```
+"""
+function destructure!(x)
+  flat, off, len = _flatten(x)
+  flat, Restructure!(x, off, len)
+end
+
+function destructure!(flat::AbstractVector, x)
+  flat, off, len = _flatten!(flat, x)
+  flat, Restructure!(x, off, len)
 end
 
 """
@@ -55,11 +103,19 @@ struct Restructure{T,S}
   model::T
   offsets::S
   length::Int
+  mutate::Bool
 end
-(re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length)
+Restructure(model, offsets, length) = Restructure(model, offsets, length, false)
+Restructure!(model, offsets, length) = Restructure(model, offsets, length, true)
+
+(re::Restructure)(flat::AbstractVector) = re.mutate ? _rebuild!(re.model, re.offsets, flat, re.length) : _rebuild(re.model, re.offsets, flat, re.length)
 (re::Restructure)(x, flat::AbstractVector) = re(flat)(x)
-Base.show(io::IO, re::Restructure{T}) where T = print(io, "Restructure(", T.name.name, ", ..., ", re.length, ")")
 Base.length(re::Restructure) = re.length
+
+function Base.show(io::IO, re::Restructure{T}) where T
+  print(io, "Restructure", re.mutate ? "!" : "")
+  print(io, "(", T.name.name, ", ..., ", re.length, ")")
+end
 
 # This flattens a model, and returns a web of offsets for later use:
 function _flatten(x)
@@ -74,6 +130,17 @@ function _flatten(x)
   end
   isempty(arrays) && return Bool[], off, 0
   return reduce(vcat, arrays), off, len[]
+end
+function _flatten!(flat, x)
+  isnumeric(x) && return copyto!(flat, _vec(x))  # trivial case
+  len = Ref(0)
+  off = fmap(x; exclude = isnumeric, walk = TrainableStructWalk()) do y
+    o = len[]
+    copyto!(flat, o+1, _vec(y))
+    len[] = o + length(y)
+    o
+  end
+  flat, off, len[]
 end
 
 struct TrainableStructWalk <: AbstractWalk end
@@ -97,10 +164,22 @@ function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _Trai
     _getat(y, o, flat)
   end
 end
+# (mutating version, same arguments & same return)
+function _rebuild!(x, off, flat::AbstractVector, len = length(flat); walk = _Trainable_biwalk(), kw...)
+  len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
+  fmap(x, off; exclude = isnumeric, walk, kw...) do y, o
+    # copyto!(y, _getat_view(y, o, flat))
+    copyto!(y, 1, flat, o+1, length(y))
+  end
+  x
+end
 
 _getat(y::Number, o::Int, flat::AbstractVector) = ProjectTo(y)(flat[o + 1])
 _getat(y::AbstractArray, o::Int, flat::AbstractVector) =
-  ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+   ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+
+# _getat_view(y::AbstractArray, o::Int, flat::AbstractVector) =
+#   view(flat, o .+ (1:length(y)))
 
 struct _Trainable_biwalk <: AbstractWalk end
 
@@ -134,6 +213,10 @@ end
 function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat, len; kw...)
   _rebuild_back(dx) = (NoT, NoT, NoT, _grad!(x, unthunk(dx), off, _zero(flat)), NoT)
   _rebuild(x, off, flat, len; kw...), _rebuild_back
+end
+function ChainRulesCore.rrule(::typeof(_rebuild!), x, off, flat, len; kw...)
+  _rebuild!_back(dx) = (NoT, NoT, NoT, _grad!(x, unthunk(dx), off, _zero(flat)), NoT)
+  _rebuild!(x, off, flat, len; kw...), _rebuild!_back
 end
 
 _zero(x) = map!(zero, similar(x, float(eltype(x))), x)  # mutable zero array for _grad!
