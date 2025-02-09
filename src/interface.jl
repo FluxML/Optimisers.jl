@@ -270,29 +270,17 @@ macro def(expr)
   expr.args[2] = Expr(:(<:), Expr(:curly, rule, type_params...), :AbstractRule)
   params = [Expr(:kw, nv...) for nv in zip(names, default_vals)]
   check_sign_eta = :eta in names ? :(eta < 0 && throw(DomainError(eta, "the learning rate cannot be negative"))) : nothing
-  # check_float_eta = :eta in names ? :(eta = float(eta)) : nothing
-  
   # Positional-argument method, has defaults for all but the first arg:
   positional = :(function $rule($(names[1]), $(params[2:end]...))
     $check_sign_eta
-    # $check_float_eta
     vars = maybe_float.([$(names...)])
-    # vars = maybe_float.(zip($names, $types))
     return new{typeof.(vars)...}(vars...)
-    # Ts = typeof.([$(names...)])
-    # return $rule{Ts...}($(names...))
   end)
   # Keyword-argument method. (Made an inner constructor only to allow
   # resulting structs to be @doc... cannot if macro returns a block.)
   kwmethod = :($rule(; $(params...)) = $rule($(names...)))
-  push!(lines, positional)
-  ret = quote
-          $(Base).@__doc__ $expr
-          # $expr
-          # $positional
-          $kwmethod
-        end
-  return esc(ret)
+  push!(lines, positional, kwmethod)
+  return esc(expr)
 end
 
 maybe_float(x::Number) = float(x)

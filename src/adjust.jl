@@ -142,5 +142,5 @@ function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
   vals = map(fs) do field
     get(nt, field, getfield(r, field))
   end
-  ConstructionBase.constructorof(T)(vals...)  # relies on having the default constructor
+  return ConstructionBase.constructorof(T)(vals...)
 end
