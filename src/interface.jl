@@ -239,39 +239,61 @@ Helper macro for defining rules with default values.
 The types of the literal values are used in the `struct`,
 like this:
 ```julia
-struct Rule
-  eta::Float64
-  beta::Tuple{Float64, Float64}
+struct Rule{T1, T2}
+  eta::T1
+  beta::T2
+
   Rule(eta, beta = (0.7, 0.8)) = eta < 0 ? error() : new(eta, beta)
   Rule(; eta = 0.1, beta = (0.7, 0.8)) = Rule(eta, beta)
 end
+
 ```
 Any field called `eta` is assumed to be a learning rate, and cannot be negative.
 """
 macro def(expr)
   Meta.isexpr(expr, :struct) || throw("@def must act on a struct definition")
   lines = expr.args[3].args
-  names, vals = [], []
+  names, default_vals = [], []
+  default_types, type_params = [], []
   for i in eachindex(lines)
     lines[i] isa Symbol && throw("@def requires a default for every field")
     Meta.isexpr(lines[i], :(=)) || continue
     name, val = lines[i].args
     push!(names, name)
-    push!(vals, val)
-    lines[i] = :($name::$typeof($val))
+    push!(default_vals, val)
+    push!(default_types, typeof(val))
+    type = Symbol("T$name")
+    push!(type_params, type)
+    lines[i] = :($name::$type)
   end
   rule = Meta.isexpr(expr.args[2], :<:) ? expr.args[2].args[1] : expr.args[2]
-  params = [Expr(:kw, nv...) for nv in zip(names,vals)]
-  check = :eta in names ? :(eta < 0 && throw(DomainError(eta, "the learning rate cannot be negative"))) : nothing
+  expr.args[2] = Expr(:(<:), Expr(:curly, rule, type_params...), :AbstractRule)
+  params = [Expr(:kw, nv...) for nv in zip(names, default_vals)]
+  check_sign_eta = :eta in names ? :(eta < 0 && throw(DomainError(eta, "the learning rate cannot be negative"))) : nothing
+  # check_float_eta = :eta in names ? :(eta = float(eta)) : nothing
+  
   # Positional-argument method, has defaults for all but the first arg:
-  inner = :(function $rule($(names[1]), $(params[2:end]...))
-    $check
-    new($(names...))
+  positional = :(function $rule($(names[1]), $(params[2:end]...))
+    $check_sign_eta
+    # $check_float_eta
+    vars = maybe_float.([$(names...)])
+    # vars = maybe_float.(zip($names, $types))
+    return new{typeof.(vars)...}(vars...)
+    # Ts = typeof.([$(names...)])
+    # return $rule{Ts...}($(names...))
   end)
   # Keyword-argument method. (Made an inner constructor only to allow
   # resulting structs to be @doc... cannot if macro returns a block.)
   kwmethod = :($rule(; $(params...)) = $rule($(names...)))
-  push!(lines, inner, kwmethod)
-  esc(expr)
+  push!(lines, positional)
+  ret = quote
+          $(Base).@__doc__ $expr
+          # $expr
+          # $positional
+          $kwmethod
+        end
+  return esc(ret)
 end
 
+maybe_float(x::Number) = float(x)
+maybe_float(x) = x

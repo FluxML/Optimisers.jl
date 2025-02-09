@@ -230,21 +230,6 @@ end
   end
 end
 
-false && @testset "using Yota" begin
-  @testset "$(name(o))" for o in RULES
-    w′ = (abc = (α = rand(3, 3), β = rand(3, 3), γ = rand(3)), d = (δ = rand(3), ε = eps))
-    w = (abc = (α = 5rand(3, 3), β = rand(3, 3), γ = rand(3)), d = (δ = rand(3), ε = eps))
-    st = Optimisers.setup(o, w)
-    loss(x, y) = mean((x.abc.α .* x.abc.β .- y.abc.α .* y.abc.β) .^ 2)  # does not use γ, δ, ε
-    @test loss(w, w′) > 0.5
-    for i = 1:10^4
-      _, (_, g, _) = Yota.grad(loss, w, w′)
-      st, w = Optimisers.update(st, w, g)
-    end
-    @test loss(w, w′) < 0.001
-  end
-end
-
 @testset "AccumGrad" begin
   x0 = rand(5)
   x = copy(x0)
