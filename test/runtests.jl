@@ -557,4 +557,7 @@ end
   @testset verbose=true "Optimisation Rules" begin
     include("rules.jl")
   end
+  @testset verbose=true "interface" begin
+    include("interface.jl")
+  end
 end

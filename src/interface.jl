@@ -273,7 +273,7 @@ macro def(expr)
   # Positional-argument method, has defaults for all but the first arg:
   positional = :(function $rule($(names[1]), $(params[2:end]...))
     $check_sign_eta
-    vars = maybe_float.([$(names...)])
+    vars = $(maybe_float).(($(names...)),($(default_types...)))
     return new{typeof.(vars)...}(vars...)
   end)
   # Keyword-argument method. (Made an inner constructor only to allow
@@ -283,5 +283,5 @@ macro def(expr)
   return esc(expr)
 end
 
-maybe_float(x::Number) = float(x)
-maybe_float(x) = x
+maybe_float(x, T::Type{<:AbstractFloat}) = float(x)
+maybe_float(x, T) = x
