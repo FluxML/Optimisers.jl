@@ -26,4 +26,5 @@
     @test_throws ArgumentError DummyRule(0.1, :beta)
     @test_throws ArgumentError DummyRule(c=0.9)
     @test_throws ArgumentError DummyRule(c=(0.9, 0.99im))
+    @test_throws ArgumentError Optimisers.adjust(DummyRule(), c=0.9)
 end
