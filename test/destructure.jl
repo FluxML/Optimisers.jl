@@ -98,36 +98,11 @@ end
       sum(gradient(m -> sum(destructure(m)[1])^3, (v, [4,5,6.0]))[1][1])
     end[1] == [378, 378, 378]
 
-    VERSION >= v"1.10" && @test gradient([1,2,3.0]) do v
+    @test gradient([1,2,3.0]) do v
       sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (x = v, y = sin, z = [4,5,6.0]))[1][1])
     end[1] ≈ [8,16,24]
     # Zygote error in (::typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple{(:x, :y, :z)
     # Diffractor error in perform_optic_transform
-  end
-  
-  false && @testset "using Yota" begin
-    @test Yota_gradient(m -> destructure(m)[1][1], m1)[1] == [1,0,0]
-    @test Yota_gradient(m -> destructure(m)[1][2], m2)[1] == ([0,1,0], [0,0,0])
-    @test Yota_gradient(m -> destructure(m)[1][3], (m1, m1))[1] == ([0,0,1], nothing)
-    @test Yota_gradient(m -> destructure(m)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
-    @test Yota_gradient(m -> destructure(m)[1][2], m4)[1] == (x = [0,1,0], y = nothing, z = [0,0,0])
-
-    g5 = Yota_gradient(m -> destructure(m)[1][3], m5)[1]
-    @test g5.a[1].x == [0,0,1]
-    @test g5.a[2] === nothing
-
-    g6 = Yota_gradient(m -> imag(destructure(m)[1][4]), m6)[1]
-    @test g6.a == [0,0,0]
-    @test g6.a isa Vector{Float64}
-    @test g6.b == [0+im]
-
-    g8 = Yota_gradient(m -> sum(abs2, destructure(m)[1]), m8)[1]
-    @test g8[1].x == [2,4,6]
-    @test g8[2].b.x == [8]
-    @test g8[3] == [[10.0]]
-
-    g9 = Yota_gradient(m -> sum(sqrt, destructure(m)[1]), m9)[1]
-    @test g9.c === nothing
   end
 end
 
@@ -173,36 +148,6 @@ end
     end[1] ≈ [0,0,0,32,40,48]
     # Not fixed by this:
     # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
-  end
-  
-  false && @testset "using Yota" begin
-    re1 = destructure(m1)[2]
-    @test Yota_gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
-    re2 = destructure(m2)[2]
-    @test Yota_gradient(x -> re2(x)[1][2], rand(6))[1] == [0,1,0,0,0,0]
-    re3 = destructure(m3)[2]
-    @test Yota_gradient(x -> re3(x).x[3], rand(6))[1] == [0,0,1,0,0,0]
-    @test Yota_gradient(x -> re3(x).z[1], rand(6))[1] == [0,0,0,1,0,0]
-
-    re4 = destructure(m4)[2]
-    @test Yota_gradient(x -> re4(x).x[1], rand(6))[1] == [1,0,0,0,0,0]
-    @test Yota_gradient(x -> re4(x).y[2], rand(6))[1] == [0,1,0,0,0,0]
-    @test Yota_gradient(rand(6)) do x
-      m = re4(x)
-      m.x[1] + 2*m.y[2] + 3*m.z[3]
-    end[1] == [1,2,0, 0,0,3]
-
-    re7 = destructure(m7)[2]
-    @test Yota_gradient(x -> re7(x).a[2][3], rand(3))[1] == [0,0,1]
-    @test Yota_gradient(x -> re7(x).b[2][2], rand(3))[1] == [0,0,0]
-    @test Yota_gradient(x -> re7(x).c[2][1], rand(3))[1] == [0,0,0]
-
-    v8, re8 = destructure(m8)
-    @test Yota_gradient(x -> sum(abs2, re8(x)[1].y), v8)[1] == [2,4,6,0,0]
-    @test Yota_gradient(x -> only(sum(re8(x)[3]))^2, v8)[1] == [0,0,0,0,10]
-
-    re9 = destructure(m9)[2]
-    @test Yota_gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
   end
 end
 
