@@ -261,7 +261,8 @@ macro def(expr)
     name, val = lines[i].args
     push!(names, name)
     push!(default_vals, val)
-    push!(default_types, typeof(val))
+    push!(default_types, _def_typeof(val))
+    # @show name, val, typeof(val)
     type = Symbol("T$name")
     push!(type_params, type)
     lines[i] = :($name::$type)
@@ -272,8 +273,8 @@ macro def(expr)
   check_sign_eta = :eta in names ? :(eta < 0 && throw(DomainError(eta, "the learning rate cannot be negative"))) : nothing
   # Positional-argument method, has defaults for all but the first arg:
   positional = :(function $rule($(names[1]), $(params[2:end]...))
+    vars = $(_def_check_type).([$(names...)],[$(default_types...)])
     $check_sign_eta
-    vars = $(maybe_float).([$(names...)],[$(default_types...)])
     return new{typeof.(vars)...}(vars...)
   end)
   # Keyword-argument method. (Made an inner constructor only to allow
@@ -283,5 +284,14 @@ macro def(expr)
   return esc(expr)
 end
 
-maybe_float(x, T::Type{<:AbstractFloat}) = float(x)
-maybe_float(x, T) = x
+_def_typeof(val) = typeof(val)
+_def_typeof(val::Expr) = typeof(eval(val))
+
+_def_check_type(x, T) = x
+_def_check_type(x, T::Type{<:Number}) = throw(ArgumentError("$x is not a number"))
+_def_check_type(x::Number, T::Type{<:Number}) = x
+_def_check_type(x::Number, T::Type{<:AbstractFloat}) = float(x)
+_def_check_type(x::Complex, T::Type{<:AbstractFloat}) = throw(ArgumentError("cannot convert complex to real"))
+_def_check_type(x, T::Type{<:AbstractFloat}) = throw(ArgumentError("$x is not a number"))
+_def_check_type(x::Tuple, T::Type{<:Tuple}) = _def_check_type.(x, (T.parameters...,))
+_def_check_type(x, T::Type{<:Tuple}) = throw(ArgumentError("$x is not a tuple"))
