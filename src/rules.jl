@@ -148,9 +148,7 @@ function adjust(r::RMSProp; kw...)
 end
 
 function Base.show(io::IO, o::RMSProp)
-  print(io, "RMSProp(")
-  join(io, [o.eta, o.rho, o.epsilon], ", ")
-  print(io, "; centred = ", o.centred, ")")
+  print(io, "RMSProp(eta=$(o.eta), rho=$(o.rho), epsilon=$(o.epsilon), centred=$(o.centred)")
 end
 
 
@@ -564,6 +562,11 @@ function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
 
   return (mt, vt, βt .* β), dx′′
 end
+
+function Base.show(io::IO, o::AdamW)
+  print(io, "AdamW(eta=$(o.eta), beta=$(o.beta), lambda=$(o.lambda), epsilon=$(o.epsilon), couple=$(o.couple))")
+end
+
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)

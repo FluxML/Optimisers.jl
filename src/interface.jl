@@ -281,7 +281,17 @@ macro def(expr)
   # resulting structs to be @doc... cannot if macro returns a block.)
   kwmethod = :($rule(; $(params...)) = $rule($(names...)))
   push!(lines, positional, kwmethod)
-  return esc(expr)
+  # return esc(expr)
+# end
+
+  return quote 
+          Base.@__doc__ $expr
+
+          function Base.show(io::IO, r::$rule)
+            pairs = ["$n=$(getfield(r, n))" for n in [($names...)]]
+            print(io, $rule,"(", join(pairs, ", "), ")")
+          end
+        end |> esc
 end
 
 _def_typeof(val) = typeof(val)
