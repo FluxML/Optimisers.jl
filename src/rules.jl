@@ -802,6 +802,9 @@ end
 adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
 adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)
 
+adjust(ℓ::OptimiserChain, oT::Type, eta::Real) = OptimiserChain(map(opt -> adjust(opt, oT, eta), ℓ.opts)...)
+adjust(ℓ::OptimiserChain, oT::Type; kw...) = OptimiserChain(map(opt -> adjust(opt, oT; kw...), ℓ.opts)...)
+
 
 """
     AccumGrad(n::Int)
