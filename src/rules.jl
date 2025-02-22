@@ -114,16 +114,16 @@ gradients by an estimate their variance, instead of their second moment.
 - Keyword `centred` (or `centered`): Indicates whether to use centred variant
                                      of the algorithm.
 """
-struct RMSProp <: AbstractRule
-  eta::Float64
-  rho::Float64
-  epsilon::Float64
+struct RMSProp{Teta,Trho,Teps} <: AbstractRule
+  eta::Teta
+  rho::Trho
+  epsilon::Teps
   centred::Bool
 end
 
 function RMSProp(η, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
-  RMSProp(η, ρ, ϵ, centred | centered)
+  return RMSProp(float(η), float(ρ), float(ϵ), centred | centered)
 end
 RMSProp(; eta = 0.001, rho = 0.9, epsilon = 1e-8, kw...) = RMSProp(eta, rho, epsilon; kw...)
 
@@ -148,14 +148,12 @@ function adjust(r::RMSProp; kw...)
 end
 
 function Base.show(io::IO, o::RMSProp)
-  print(io, "RMSProp(")
-  join(io, [o.eta, o.rho, o.epsilon], ", ")
-  print(io, "; centred = ", o.centred, ")")
+  print(io, "RMSProp(eta=$(o.eta), rho=$(o.rho), epsilon=$(o.epsilon), centred=$(o.centred)")
 end
 
 
 """
-    Rprop(η = 1f-3, ℓ = (5f-1, 1.2f0), Γ = (1f-6, 50f0))
+    Rprop(η = 1e-3, ℓ = (0.5, 1.2), Γ = (1e-6, 50.0))
     Rprop(; [eta, ell, gamma])
 
 Optimizer using the
@@ -171,9 +169,9 @@ learning algorithm that depends only on the sign of the gradient.
 - Step sizes (`Γ::Tuple == gamma`): Mminimal and maximal allowed step sizes.
 """
 @def struct Rprop <: AbstractRule
-    eta =  1f-3
-    ell = (5f-1, 1.2f0)
-    gamma = (1f-6, 50f0)
+    eta =  1e-3
+    ell = (0.5, 1.2)
+    gamma = (1e-6, 50.0)
 end
 
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
@@ -528,17 +526,17 @@ Implemented as an [`OptimiserChain`](@ref) of [`Adam`](@ref) and [`WeightDecay`]
     The previous rule, which is closer to the original paper, can be obtained by setting `AdamW(..., couple=false)`.
     See [this issue](https://github.com/FluxML/Flux.jl/issues/2433) for more details.
 """
-struct AdamW <: AbstractRule
-  eta::Float64
-  beta::Tuple{Float64, Float64}
-  lambda::Float64
-  epsilon::Float64
+struct AdamW{Teta,Tbeta<:Tuple,Tlambda,Teps} <: AbstractRule
+  eta::Teta
+  beta::Tbeta
+  lambda::Tlambda
+  epsilon::Teps
   couple::Bool
 end
 
 function AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8; couple::Bool = true)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
-  AdamW(η, β, λ, ϵ, couple)
+  return AdamW(float(η), β, float(λ), float(ϵ), couple)
 end
 
 AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
@@ -564,6 +562,11 @@ function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
 
   return (mt, vt, βt .* β), dx′′
 end
+
+function Base.show(io::IO, o::AdamW)
+  print(io, "AdamW(eta=$(o.eta), beta=$(o.beta), lambda=$(o.lambda), epsilon=$(o.epsilon), couple=$(o.couple))")
+end
+
 
 """
     AdaBelief(η = 0.001, β = (0.9, 0.999), ϵ = 1e-16)
@@ -704,12 +707,12 @@ Typically composed with other rules using [`OptimiserChain`](@ref).
 
 See also [`ClipGrad`](@ref).
 """
-struct ClipNorm <: AbstractRule
-  omega::Float64
-  p::Float64
+struct ClipNorm{To,Tp} <: AbstractRule
+  omega::To
+  p::Tp
   throw::Bool
 end
-ClipNorm(ω = 10, p = 2; throw::Bool = true) = ClipNorm(ω, p, throw)
+ClipNorm(ω = 10, p = 2; throw::Bool = true) = ClipNorm(float(ω), float(p), throw)
 
 init(o::ClipNorm, x::AbstractArray) = nothing
 
