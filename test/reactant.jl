@@ -1,4 +1,7 @@
-using Reactant, Optimisers
+using Pkg
+Pkg.add("Reactant")
+
+using Optimisers
 
 @testset for opt in (Descent(0.011), Momentum(0.011), Adam(0.011), AdamW(0.011))
     opt_ra = Reactant.to_rarray(opt; track_numbers=AbstractFloat)
