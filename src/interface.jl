@@ -271,9 +271,12 @@ macro def(expr)
   expr.args[2] = Expr(:(<:), Expr(:curly, rule, type_params...), :AbstractRule)
   params = [Expr(:kw, nv...) for nv in zip(names, default_vals)]
   check_sign_eta = :eta in names ? :($(_assert_positive_eta)(eta)) : nothing
+  vars_with_checks = [
+    :($(_def_check_type)($name, $type)) for (name, type) in zip(names, default_types)
+  ]
   # Positional-argument method, has defaults for all but the first arg:
   positional = :(function $rule($(names[1]), $(params[2:end]...))
-    vars = $(_def_check_type).([$(names...)],[$(default_types...)])
+    vars = ($(vars_with_checks...),)
     $check_sign_eta
     return new{typeof.(vars)...}(vars...)
   end)
@@ -294,8 +297,8 @@ macro def(expr)
         end |> esc
 end
 
-_assert_positive_eta(eta) = _assert_positive_eta(eta, eta < 0)
-function _assert_positive_eta(eta, cond::Bool)
+@inline _assert_positive_eta(eta) = _assert_positive_eta(eta, eta < 0)
+@inline function _assert_positive_eta(eta, cond::Bool)
   cond && throw(DomainError(eta, "the learning rate cannot be negative"))
 end
 

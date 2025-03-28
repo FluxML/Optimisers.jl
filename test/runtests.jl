@@ -560,4 +560,7 @@ end
   @testset verbose=true "interface" begin
     include("interface.jl")
   end
+  @testset verbose=true "Reactant" begin
+    include("reactant.jl")
+  end
 end
