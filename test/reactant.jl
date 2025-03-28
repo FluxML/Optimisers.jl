@@ -33,3 +33,23 @@ using Reactant, Optimisers
         st_opt2_ra, x_ra2 = @jit Optimisers.update!(st_opt_ra, x_ra, gs_ra)
     end
 end
+
+@testset "AccumGrad" begin
+    opt = OptimiserChain(AccumGrad(2), Descent(1.0))
+    opt_ra = Reactant.to_rarray(opt; track_numbers=Number)
+
+    x_ra = Reactant.to_rarray(rand(3))
+    gs_ra = Reactant.to_rarray(rand(3))
+    gs_ra2 = Reactant.to_rarray(rand(3))
+
+    st_opt = @jit Optimisers.setup(opt_ra, x_ra)
+    @test Int64(st_opt.state[1][2]) == 1
+
+    st_opt, x_ra2 = @jit Optimisers.update(st_opt, x_ra, gs_ra)
+    @test Int64(st_opt.state[1][2]) == 2
+    @test Array(x_ra2) == Array(x_ra)
+
+    st_opt, x_ra3 = @jit Optimisers.update(st_opt, x_ra2, gs_ra2)
+    @test Int64(st_opt.state[1][2]) == 1
+    @test Array(x_ra3) ≈ Array(x_ra) .- 0.5 .* Array(gs_ra) .- 0.5 .* Array(gs_ra2) rtol = 1e-2
+end
