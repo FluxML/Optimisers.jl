@@ -560,4 +560,9 @@ end
   @testset verbose=true "interface" begin
     include("interface.jl")
   end
+  if VERSION ≤ v"1.12-" && !Sys.iswindows()
+    @testset verbose=true "Reactant" begin
+      include("reactant.jl")
+    end
+  end
 end

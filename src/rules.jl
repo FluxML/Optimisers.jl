@@ -832,18 +832,16 @@ julia> m  # n=2 gradients applied at once
 (x = Float32[-0.651], y = Float32[-20.202002])
 ```
 """
-struct AccumGrad <: AbstractRule
-  n::Int
-  
-  function AccumGrad(n::Int)
-    n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
-    return new(n)  
-  end
+struct AccumGrad{N} <: AbstractRule
+  n::N
 end
 
-function init(o::AccumGrad, x)
-  return (zero(x), 1)
+function AccumGrad(n::Integer)
+  n > 0 || throw(ArgumentError("AccumGrad must accumulate at least one gradient"))
+  return AccumGrad{typeof(n)}(n)
 end
+
+init(::AccumGrad{N}, x) where N = (zero(x), N(1))
 
 function apply!(o::AccumGrad, state, x, dx)
   accum_dx, counter = state
