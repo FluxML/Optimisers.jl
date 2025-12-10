@@ -918,7 +918,7 @@ function apply!(o::MixedPrecision{T}, state, x, dx) where T
     x .= xT
     dx′ = nothing
   else
-    dx′ = x .- eltype(x).(xT)
+    dx′ = eltype(x).(x .- xT)
   end
   return (xT, st′), dx′
 end
