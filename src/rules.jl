@@ -891,22 +891,22 @@ Optimisers.update!(opt_state, x, g)
 ```
 """
 struct MixedPrecision{T<:Number, O<:AbstractRule} <: AbstractRule
-  opt::O
+  rule::O
 end
 
 @functor MixedPrecision
 
-MixedPrecision(opt::AbstractRule) = MixedPrecision{Float32, typeof(opt)}(opt)
-MixedPrecision(T::Type, opt::AbstractRule) = MixedPrecision{T, typeof(opt)}(opt)
+MixedPrecision(rule::AbstractRule) = MixedPrecision{Float32, typeof(rule)}(rule)
+MixedPrecision(T::Type, rule::AbstractRule) = MixedPrecision{T, typeof(rule)}(rule)
 
 function init(o::MixedPrecision{T}, x::AbstractArray) where T
   xT = T.(x)
-  return (xT, init(o.opt, xT))
+  return (xT, init(o.rule, xT))
 end
 
 function apply!(o::MixedPrecision{T}, state, x, dx) where T
   xT, st = state
-  st′, dx′ = apply!(o.opt, st, xT, dx)
+  st′, dx′ = apply!(o.rule, st, xT, dx)
   xT = subtract!(xT, dx′)
   if maywrite(x)
     x .= xT
@@ -917,5 +917,5 @@ function apply!(o::MixedPrecision{T}, state, x, dx) where T
   return (xT, st′), dx′
 end
 
-adjust(o::MixedPrecision, eta::Real) = MixedPrecision(adjust(o.opt, eta))
-adjust(o::MixedPrecision; kw...) = MixedPrecision(adjust(o.opt; kw...))
+adjust(o::MixedPrecision{T}, eta::Real) where T = MixedPrecision(T, adjust(o.rule, eta))
+adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; kw...))
