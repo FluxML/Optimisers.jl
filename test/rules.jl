@@ -279,9 +279,10 @@ end
   @test opt_state.state[1] isa Vector{Float64}
   @test opt_state.state[2][1] isa Vector{Float64}
 
-  # test adjust
   opt = MixedPrecision(Float64, Adam(1e-3))
   opt2 = Optimisers.adjust(opt, 2e-3)
   @test opt2.rule.eta == 2e-3
   @test opt2 isa MixedPrecision{Float64, <:Adam}
+
+  @test_throws ArgumentError OptimiserChain(MixedPrecision(Adam()))
 end

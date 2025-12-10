@@ -776,7 +776,11 @@ julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 struct OptimiserChain{O<:Tuple} <: AbstractRule
   opts::O
 end
-OptimiserChain(opts...) = OptimiserChain(opts)
+
+function OptimiserChain(opts...)
+  any(opt -> opt isa MixedPrecision, opts) && throw(ArgumentError("MixedPrecision optimisers should wrap the entire OptimiserChain, not be inside it."))
+  return OptimiserChain(opts)
+end
 
 @functor OptimiserChain
 
@@ -872,6 +876,8 @@ Call `g` the gradient of `x`. Both `g` and `x` are typically in a precision lowe
 
 In the `update!(opt_state, x, g)` call, `opt` is used to update `xT` instead of `x`, 
 then `x` is updated with the value of `xT`. 
+
+# Reference
 
 [1] Micikevicius et al. '17, "Mixed Precision Training", https://arxiv.org/abs/1710.03740 .
 
