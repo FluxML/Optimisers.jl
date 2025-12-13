@@ -925,3 +925,46 @@ end
 
 adjust(o::MixedPrecision{T}, eta::Real) where T = MixedPrecision(T, adjust(o.rule, eta))
 adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; kw...))
+
+
+"""
+    add_mixed_precision([T], tree, model) -> new_tree
+
+Add mixed precision to an existing optimisers state `tree` for `model`. 
+If `T` is not provided, `Float32` is used.
+
+Each leaf of the new returned tree will contain a `MixedPrecision` rule wrapping the original rule, 
+and the states will be preserved and converted to type `T`.
+"""
+add_mixed_precision(tree, model) = add_mixed_precision(Float32, tree, model)
+
+function add_mixed_precision(T, tree, model)
+  cache = IdDict()
+  tree = _add_mixed_precision(T, tree, model; cache)
+  isempty(cache) && @warn "setup found no trainable parameters in this model"
+  return tree
+end
+
+function _add_mixed_precision(T, tree, x; cache)
+  ch, re = functor(tree)
+  return mapvalue((ti, xi) -> _add_mixed_precision(T, ti, xi; cache), ch, _trainable(x))
+end
+
+function _add_mixed_precision(T, tree::Optimisers.Leaf, x; cache)
+  haskey(cache, tree) && return cache[tree]
+  fT(z) = z isa AbstractFloat || isnumeric(z) ? T.(z) : z
+  if !(tree.rule isa MixedPrecision{T})
+    if tree.rule isa MixedPrecision # different type
+      rulenew = MixedPrecision(T, tree.rule.rule)
+      statenew = fmap(fT, tree.state)
+    else
+      rulenew = MixedPrecision(T, tree.rule)
+      statenew = (T.(x), fmap(fT, tree.state))
+    end
+    treenew = Leaf(rulenew, statenew, tree.frozen)
+  else
+    treenew = tree
+  end
+  cache[tree] = treenew
+  return treenew
+end

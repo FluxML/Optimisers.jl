@@ -286,3 +286,31 @@ end
 
   @test_throws ArgumentError OptimiserChain(MixedPrecision(Adam()))
 end
+
+@testset "add_mixed_precision" begin
+  d = rand(Float16, 2,2)
+  d2 = rand(Float16, 2)
+  model = Foo(Foo(d, d2), d)
+  opt_state = Optimisers.setup(AdamW(), model)
+  @test opt_state.x.x === opt_state.y
+  @test opt_state.x.y.state[1] isa Vector{Float16}
+  @test opt_state.x.y.state[2] isa Vector{Float16}
+  @test opt_state.x.y.state[3] isa Tuple{Float16, Float16}
+
+  opt_state_new = add_mixed_precision(opt_state, model)
+
+  @test opt_state_new.x.x.rule isa MixedPrecision{Float32}
+  @test opt_state_new.x.x === opt_state_new.y
+  @test opt_state_new.x.x.state[1] isa Matrix{Float32}
+  @test opt_state_new.x.x.state[1] ≈ model.x.x
+  @test opt_state_new.x.y.state[2][1] isa Vector{Float32}
+  @test opt_state_new.x.y.state[2][2] isa Vector{Float32}
+  @test opt_state_new.x.y.state[2][3] isa Tuple{Float32, Float32}
+
+  opt_state_new2 = add_mixed_precision(Float64, opt_state_new, model)
+
+  @test opt_state_new2.x.x.rule isa MixedPrecision{Float64} # MixedPrecision{Float32} replaced
+  @test opt_state_new2.x.x.rule.rule isa AdamW # no nesting of MixedPrecision
+  @test opt_state_new2.x.x.state[1] isa Matrix{Float64}
+  @test opt_state_new2.x.x.state[2][1] isa Matrix{Float64}
+end
