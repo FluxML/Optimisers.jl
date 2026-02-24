@@ -61,10 +61,10 @@ end
       g4 = Tangent{typeof(m)}(g...)
       s4, m4 = Optimisers.update!(s, ([1.0, 2.0],), g4)
       @test m4[1] ≈ [1,2] .- 0.1 .* [25, 33]
-      
+
       o5 = Momentum(0.1)
       s5 = Optimisers.setup(o5, m)
-      
+
       s6, m6 = Optimisers.update(s5, m, g)
       @test s6[1].state ≈ [2.5, 3.3]
       @test s5[1].state == [0, 0]  # not mutated -- wrong on v0.2.9
@@ -331,6 +331,43 @@ end
       @test mp1.γ.rule.rule.rho == 0.7
     end
 
+    @testset "adjust/adjust! with completely new rule replacement" begin
+          model =  Foo([1.0, 2.0], (a = sin, b = [3.0, 4.0], c = 5))
+          rule = OptimiserChain(
+              WeightDecay(0.1),
+              SignDecay(0.2),
+              OptimiserChain(
+                  ClipGrad(),
+                  Adam(),
+              ),
+          )
+          rule2 = OptimiserChain(
+              WeightDecay(0.15),
+              SignDecay(0.25),
+              OptimiserChain(
+                  ClipGrad(),
+                  Adam(),
+              ),
+          )
+          state = Optimisers.setup(rule, model)
+          state2 = Optimisers.setup(rule2, model)
+          @assert state != state2
+
+          # adjust `state` to match `rule2`, not `rule`:
+          Optimisers.adjust!(state, rule2)
+
+          # `state` and `state2` should now be the same:
+          @test state == state2
+
+          # reset `state`, so it's different again:
+          state = Optimisers.setup(rule, model)
+          @assert state != state2
+
+          # test non-mutating form, `adjust`:
+          state = Optimisers.adjust(state, rule2)
+          @test state == state2
+    end
+
     @testset "freeze/thaw" begin
       m = (x=[1.0, 2.0], y=([3.0, 4.0], sin));
       st = Optimisers.setup(Descent(0.1), m);
@@ -458,10 +495,10 @@ end
          @test auto.a !== auto.b  # not tied just by value
 
          trick = (a = auto.a, b = auto.a, c = auto.c, d= auto.d)  # makes a & b tied
-  
+
          trick2, model2 = Optimisers.update(trick, model, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
          trick3, model3 = Optimisers.update(trick2, model2, (a=[3,3], b=[7,7], c=[3,3], d=[10, 10]))
-         
+
          @test model3.a ≈ model3.b ≈ model3.d  # same as having the gradients added
          @test !(model3.a ≈ model3.c)
          @test trick3.a === trick3.b  # leaves remain shared

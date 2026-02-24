@@ -101,15 +101,31 @@ julia> Optimisers.adjust(st2; beta = (0.777, 0.909), delta = 11.1)  # delta acts
 julia> Optimisers.adjust(st; beta = "no such field")  # silently ignored!
 (vec = Leaf(Nesterov(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
 ```
+
+The argument `η` may also be a new optimisation rule, of the same type as the rule
+currently embedded in the state tree, as in the next example:
+
+```
+julia> st = Optimisers.setup(Nesterov(0.123, 0.9), m)
+(vec = Leaf(Nesterov(eta=0.123, rho=0.9), Float32[0.0, 0.0]), fun = ())
+
+julia> Optimisers.adjust!(st, Nesterov(0.456, 0.8))
+
+julia> st
+(vec = Leaf(Nesterov(eta=0.456, rho=0.8), Float32[0.0, 0.0]), fun = ())
+```
 """
 adjust!(tree, eta::Real) = foreach(st -> adjust!(st, eta), tree)
 adjust!(tree; kw...) = foreach(st -> adjust!(st; kw...), tree)
+adjust!(tree, r::AbstractRule) = foreach(st -> adjust!(st, r), tree)
 
 adjust!(ℓ::Leaf, eta::Real) = (ℓ.rule = adjust(ℓ.rule, eta); nothing)
 adjust!(ℓ::Leaf; kw...) = (ℓ.rule = adjust(ℓ.rule; kw...); nothing)
+adjust!(ℓ::Leaf{R}, r::R) where R <: AbstractRule = (ℓ.rule = r; nothing)
 
 adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
 adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
+adjust(ℓ::Leaf{R}, r::R) where R <: AbstractRule = Leaf(r, ℓ.state, ℓ.frozen)
 
 """
     adjust(tree, η) -> tree
@@ -126,6 +142,12 @@ function adjust(tree; kw...)
   adjust!(t′; kw...)
   t′
 end
+function adjust(tree, r::AbstractRule)
+  t′ = fmap(copy, tree; exclude = maywrite)
+  adjust!(t′, r)
+  t′
+end
+
 
 """
     Optimisers.adjust(rule::RuleType, η::Real) -> rule
