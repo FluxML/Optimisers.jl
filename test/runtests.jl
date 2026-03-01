@@ -341,6 +341,8 @@ end
                   Adam(),
               ),
           )
+
+          # a new rule of the same type:
           rule2 = OptimiserChain(
               WeightDecay(0.15),
               SignDecay(0.25),
@@ -349,11 +351,25 @@ end
                   Adam(),
               ),
           )
+
+          # a new rule of incompatible type:
+          bad_rule = OptimiserChain(
+              WeightDecay(0.1),
+              SignDecay(0.2),
+              OptimiserChain(
+                  ClipGrad(),
+                  Descent(),
+              ),
+          )
+
           state = Optimisers.setup(rule, model)
           state2 = Optimisers.setup(rule2, model)
           @assert state != state2
 
-          # adjust `state` to match `rule2`, not `rule`:
+          # attempting to replace with a incompatible rule throws an error:
+          @test_throws MethodError Optimisers.adjust!(state, bad_rule)
+
+          # adjust `state` to match `rule2`, instead of  `rule`:
           Optimisers.adjust!(state, rule2)
 
           # `state` and `state2` should now be the same:
