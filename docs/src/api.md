@@ -45,6 +45,7 @@ Optimisers.adjust!
 Optimisers.adjust(::Any, ::Real)
 Optimisers.freeze!
 Optimisers.thaw!
+Optimisers.make_reactant_compatible
 ```
 
 Calling `Functors.@functor` on your model's layer types by default causes
