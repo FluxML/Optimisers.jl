@@ -1,4 +1,4 @@
-Manifest.toml
+Manifest*.toml
 .vscode/
 docs/build/
 .DS_Store
