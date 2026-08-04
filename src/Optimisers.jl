@@ -40,6 +40,9 @@ The wrapped rule is safe to `setup` either eagerly or under `@jit`, e.g.
 `@jit Optimisers.setup(rule, ps)`. It is also idempotent: wrapping an
 already-wrapped rule returns it unchanged.
 
+[`setup`](@ref Optimisers.setup) applies this automatically when the model's
+parameters live on a Reactant device, so calling it explicitly is usually unnecessary.
+
 Methods are provided by the extension loaded when both Reactant.jl and
 MLDataDevices.jl are present.
 """
@@ -102,6 +105,12 @@ init
 Initialises the given optimiser for every trainable parameter within the model.
 Returns a tree of the relevant states, which must be passed to [`update`](@ref Optimisers.update)
 or [`update!`](@ref Optimisers.update!).
+
+When the model's parameters live on a Reactant device (with Reactant.jl and
+MLDataDevices.jl loaded), `setup` automatically applies
+[`make_reactant_compatible`](@ref Optimisers.make_reactant_compatible) to `rule`, so its
+hyper-parameters are tracked on-device rather than baked into the compiled program as
+constants. This is a no-op under `@jit`/tracing and for already-compatible rules.
 
 # Example
 ```jldoctest

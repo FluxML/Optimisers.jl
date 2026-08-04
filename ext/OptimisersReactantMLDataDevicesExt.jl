@@ -2,7 +2,8 @@ module OptimisersReactantMLDataDevicesExt
 
 using Optimisers: Optimisers
 using Reactant: Reactant
-using MLDataDevices: ReactantDevice, get_device, with_track_numbers, reactant_device
+using MLDataDevices: ReactantDevice, get_device, get_device_type, with_track_numbers,
+                     reactant_device
 
 # --- device-preserving eltype conversion ---------------------------------
 # On-device numbers must be rebuilt through their concrete constructor so they
@@ -115,5 +116,24 @@ Optimisers.make_reactant_compatible(opt::Optimisers.AccumGrad, dev::ReactantDevi
 Optimisers.make_reactant_compatible(opt::Optimisers.ClipNorm, dev::ReactantDevice) =
     ReactantOptimiser(Optimisers.ClipNorm(
         with_track_numbers(dev, Integer)(opt.omega), opt.p, false))
+
+# --- automatic wrapping at setup ------------------------------------------
+# `Optimisers.setup(rule, model)` calls this hook. When `model` sits on a Reactant
+# device (eager, concrete arrays) we transparently `make_reactant_compatible(rule)`, so
+# the user gets on-device-tracked hyper-parameters without an explicit call. No-op when:
+#   * inside a trace (`@jit setup`): `get_device` would throw, and the caller (e.g. Lux)
+#     has already wrapped eagerly — leave the rule untouched. This MUST be checked first,
+#     before the `get_device(rule)` probe below, which would throw on traced scalars.
+#   * the model is not on a Reactant device (CPU/CUDA/…);
+#   * the rule is already Reactant-compatible: our own `ReactantOptimiser`, or a foreign
+#     wrapper such as Lux's whose scalars are already on-device (caught by the
+#     `get_device(rule)` probe) — this avoids double-wrapping.
+function Optimisers._prepare_rule(rule::Optimisers.AbstractRule, model)
+    Reactant.within_compile() && return rule
+    get_device_type(model) <: ReactantDevice || return rule
+    rule isa ReactantOptimiser && return rule
+    get_device(rule) isa ReactantDevice && return rule
+    return Optimisers.make_reactant_compatible(rule, get_device(model))
+end
 
 end # module

@@ -27,11 +27,19 @@ Leaf(rule, state; frozen::Bool = false) = Leaf(rule, state, frozen)
 Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
 
 function setup(rule::AbstractRule, model)
+  rule = _prepare_rule(rule, model)
   cache = IdDict()
   tree = _setup(rule, model; cache)
   isempty(cache) && @warn "setup found no trainable parameters in this model"
   tree
 end
+
+# Hook for extensions to adapt the rule to the model before setup. The Reactant
+# extension uses it to wrap the rule (via `make_reactant_compatible`) when the model
+# lives on a Reactant device, so hyper-parameters are tracked on-device rather than
+# baked into the compiled program. Keep this signature untyped so extension methods
+# specialise it rather than overwrite it.
+_prepare_rule(rule, model) = rule
 
 # _setup is almost fmapstructure, but needs a _trainable_walk, and a cache which ignores numbers etc.
 function _setup(rule, x; cache)

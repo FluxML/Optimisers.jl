@@ -41,13 +41,15 @@ end
     ps = cdev((randn(3), randn(2)))
     gs = cdev((randn(3), randn(2)))
 
-    opt_ra = Optimisers.make_reactant_compatible(Descent(0.011), get_device(ps))
-    st = Optimisers.setup(opt_ra, ps)
+    # Eager `setup` on a Reactant device auto-wraps the rule, so even a plain rule
+    # keeps its learning rate tracked (not a baked constant).
+    st = Optimisers.setup(Descent(0.011), ps)
     hlo = repr(@code_hlo Optimisers.update!(st, ps, gs))
     @test !contains(hlo, "1.100000e-02")
 
-    # Contrast: a plain (untracked) rule bakes the learning rate in as a constant.
-    st_plain = Optimisers.setup(Descent(0.011), ps)
+    # Contrast: under `@jit`, `setup` does NOT auto-wrap (`get_device` would throw in a
+    # trace), so the plain rule bakes the learning rate in as a constant.
+    st_plain = @jit Optimisers.setup(Descent(0.011), ps)
     hlo_plain = repr(@code_hlo Optimisers.update!(st_plain, ps, gs))
     @test contains(hlo_plain, "1.100000e-02")
 end
@@ -101,4 +103,53 @@ end
     gs = cdev((randn(Float32, 3),))
     st2, ps2 = @jit Optimisers.update!(st, ps, gs)
     @test all(isfinite, Array(ps2[1]))
+end
+
+# `setup` auto-detects a model on a Reactant device and wraps the rule, so a plain
+# eager `Optimisers.setup(opt, ps)` (the Flux flow) needs no `make_reactant_compatible`.
+@testset "setup auto-wraps a rule on a Reactant device: $(typeof(opt).name.name)" for opt in (
+        Adam(0.01f0),
+        RAdam(0.01f0),
+        OptimiserChain(AccumGrad(2), Descent(0.1f0)),
+    )
+    ps = cdev((randn(Float32, 3), randn(Float32, 2)))
+    st = Optimisers.setup(opt, ps)   # eager, no explicit wrap, no @jit
+
+    # Each Leaf now holds the tracked wrapper, so its scalars live on the device.
+    @test get_device(st[1].rule) isa ReactantDevice
+    @test get_device(st[2].rule) isa ReactantDevice
+
+    gs = cdev((randn(Float32, 3), randn(Float32, 2)))
+    st2, ps2 = @jit Optimisers.update!(st, ps, gs)
+    @test all(isfinite, Array(ps2[1]))
+
+    # A second step exercises the AccumGrad counter branch under tracing.
+    gs2 = cdev((randn(Float32, 3), randn(Float32, 2)))
+    st3, ps3 = @jit Optimisers.update!(st2, ps2, gs2)
+    @test all(isfinite, Array(ps3[1]))
+end
+
+@testset "setup does not double-wrap already-compatible rules" begin
+    ps = cdev((randn(Float32, 3),))
+    dev = get_device(ps)
+
+    # (a) Our own wrapper passes through unchanged (same object, not re-wrapped).
+    opt_ours = Optimisers.make_reactant_compatible(Adam(0.01f0), dev)
+    st = Optimisers.setup(opt_ours, ps)
+    @test st[1].rule === opt_ours
+
+    # (b) A bare rule already carrying on-device scalars (mimics Lux's foreign wrapper)
+    #     is detected via `get_device` and left alone.
+    opt_foreign = Reactant.to_rarray(Adam(0.01f0); track_numbers = AbstractFloat)
+    st2 = Optimisers.setup(opt_foreign, ps)
+    @test st2[1].rule === opt_foreign
+end
+
+@testset "setup leaves non-Reactant models untouched" begin
+    # Plain host arrays: the hook must be a no-op even though the extension is loaded.
+    ps = (randn(Float32, 3), randn(Float32, 2))
+    st = Optimisers.setup(Adam(0.01f0), ps)
+    @test st[1].rule isa Adam
+    @test st[1].rule === st[2].rule                  # shared, un-wrapped rule
+    @test !(get_device(st[1].rule) isa ReactantDevice)
 end
