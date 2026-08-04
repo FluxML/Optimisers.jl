@@ -3,8 +3,12 @@ uuid = "3bd65402-5787-11e9-1adc-39752487f4e2"
 authors = ["Mike J Innes <mike.j.innes@gmail.com>"]
 version = "0.4.7"
 
+[workspace]
+projects = ["test", "docs"]
+
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -14,19 +18,23 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 [weakdeps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+MLDataDevices = "7e8f7934-dd98-4c1a-8fe8-92b47a384d40"
 Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 
 [extensions]
 OptimisersAdaptExt = ["Adapt"]
 OptimisersEnzymeCoreExt = "EnzymeCore"
 OptimisersReactantExt = "Reactant"
+OptimisersReactantMLDataDevicesExt = ["Reactant", "MLDataDevices"]
 
 [compat]
 Adapt = "4"
 ChainRulesCore = "1"
+Compat = "4.12"
 ConstructionBase = "1.5.8"
 EnzymeCore = "0.8.5"
 Functors = "0.4.9, 0.5"
+MLDataDevices = "1.15.3"
 Reactant = "0.2.4"
 Statistics = "1"
 julia = "1.10"
