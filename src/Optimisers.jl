@@ -5,6 +5,7 @@ using Functors: functor, fmap, fmap_with_path,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
 using ConstructionBase: ConstructionBase
+using Compat: @compat
 
 include("interface.jl")
 export AbstractRule
@@ -26,7 +27,19 @@ export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        WeightDecay, SignDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
        AccumGrad, MixedPrecision
 
-VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public apply!, init, setup, update, update!"))
+"""
+    Optimisers.make_reactant_compatible(rule::AbstractRule, dev) -> rule
+
+Wrap `rule` so its scalar hyper-parameters (learning rate, momenta, step counters)
+are stored as tracked numbers on the Reactant device `dev`, instead of being baked
+into the compiled program as constants — letting e.g. the learning rate be changed
+with [`adjust!`](@ref) without recompilation. `dev` must be a
+`MLDataDevices.ReactantDevice`; methods are provided by the extension loaded when
+both Reactant.jl and MLDataDevices.jl are present.
+"""
+function make_reactant_compatible end
+
+@compat public apply!, init, setup, update, update!, make_reactant_compatible
 
 ###
 ### one-array functions
