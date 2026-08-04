@@ -62,3 +62,43 @@ end
     st2 = Optimisers.adjust(st; eta = 0.005f0)
     @test st2[1].rule.opt.eta ≈ 0.005f0
 end
+
+# Lux's actual flow: wrap EAGERLY, then run `setup` UNDER `@jit`. This worked for
+# every rule except RAdam, whose init called `get_device` (errors in a trace); the
+# tracked counter is now derived from an already-tracked scalar instead.
+@testset "setup runs under @jit: $(typeof(opt).name.name)" for opt in (
+        Adam(0.01f0),
+        RAdam(0.01f0),
+    )
+    ps = cdev((randn(Float32, 4), randn(Float32, 2)))
+    opt_ra = Optimisers.make_reactant_compatible(opt, get_device(ps))
+    st = @jit Optimisers.setup(opt_ra, ps)
+
+    gs = cdev((randn(Float32, 4), randn(Float32, 2)))
+    st2, ps2 = @jit Optimisers.update!(st, ps, gs)
+    @test all(isfinite, Array(ps2[1]))
+
+    # A second step advances the tracked RAdam counter as a runtime variable.
+    gs2 = cdev((randn(Float32, 4), randn(Float32, 2)))
+    st3, ps3 = @jit Optimisers.update!(st2, ps2, gs2)
+    @test all(isfinite, Array(ps3[1]))
+end
+
+@testset "make_reactant_compatible is idempotent" begin
+    ps = cdev((randn(Float32, 3),))
+    dev = get_device(ps)
+    opt1 = Optimisers.make_reactant_compatible(Adam(0.01f0), dev)
+    @test Optimisers.make_reactant_compatible(opt1, dev) === opt1   # two-arg form
+    @test Optimisers.make_reactant_compatible(opt1) === opt1        # device-less form
+end
+
+@testset "device-less make_reactant_compatible uses the default device" begin
+    opt = Optimisers.make_reactant_compatible(Adam(0.01f0))
+    @test get_device(opt) isa ReactantDevice
+
+    ps = cdev((randn(Float32, 3),))
+    st = Optimisers.setup(opt, ps)
+    gs = cdev((randn(Float32, 3),))
+    st2, ps2 = @jit Optimisers.update!(st, ps, gs)
+    @test all(isfinite, Array(ps2[1]))
+end
