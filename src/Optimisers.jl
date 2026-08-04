@@ -28,14 +28,20 @@ export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AccumGrad, MixedPrecision
 
 """
-    Optimisers.make_reactant_compatible(rule::AbstractRule, dev) -> rule
+    Optimisers.make_reactant_compatible(rule::AbstractRule, [dev]) -> rule
 
 Wrap `rule` so its scalar hyper-parameters (learning rate, momenta, step counters)
 are stored as tracked numbers on the Reactant device `dev`, instead of being baked
 into the compiled program as constants — letting e.g. the learning rate be changed
 with [`adjust!`](@ref) without recompilation. `dev` must be a
-`MLDataDevices.ReactantDevice`; methods are provided by the extension loaded when
-both Reactant.jl and MLDataDevices.jl are present.
+`MLDataDevices.ReactantDevice`; it defaults to `MLDataDevices.reactant_device()`.
+
+The wrapped rule is safe to `setup` either eagerly or under `@jit`, e.g.
+`@jit Optimisers.setup(rule, ps)`. It is also idempotent: wrapping an
+already-wrapped rule returns it unchanged.
+
+Methods are provided by the extension loaded when both Reactant.jl and
+MLDataDevices.jl are present.
 """
 function make_reactant_compatible end
 

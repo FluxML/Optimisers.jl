@@ -2,12 +2,18 @@ module OptimisersReactantMLDataDevicesExt
 
 using Optimisers: Optimisers
 using Reactant: Reactant
-using MLDataDevices: ReactantDevice, get_device, with_track_numbers
+using MLDataDevices: ReactantDevice, get_device, with_track_numbers, reactant_device
 
 # --- device-preserving eltype conversion ---------------------------------
 # On-device numbers must be rebuilt through their concrete constructor so they
 # stay tracked; `convert(T, x)` / `T(x)` would pull them back to the host as
 # compile-time constants. (Reproduces Lux's `Utils.convert_eltype`.)
+# The eager path hits the `Concrete*` methods (keeping the scalar on-device). Under
+# `@jit setup` the scalars are `TracedRNumber`s AND `T === eltype(x) === TracedRNumber{…}`,
+# so the `x::Number` method runs `convert(TracedRNumber{…}, x::TracedRNumber)`, which
+# routes through the `TracedRNumber{…}` constructor and stays traced. (Do NOT add a
+# `TracedRNumber` method here: with `T` already a `TracedRNumber` type it would try to
+# build the invalid `TracedRNumber{TracedRNumber{…}}`.)
 _convert_eltype(::Type{T}, x::Number) where {T<:Number} = convert(T, x)
 _convert_eltype(::Type{T}, x::Reactant.ConcretePJRTNumber) where {T<:Number} =
     Reactant.ConcretePJRTNumber{T}(x)
@@ -45,10 +51,18 @@ end
 function Optimisers.init(
     opt::ReactantOptimiser{<:Optimisers.RAdam}, x::AbstractArray{T}
 ) where {T}
-    # NOTE: `get_device` errors inside a Reactant trace, so a `ReactantOptimiser{RAdam}`
-    # must have `setup` run eagerly (host-side), not under `@jit`.
-    dev = with_track_numbers(get_device(opt), Integer)
-    return zero(x), zero(x), _convert_eltype.((T,), opt.opt.beta), dev(1)
+    betas = _convert_eltype.((T,), opt.opt.beta)
+    # The step counter must stay tracked so it flows through a compiled `update!` as a
+    # runtime variable (rather than being frozen as a constant, forcing a recompile per
+    # step). Derive a tracked `1` from an already-tracked scalar (the promoted `beta`)
+    # instead of `with_track_numbers(get_device(opt), Integer)(1)`: `get_device` errors
+    # inside a trace, and it was the only thing stopping `@jit Optimisers.setup(opt, ps)`
+    # working for RAdam. `+ 1` (not `+ one(T)`: under a trace `T === TracedRNumber{…}`)
+    # promotes correctly for both concrete and traced scalars. A tracked `Float` counter
+    # is numerically identical to the stock integer one — RAdam's `apply!` only uses `t`
+    # in float arithmetic (`2t·βt`) and as `t + 1`.
+    t = betas[1] - betas[1] + 1
+    return zero(x), zero(x), betas, t
 end
 
 function Optimisers.init(
@@ -76,8 +90,19 @@ function Optimisers._adjust(
 end
 
 # --- construction helpers -------------------------------------------------
+# Device-less form: default to the current Reactant device. Dispatches to the
+# device-aware methods below, so `OptimiserChain` / `AccumGrad` / `ClipNorm` (all
+# `<: AbstractRule`) and the idempotency guard are all reached correctly.
+Optimisers.make_reactant_compatible(opt::Optimisers.AbstractRule) =
+    Optimisers.make_reactant_compatible(opt, reactant_device())
+
 Optimisers.make_reactant_compatible(opt::Optimisers.AbstractRule, dev::ReactantDevice) =
     ReactantOptimiser(with_track_numbers(dev, AbstractFloat)(opt))
+
+# Idempotent: re-wrapping an already-wrapped rule is a no-op. Guards against double
+# wrapping (a rule passed through `make_reactant_compatible` twice, or an
+# `OptimiserChain` that already holds wrapped rules).
+Optimisers.make_reactant_compatible(opt::ReactantOptimiser, ::ReactantDevice) = opt
 
 Optimisers.make_reactant_compatible(opt::Optimisers.OptimiserChain, dev::ReactantDevice) =
     ReactantOptimiser(Optimisers.OptimiserChain(
