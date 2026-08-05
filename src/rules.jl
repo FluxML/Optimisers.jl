@@ -933,7 +933,7 @@ adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; k
     Muon(; [eta, mu, nesterov])
 
 The [Muon](https://github.com/KellerJordan/Muon) optimizer, which orthogonalizes
-the momentum matrix before each update, using [`_newton_schulz5`](@ref).
+the momentum matrix before each update, using a Newton-Schulz iteration.
 
 Muon applies only to 2-dimensional parameters, and calling it on any other array
 is an error. Scalar and vector parameters, as well as the input (embedding) and
