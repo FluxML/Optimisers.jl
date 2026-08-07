@@ -21,7 +21,7 @@ struct Descent{T} <: AbstractRule
   eta::T
 end
 
-Descent(; eta=1f-1) = Descent(eta)
+Descent(; eta = 1f-1) = Descent(eta)
 
 init(o::Descent, x::AbstractArray) = nothing
 
@@ -121,11 +121,11 @@ struct RMSProp{Teta,Trho,Teps} <: AbstractRule
   centred::Bool
 end
 
-function RMSProp(η, ρ=0.9, ϵ=1e-8; centred::Bool=false, centered::Bool=false)
+function RMSProp(η, ρ = 0.9, ϵ = 1e-8; centred::Bool = false, centered::Bool = false)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
   return RMSProp(float(η), float(ρ), float(ϵ), centred | centered)
 end
-RMSProp(; eta=0.001, rho=0.9, epsilon=1e-8, kw...) = RMSProp(eta, rho, epsilon; kw...)
+RMSProp(; eta = 0.001, rho = 0.9, epsilon = 1e-8, kw...) = RMSProp(eta, rho, epsilon; kw...)
 
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
@@ -169,26 +169,26 @@ learning algorithm that depends only on the sign of the gradient.
 - Step sizes (`Γ::Tuple == gamma`): Mminimal and maximal allowed step sizes.
 """
 @def struct Rprop <: AbstractRule
-  eta = 1e-3
-  ell = (0.5, 1.2)
-  gamma = (1e-6, 50.0)
+    eta =  1e-3
+    ell = (0.5, 1.2)
+    gamma = (1e-6, 50.0)
 end
 
 init(o::Rprop, x::AbstractArray) = (zero(x), onevalue(o.eta, x))
 
 function apply!(o::Rprop, state, x::AbstractArray{T}, dx) where T
-  ℓ, Γ = T.(o.ell), T.(o.gamma)
-  g, η = state
+    ℓ, Γ = T.(o.ell), T.(o.gamma)
+    g, η = state
+  
+    η = broadcast(g, η, dx) do g, η, dx
+        g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
+    end
+    g = broadcast(g, dx) do g, dx
+        g * dx < 0 ? zero(T) : T(dx)
+    end
+    dx′ = @lazy η * sign(g)
 
-  η = broadcast(g, η, dx) do g, η, dx
-    g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
-  end
-  g = broadcast(g, dx) do g, dx
-    g * dx < 0 ? zero(T) : T(dx)
-  end
-  dx′ = @lazy η * sign(g)
-
-  return (g, η), dx′
+    return (g, η), dx′
 end
 
 """
@@ -284,7 +284,7 @@ function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
-  ρ = ρ∞ - 2 * t * βt[2] / (1 - βt[2]) |> real
+  ρ = ρ∞ - 2*t * βt[2] / (1 - βt[2]) |> real
   if ρ > 4
     r = sqrt((ρ - 4) * (ρ - 2) * ρ∞/((ρ∞ - 4) * (ρ∞ - 2) * ρ))
     dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η * r
@@ -493,7 +493,7 @@ function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
   @.. mt = β[1] * mt + (1 - β[1]) * dx
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
   dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) /
-              (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
+          (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
   return (mt, vt, βt .* β), dx′
 end
@@ -534,12 +534,12 @@ struct AdamW{Teta,Tbeta<:Tuple,Tlambda,Teps} <: AbstractRule
   couple::Bool
 end
 
-function AdamW(η, β=(0.9, 0.999), λ=0.0, ϵ=1e-8; couple::Bool=true)
+function AdamW(η, β = (0.9, 0.999), λ = 0.0, ϵ = 1e-8; couple::Bool = true)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
   return AdamW(float(η), β, float(λ), float(ϵ), couple)
 end
 
-AdamW(; eta=0.001, beta=(0.9, 0.999), lambda=0.0, epsilon=1e-8, kw...) =
+AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
   AdamW(eta, beta, lambda, epsilon; kw...)
 
 init(o::AdamW, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
@@ -602,7 +602,6 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
   return (mt, st, βt .* β), dx′
 end
 
-
 """
     WeightDecay(λ = 5e-4)
     WeightDecay(; [lambda])
@@ -631,15 +630,15 @@ function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
   return state, dx′
 end
 
-function adjust(r::WeightDecay; gamma=nothing, kw...)
-  if isnothing(gamma)
-    return _adjust(r, NamedTuple(kw))
-  else
-    Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust, force=true)
-    nt = (; lambda=gamma, NamedTuple(kw)...)
-    return _adjust(r, nt)
-  end
-end
+function adjust(r::WeightDecay; gamma = nothing, kw...)
+   if isnothing(gamma)
+     return _adjust(r, NamedTuple(kw))
+   else
+     Base.depwarn("The strength of WeightDecay is now field :lambda, not :gamma", :adjust, force=true)
+     nt = (; lambda = gamma, NamedTuple(kw)...)
+     return _adjust(r, nt)
+   end
+ end
 
 """
     SignDecay(λ = 1e-3)
@@ -713,7 +712,7 @@ struct ClipNorm{To,Tp} <: AbstractRule
   p::Tp
   throw::Bool
 end
-ClipNorm(ω=10, p=2; throw::Bool=true) = ClipNorm(float(ω), float(p), throw)
+ClipNorm(ω = 10, p = 2; throw::Bool = true) = ClipNorm(float(ω), float(p), throw)
 
 init(o::ClipNorm, x::AbstractArray) = nothing
 
@@ -788,10 +787,10 @@ end
 init(o::OptimiserChain, x::AbstractArray) = map(opt -> init(opt, x), o.opts)
 
 function apply!(o::OptimiserChain, states, x, dx, dxs...)
-  foldl(tuple.(o.opts, states); init=((), dx)) do (states′, dx′), (opt, state)
+  foldl(tuple.(o.opts, states); init = ((), dx)) do (states′, dx′), (opt, state)
     if dx′ isa Zero
       return (states′..., state), dx′
-    else
+    else 
       state′, dx′ = apply!(opt, state, x, dx′, dxs...)
       return (states′..., state′), dx′
     end
@@ -897,14 +896,14 @@ g = rand(Float16, 2) # A gradient in low precision
 Optimisers.update!(opt_state, x, g)  
 ```
 """
-struct MixedPrecision{T<:Number,O<:AbstractRule} <: AbstractRule
+struct MixedPrecision{T<:Number, O<:AbstractRule} <: AbstractRule
   rule::O
 end
 
 @functor MixedPrecision
 
-MixedPrecision(rule::AbstractRule) = MixedPrecision{Float32,typeof(rule)}(rule)
-MixedPrecision(T::Type, rule::AbstractRule) = MixedPrecision{T,typeof(rule)}(rule)
+MixedPrecision(rule::AbstractRule) = MixedPrecision{Float32, typeof(rule)}(rule)
+MixedPrecision(T::Type, rule::AbstractRule) = MixedPrecision{T, typeof(rule)}(rule)
 
 function init(o::MixedPrecision{T}, x::AbstractArray) where T
   xT = T.(x)
