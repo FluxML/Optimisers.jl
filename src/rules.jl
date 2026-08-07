@@ -925,3 +925,84 @@ end
 
 adjust(o::MixedPrecision{T}, eta::Real) where T = MixedPrecision(T, adjust(o.rule, eta))
 adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; kw...))
+
+
+"""
+    Muon(η = 0.02, μ = 0.95, nesterov = true)
+    Muon(; [eta, mu, nesterov])
+
+The [Muon](https://github.com/KellerJordan/Muon) optimizer, which orthogonalizes
+the momentum matrix before each update, using a Newton-Schulz iteration.
+
+Muon applies only to 2-dimensional parameters, and calling it on any other array
+is an error. Scalar and vector parameters, as well as the input (embedding) and
+output (classifier head) layers, should be optimised by another rule such as
+[`AdamW`](@ref) — even though those last two are themselves 2-dimensional, so this
+cannot be detected automatically.
+
+Weight decay is not a field here; compose it instead, as
+`OptimiserChain(WeightDecay(λ), Muon())`.
+
+# Parameters
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
+                       the weights.
+- Momentum (`μ == mu`): Controls the acceleration of gradient descent in the
+                  prominent direction, in effect dampening oscillations.
+- Nesterov momentum (`nesterov`): If `true`, orthogonalize a lookahead combination of
+                  the gradient and the momentum, instead of the momentum alone.
+"""
+@def struct Muon <: AbstractRule
+  eta = 0.02
+  mu = 0.95
+  nesterov = true
+end
+
+init(o::Muon, x::AbstractArray{T,2}) where T = zero(x)
+
+function apply!(o::Muon, state, x::AbstractArray{T,2}, dx) where T
+  η, μ = T(o.eta), T(o.mu)
+  Bt = state
+
+  @.. Bt = μ * Bt + (1 - μ) * dx
+  Ut = o.nesterov ? @.((1 - μ) * dx + μ * Bt) : Bt
+  Ot = _newton_schulz5(Ut)
+  γ = real(T)(sqrt(max(1, size(Ot, 1) / size(Ot, 2))))
+  dx′ = @lazy η * γ * Ot
+
+  return Bt, dx′
+end
+
+_muon_needs_matrix(x) = throw(ArgumentError(
+  "Muon can only optimise 2-dimensional parameters, but got one with ndims = $(ndims(x))."
+))
+
+init(o::Muon, x::AbstractArray) = _muon_needs_matrix(x)
+
+apply!(o::Muon, state, x::AbstractArray, dx) = _muon_needs_matrix(x)
+
+"""
+    _newton_schulz5(G::AbstractArray{T,2}, steps::Int=5, eps::Real=1e-7) where T
+
+(Bernstein & Newhouse, 2024; Higham, 2008; Björck and Bowie, 1971; Kovarik, 1970)
+
+Orthogonalizes a matrix `G` using the Newton-Schulz iteration, which is a method for computing the matrix inverse square root.
+This function performs `steps` iterations of the algorithm, starting with an initial guess based on the normalized input matrix.
+The parameter `eps` is used to avoid division by zero in the normalization step.
+"""
+function _newton_schulz5(G::AbstractArray{T,2}, steps::Int=5, eps::Real=1e-7) where T
+  a, b, c = real(T).((3.4445, -4.7750, 2.0315))
+  ϵ = _eps(T, eps)
+  X = G ./ (norm(G) + ϵ)
+  if size(G, 1) > size(G, 2)
+    X = X'
+  end
+  for _ in 1:steps
+    A = X * X'
+    B = b * A + c * A * A
+    X = a * X + B * X
+  end
+  if size(G, 1) > size(G, 2)
+    X = X'
+  end
+  return X
+end
