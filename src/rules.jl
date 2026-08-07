@@ -974,9 +974,8 @@ function apply!(o::Muon, state, x::AbstractArray{T,2}, dx) where T
 end
 
 _muon_needs_matrix(x) = throw(ArgumentError(
-  "Muon can only optimise 2-dimensional parameters, but got one with ndims = $(ndims(x)). " *
-  "Scalar and vector parameters, and the input and output layers, should be optimised " *
-  "by another rule such as AdamW."))
+  "Muon can only optimise 2-dimensional parameters, but got one with ndims = $(ndims(x))."
+))
 
 init(o::Muon, x::AbstractArray) = _muon_needs_matrix(x)
 
