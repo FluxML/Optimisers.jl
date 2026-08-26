@@ -6,6 +6,24 @@ using Base.Broadcast: broadcasted, instantiate, Broadcasted
 
 Random.seed!(1)
 
+@testset "deprecated rule aliases are documented" begin
+  documented_aliases = (:ADAM, :NADAM, :ADAMW, :RADAM, :OADAM, :ADAGrad, :ADADelta)
+  docs = Base.Docs.meta(Optimisers)
+
+  for alias in documented_aliases
+    @test alias in names(Optimisers)
+    @test haskey(docs, Base.Docs.Binding(Optimisers, alias))
+  end
+
+  @test_deprecated ADAM() == Adam()
+  @test_deprecated NADAM() == NAdam()
+  @test_deprecated ADAMW() == AdamW()
+  @test_deprecated RADAM() == RAdam()
+  @test_deprecated OADAM() == OAdam()
+  @test_deprecated ADAGrad() == AdaGrad()
+  @test_deprecated ADADelta() == AdaDelta()
+end
+
 # Fake "models" for testing
 
 struct Foo; x; y; end
