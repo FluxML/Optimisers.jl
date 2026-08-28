@@ -15,7 +15,7 @@ include("utils.jl")
 include("adjust.jl")
 
 include("destructure.jl")
-export destructure
+export destructure, destructure!
 
 include("trainables.jl")
 export trainables

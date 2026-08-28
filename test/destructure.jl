@@ -24,8 +24,10 @@ m9 = (a = m1, b = mat, c = [mat, m1])
   @test destructure(m9)[1] == 1:7
 
   @test destructure(m1)[2](7:9) == [7,8,9]
+  @test m1 == 1:3  # not mutated
   @test destructure(m2)[2](4:9) == ([4,5,6], [7,8,9])
   @test destructure(m3)[2](4:9) == (x = [4,5,6], y = sin, z = [7,8,9])
+  @test m3.z == 4:6  # not mutated
   m4′ = destructure(m4)[2](4:9)
   @test m4′ == (x = [4,5,6], y = [4,5,6], z = [7,8,9])
   @test m4′.x === m4′.y
@@ -60,11 +62,31 @@ m9 = (a = m1, b = mat, c = [mat, m1])
   @test_throws Exception destructure(m7)[2]([10,20,30,40])
 end
 
+@testset "destructure!" begin
+  m3′ = deepcopy(m3)
+  @test destructure!(m3′)[1] == 1:6
+  @test destructure!(m3′)[2](4:9) == (x = [4,5,6], y = sin, z = [7,8,9])
+  @test m3′ == (x = [4,5,6], y = sin, z = [7,8,9])
+
+  m7′ = deepcopy(m7)
+  @test destructure!(m7′)[1] == 1:3
+  destructure!(m7′)[2]([10,20,30])
+  @test m7′.a == (sin, [10,20,30])
+  @test m7′.b == (cos, [4,5,6])
+  @test m7′.c == (tan, [7,8,9])
+
+  # errors
+  @test_throws Exception destructure!(m7)[2]([10,20])
+  @test_throws Exception destructure!(m7)[2]([10,20,30,40])
+end
+
 @testset "gradient of flatten" begin
   @test gradient(m -> destructure(m)[1][1], m1)[1] == [1,0,0]
+  @test gradient(m -> destructure!(m)[1][1], m1)[1] == [1,0,0]
   @test gradient(m -> destructure(m)[1][2], m2)[1] == ([0,1,0], [0,0,0])
   @test gradient(m -> destructure(m)[1][3], (m1, m1))[1] == ([0,0,1], nothing)
   @test gradient(m -> destructure(m)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
+  @test gradient(m -> destructure!(m)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
   @test gradient(m -> destructure(m)[1][2], m4)[1] == (x = [0,1,0], y = nothing, z = [0,0,0])
 
   g5 = gradient(m -> destructure(m)[1][3], m5)[1]
@@ -149,6 +171,26 @@ end
     # Not fixed by this:
     # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
   end
+end
+
+@testset "gradient of rebuild!" begin
+  re1 = destructure!(deepcopy(m1))[2]
+  @test gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
+
+  re2 = destructure!(deepcopy(m2))[2]
+  @test gradient(x -> re2(x)[1][2], rand(6))[1] == [0,1,0,0,0,0]
+
+  re3 = destructure!(deepcopy(m3))[2]
+  @test gradient(x -> re3(x).x[3], rand(6))[1] == [0,0,1,0,0,0]
+  @test gradient(x -> re3(x).z[1], rand(6))[1] == [0,0,0,1,0,0]
+
+  re4 = destructure!(deepcopy(m4))[2]
+  @test gradient(x -> re4(x).x[1], rand(6))[1] == [1,0,0,0,0,0]
+  @test gradient(x -> re4(x).y[2], rand(6))[1] == [0,1,0,0,0,0]
+  @test gradient(rand(6)) do x
+    m = re4(x)
+    m.x[1] + 2*m.y[2] + 3*m.z[3]
+  end[1] == [1,2,0, 0,0,3]
 end
 
 @testset "Flux issue 1826" begin
