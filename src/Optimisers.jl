@@ -25,7 +25,7 @@ include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
        AdaGrad, AdaMax, AdaDelta, AMSGrad, NAdam, AdamW, RAdam, OAdam, AdaBelief,
        WeightDecay, SignDecay, ClipGrad, ClipNorm, OptimiserChain, Lion,
-       AccumGrad, MixedPrecision
+       AccumGrad, MixedPrecision, add_mixed_precision
 
 """
     Optimisers.make_reactant_compatible(rule::AbstractRule, [dev]) -> rule
