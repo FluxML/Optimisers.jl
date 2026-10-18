@@ -136,8 +136,11 @@ function apply!(o::RMSProp, state, x::AbstractArray{T}, dx) where T
   @.. quad = ρ * quad + (1 - ρ) * abs2(dx)
   if o.centred
     @.. lin = ρ * lin + (1 - ρ) * dx
+    dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
+  else
+    # `lin` is a `false` placeholder, and Reactant cannot trace `abs2` of a `Bool`.
+    dx′ = @lazy dx * η / (sqrt(quad) + ϵ)
   end
-  dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
 
   return (quad, lin), dx′
 end

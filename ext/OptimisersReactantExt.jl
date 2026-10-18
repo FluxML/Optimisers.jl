@@ -1,6 +1,7 @@
 module OptimisersReactantExt
 
 using Optimisers: Optimisers, @..
+using LinearAlgebra: LinearAlgebra
 using Reactant: Reactant, TracedRNumber, TracedRArray, ConcretePJRTArray, ConcreteIFRTArray
 
 # Once https://github.com/EnzymeAD/Reactant.jl/pull/835 we can support throwing errors
@@ -16,6 +17,19 @@ for CA in (:ConcretePJRTArray, :ConcreteIFRTArray)
         fill(λ, size(x)); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x),
         x.sharding)
 end
+
+# `LinearAlgebra.norm` iterates, and so does the `Broadcasted` reduction reached when the
+# gradient is the lazy output of a previous rule. Materialise the latter, and compute the
+# norm of a concrete array in a compiled function (a traced one has its own `norm`).
+Optimisers._norm(dx::Union{ConcretePJRTArray,ConcreteIFRTArray}, p::Real) =
+    Reactant.@jit LinearAlgebra.norm(dx, p)
+
+const ReactantStyle = Union{
+    Broadcast.ArrayStyle{ConcretePJRTArray}, Broadcast.ArrayStyle{ConcreteIFRTArray},
+    Reactant.TracedRArrayOverrides.AbstractReactantArrayStyle,
+}
+Optimisers._norm(dx::Broadcast.Broadcasted{<:ReactantStyle}, p::Real) =
+    Optimisers._norm(copy(dx), p)
 
 # `T(::TracedRNumber)` is not defined, so the stock `T(o.eta)` / `T.(o.beta)` lines blow
 # up when the rule's scalars are traced (promoted via `to_rarray(opt; track_numbers=...)`

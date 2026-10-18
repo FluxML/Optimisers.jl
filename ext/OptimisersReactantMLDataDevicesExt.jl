@@ -82,11 +82,18 @@ end
 # --- adjust ---------------------------------------------------------------
 # Move the adjustment NamedTuple onto the device (as tracked numbers) BEFORE
 # delegating to the inner rule, so the new value stays traced, then re-wrap.
-# Mirrors `Lux.DistributedOptimizer`'s `_adjust` idiom.
+# Mirrors `Lux.DistributedOptimizer`'s `_adjust` idiom. Delegating to the inner rule's
+# own `adjust` (not `_adjust`) keeps its checks and aliases, e.g. `RMSProp`'s `centred`.
 function Optimisers._adjust(opt::ReactantOptimiser, nt::NamedTuple)
     dev = with_track_numbers(get_device(opt), AbstractFloat)
-    return ReactantOptimiser(Optimisers._adjust(opt.opt, dev(nt)))
+    return ReactantOptimiser(Optimisers.adjust(opt.opt; dev(nt)...))
 end
+
+# Containers hold individually wrapped rules, and each of those moves the values itself.
+const WrappedContainer = Union{Optimisers.OptimiserChain, Optimisers.MixedPrecision}
+
+Optimisers._adjust(opt::ReactantOptimiser{<:WrappedContainer}, nt::NamedTuple) =
+    ReactantOptimiser(Optimisers.adjust(opt.opt; nt...))
 
 function Optimisers._adjust(
     opt::ReactantOptimiser{<:Optimisers.AccumGrad}, nt::NamedTuple
@@ -113,6 +120,14 @@ Optimisers.make_reactant_compatible(opt::ReactantOptimiser, ::ReactantDevice) = 
 Optimisers.make_reactant_compatible(opt::Optimisers.OptimiserChain, dev::ReactantDevice) =
     ReactantOptimiser(Optimisers.OptimiserChain(
         Optimisers.make_reactant_compatible.(opt.opts, (dev,))...))
+
+# Wrap the inner rule too, so that its `init` override (if any) keeps its scalars tracked.
+function Optimisers.make_reactant_compatible(
+    opt::Optimisers.MixedPrecision{T}, dev::ReactantDevice
+) where {T}
+    return ReactantOptimiser(
+        Optimisers.MixedPrecision(T, Optimisers.make_reactant_compatible(opt.rule, dev)))
+end
 
 Optimisers.make_reactant_compatible(opt::Optimisers.AccumGrad, dev::ReactantDevice) =
     ReactantOptimiser(with_track_numbers(dev, Integer)(opt))
