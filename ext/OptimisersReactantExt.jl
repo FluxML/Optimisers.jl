@@ -1,7 +1,7 @@
 module OptimisersReactantExt
 
-using Optimisers: Optimisers, @..
-using Reactant: Reactant, TracedRNumber, TracedRArray, @trace
+using Optimisers: Optimisers, @.., @lazy
+using Reactant: Reactant, TracedRNumber, TracedRArray, ConcretePJRTArray, ConcreteIFRTArray
 
 # Once https://github.com/EnzymeAD/Reactant.jl/pull/835 we can support throwing errors
 # from compiled MLIR
@@ -9,23 +9,92 @@ using Reactant: Reactant, TracedRNumber, TracedRArray, @trace
     return
 end
 
+# The generic `map` scalar-indexes, which is disallowed on GPU. Build on the host and
+# place it like `zero(x)` does.
+for CA in (:ConcretePJRTArray, :ConcreteIFRTArray)
+    @eval Optimisers.onevalue(λ::T, x::$CA{T}) where {T} = $CA(
+        fill(λ, size(x)); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x),
+        x.sharding)
+end
+
+# `T(::TracedRNumber)` is not defined, so the stock `T(o.eta)` / `T.(o.beta)` lines blow
+# up when the rule's scalars are traced (promoted via `to_rarray(opt; track_numbers=...)`
+# or `make_reactant_compatible`). Convert traced scalars within the trace instead, so the
+# arithmetic runs in the parameters' eltype as in the eager rule.
+@inline _to(::Type{T}, x::TracedRNumber) where {T} = convert(TracedRNumber{T}, x)
+@inline _to(::Type{T}, x) where {T} = T(x)
+@inline _eps(::Type{T}, x::TracedRNumber) where {T} = _to(T, x)
+@inline _eps(::Type{T}, x) where {T} = Optimisers._eps(T, x)
+
+# A traced `AccumGrad` cannot return `nothing` on the steps where it is still accumulating.
+# It returns its (zero until complete) update wrapped together with the traced flag
+# `ready`, which the traced `OptimiserChain` below uses to hold the downstream rules'
+# state. Anything else consuming the update just broadcasts over `dx`.
+struct AccumulatedGrad{D,R}
+    dx::D
+    ready::R
+end
+
+Base.broadcastable(g::AccumulatedGrad) = g.dx
+
 function Optimisers.apply!(
     o::Optimisers.AccumGrad{<:TracedRNumber{<:Integer}}, state, x, dx
 )
     accum_dx, counter = state
-    @trace if counter == 1
-        @. accum_dx = dx / o.n
-    else
-        @. accum_dx = accum_dx .+ dx / o.n
+    restart = counter == 1
+    @.. accum_dx = ifelse(restart, zero(accum_dx), accum_dx) + dx / o.n
+    ready = counter == o.n
+    counter = ifelse(ready, one(counter), counter + 1)
+    dx′ = @. ifelse(ready, accum_dx, zero(accum_dx))
+    return (accum_dx, counter), AccumulatedGrad(dx′, ready)
+end
+
+# Under tracing the rules after an `AccumGrad` cannot be skipped, so they run on every
+# step and their previous state is selected back until the accumulation is complete.
+function Optimisers.apply!(
+    o::Optimisers.OptimiserChain, states, x::TracedRArray, dx, dxs...
+)
+    init = ((), dx, nothing)
+    states′, dx′, ready = foldl(tuple.(o.opts, states); init) do (states′, dx′, ready), (opt, state)
+        dx′ isa Optimisers.Zero && return (states′..., state), dx′, ready
+        old = ready === nothing ? state : _snapshot(state)
+        state′, dx′ = Optimisers.apply!(opt, state, x, dx′, dxs...)
+        ready === nothing || (state′ = _select(ready, state′, old))
+        if dx′ isa AccumulatedGrad
+            ready = ready === nothing ? dx′.ready : ready & dx′.ready
+            dx′ = dx′.dx
+        end
+        return (states′..., state′), dx′, ready
     end
-    @trace if counter == o.n
-        dx_final = accum_dx
-        counter = 1
-    else
-        dx_final = zero.(dx)
-        counter += 1
-    end
-    return (accum_dx, counter), dx_final
+    (ready === nothing || dx′ isa Optimisers.Zero) && return states′, dx′
+    dx′ = @. ifelse(ready, dx′, zero(dx′))
+    return states′, AccumulatedGrad(dx′, ready)
+end
+
+# Rules update their state arrays in place, so keep a (free, under tracing) copy of the
+# old values to select from.
+_snapshot(x::TracedRArray) = copy(x)
+_snapshot(x::Union{Tuple,NamedTuple}) = map(_snapshot, x)
+_snapshot(x) = x
+
+_select(c, new::TracedRArray, old::TracedRArray) = ifelse.(c, new, old)
+_select(c, new::TracedRNumber{T}, old::TracedRNumber) where {T} = ifelse(c, new, _to(T, old))
+_select(c, new::Tuple, old::Tuple) = map((n, o) -> _select(c, n, o), new, old)
+_select(c, new::NamedTuple{K}, old::NamedTuple{K}) where {K} =
+    map((n, o) -> _select(c, n, o), new, old)
+_select(c, new, old) = new
+
+# Rprop under tracing: the stock `g * dx > 0 ? … : …` ternaries branch on traced values.
+function Optimisers.apply!(o::Optimisers.Rprop, state, x::TracedRArray{T}, dx) where {T}
+    ℓ₁, ℓ₂ = map(l -> _to(T, l), o.ell)
+    Γ₁, Γ₂ = map(γ -> _to(T, γ), o.gamma)
+    g, η = state
+
+    η = @. ifelse(g * dx > 0, min(η * ℓ₂, Γ₂), ifelse(g * dx < 0, max(η * ℓ₁, Γ₁), η))
+    g = @. ifelse(g * dx < 0, zero(g), oftype(g, dx))
+    dx′ = @lazy η * sign(g)
+
+    return (g, η), dx′
 end
 
 # RAdam under tracing. Stock `apply!` (rules.jl) takes a host-side
@@ -40,21 +109,12 @@ end
 # whenever `x` is a `TracedRArray`, which is the only situation in
 # which `apply!` runs inside a Reactant trace, so eager / CPU users
 # continue to hit the stock method.
-# `T(::TracedRNumber{T})` is not defined, so the stock `T(o.eta)` /
-# `T.(o.beta)` lines blow up when the rule's scalars were already
-# promoted via `to_rarray(opt; track_numbers=...)`. Treat already-traced
-# scalars as no-ops and only convert host numbers.
-@inline _radam_to(::Type{T}, x::TracedRNumber) where {T} = x
-@inline _radam_to(::Type{T}, x) where {T} = T(x)
-@inline _radam_eps(::Type{T}, x::TracedRNumber) where {T} = x
-@inline _radam_eps(::Type{T}, x) where {T} = Optimisers._eps(T, x)
-
 function Optimisers.apply!(
     o::Optimisers.RAdam, state, x::TracedRArray{T}, dx,
 ) where {T}
-    η = _radam_to(T, o.eta)
-    β = map(b -> _radam_to(T, b), o.beta)
-    ϵ = _radam_eps(T, o.epsilon)
+    η = _to(T, o.eta)
+    β = map(b -> _to(T, b), o.beta)
+    ϵ = _eps(T, o.epsilon)
     ρ∞ = real(2 / (1 - β[2]) - 1)
 
     mt, vt, βt, t = state

@@ -129,6 +129,44 @@ end
     @test all(isfinite, Array(ps3[1]))
 end
 
+_step!(st, ps, gs) = (Optimisers.update!(st, ps, gs); nothing)
+
+# Eager `setup` on a Reactant device followed by a compiled `update!` must follow the
+# eager rule step by step. 8 steps reach RAdam's rectified branch (t ≥ 5).
+@testset "compiled update! matches eager: $(rule)" for rule in (
+        Adam(0.01f0),
+        RAdam(0.01f0),
+        Rprop(),
+        AdaGrad(),
+        AMSGrad(),
+        OptimiserChain(AccumGrad(3), Adam(0.1f0)),
+        OptimiserChain(ClipGrad(1), AccumGrad(2), Adam(0.1f0)),
+        OptimiserChain(AccumGrad(2), AccumGrad(2), Momentum()),
+        OptimiserChain(OptimiserChain(AccumGrad(2), Adam(0.1f0)), WeightDecay()),
+    )
+    rng = Random.MersenneTwister(0)
+    p = randn(rng, Float32, 5)
+    grads = [randn(rng, Float32, 5) for _ in 1:8]
+
+    st, p_cpu = Optimisers.setup(rule, p), copy(p)
+    p_ra = cdev(copy(p))
+    st_ra = Optimisers.setup(rule, p_ra)
+    step_ra! = Reactant.@compile _step!(st_ra, p_ra, cdev(grads[1]))
+    for g in grads
+        Optimisers.update!(st, p_cpu, g)
+        step_ra!(st_ra, p_ra, cdev(g))
+    end
+    @test Array(p_ra) ≈ p_cpu rtol=1e-5
+end
+
+@testset "onevalue keeps a Reactant array on its device" begin
+    x = cdev(randn(Float32, 3, 2))
+    y = Optimisers.onevalue(0.5f0, x)
+    @test y isa typeof(x)
+    @test Reactant.XLA.device(y) == Reactant.XLA.device(x)
+    @test Array(y) == fill(0.5f0, 3, 2)
+end
+
 @testset "setup does not double-wrap already-compatible rules" begin
     ps = cdev((randn(Float32, 3),))
     dev = get_device(ps)
