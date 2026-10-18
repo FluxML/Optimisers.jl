@@ -54,17 +54,22 @@ function Optimisers.init(
 ) where {T}
     betas = _convert_eltype.((T,), opt.opt.beta)
     # The step counter must stay tracked so it flows through a compiled `update!` as a
-    # runtime variable (rather than being frozen as a constant, forcing a recompile per
-    # step). Derive a tracked `1` from an already-tracked scalar (the promoted `beta`)
-    # instead of `with_track_numbers(get_device(opt), Integer)(1)`: `get_device` errors
-    # inside a trace, and it was the only thing stopping `@jit Optimisers.setup(opt, ps)`
-    # working for RAdam. `+ 1` (not `+ one(T)`: under a trace `T === TracedRNumber{…}`)
-    # promotes correctly for both concrete and traced scalars. A tracked `Float` counter
-    # is numerically identical to the stock integer one — RAdam's `apply!` only uses `t`
-    # in float arithmetic (`2t·βt`) and as `t + 1`.
-    t = betas[1] - betas[1] + 1
-    return zero(x), zero(x), betas, t
+    # runtime variable (rather than being frozen as a constant). Derive a tracked `1`
+    # from an already-tracked scalar (the promoted `beta`) instead of
+    # `with_track_numbers(get_device(opt), Integer)(1)`: `get_device` errors inside a
+    # trace, which would break `@jit Optimisers.setup(opt, ps)`. A tracked `Float`
+    # counter is numerically identical to the stock integer one — RAdam's `apply!` only
+    # uses `t` in float arithmetic (`2t·βt`) and as `t + 1`.
+    return zero(x), zero(x), betas, _one_like(betas[1])
 end
+
+# A tracked `1` on the same device as `x`. Arithmetic on a concrete number returns a host
+# number, and `one(x)` would land on the default device.
+_one_like(x::Number) = one(x)
+_one_like(x::Reactant.ConcretePJRTNumber{T}) where {T} = Reactant.ConcretePJRTNumber{T}(
+    one(T); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
+_one_like(x::Reactant.ConcreteIFRTNumber{T}) where {T} = Reactant.ConcreteIFRTNumber{T}(
+    one(T); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
 
 function Optimisers.init(
     opt::ReactantOptimiser{<:Optimisers.OAdam}, x::AbstractArray{T}
