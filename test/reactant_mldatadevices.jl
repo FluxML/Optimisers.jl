@@ -159,6 +159,27 @@ _step!(st, ps, gs) = (Optimisers.update!(st, ps, gs); nothing)
     @test Array(p_ra) ≈ p_cpu rtol=1e-5
 end
 
+# On GPU an eager broadcast over device arrays is compiled, so the rules' broadcast
+# closures are traced and must not branch on element values. 6 steps reach RAdam's
+# rectified branch (t ≥ 5).
+@testset "eager update! on device matches CPU: $(rule)" for rule in (
+        Rprop(),
+        RAdam(0.01f0),
+    )
+    rng = Random.MersenneTwister(0)
+    p = randn(rng, Float32, 5)
+    grads = [randn(rng, Float32, 5) for _ in 1:6]
+
+    st, p_cpu = Optimisers.setup(rule, p), copy(p)
+    p_ra = cdev(copy(p))
+    st_ra = Optimisers.setup(rule, p_ra)
+    for g in grads
+        Optimisers.update!(st, p_cpu, g)
+        Optimisers.update!(st_ra, p_ra, cdev(g))
+    end
+    @test Array(p_ra) ≈ p_cpu rtol=1e-5
+end
+
 @testset "onevalue keeps a Reactant array on its device" begin
     x = cdev(randn(Float32, 3, 2))
     y = Optimisers.onevalue(0.5f0, x)

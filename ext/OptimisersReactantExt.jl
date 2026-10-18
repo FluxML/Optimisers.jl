@@ -1,6 +1,6 @@
 module OptimisersReactantExt
 
-using Optimisers: Optimisers, @.., @lazy
+using Optimisers: Optimisers, @..
 using Reactant: Reactant, TracedRNumber, TracedRArray, ConcretePJRTArray, ConcreteIFRTArray
 
 # Once https://github.com/EnzymeAD/Reactant.jl/pull/835 we can support throwing errors
@@ -83,19 +83,6 @@ _select(c, new::Tuple, old::Tuple) = map((n, o) -> _select(c, n, o), new, old)
 _select(c, new::NamedTuple{K}, old::NamedTuple{K}) where {K} =
     map((n, o) -> _select(c, n, o), new, old)
 _select(c, new, old) = new
-
-# Rprop under tracing: the stock `g * dx > 0 ? … : …` ternaries branch on traced values.
-function Optimisers.apply!(o::Optimisers.Rprop, state, x::TracedRArray{T}, dx) where {T}
-    ℓ₁, ℓ₂ = map(l -> _to(T, l), o.ell)
-    Γ₁, Γ₂ = map(γ -> _to(T, γ), o.gamma)
-    g, η = state
-
-    η = @. ifelse(g * dx > 0, min(η * ℓ₂, Γ₂), ifelse(g * dx < 0, max(η * ℓ₁, Γ₁), η))
-    g = @. ifelse(g * dx < 0, zero(g), oftype(g, dx))
-    dx′ = @lazy η * sign(g)
-
-    return (g, η), dx′
-end
 
 # RAdam under tracing. Stock `apply!` (rules.jl) takes a host-side
 # `if ρ > 4` branch, which fires `TypeError: non-boolean
