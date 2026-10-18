@@ -136,8 +136,11 @@ function apply!(o::RMSProp, state, x::AbstractArray{T}, dx) where T
   @.. quad = ρ * quad + (1 - ρ) * abs2(dx)
   if o.centred
     @.. lin = ρ * lin + (1 - ρ) * dx
+    dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
+  else
+    # `lin` is a `false` placeholder, and Reactant cannot trace `abs2` of a `Bool`.
+    dx′ = @lazy dx * η / (sqrt(quad) + ϵ)
   end
-  dx′ = @lazy dx * η / (sqrt(quad - abs2(lin)) + ϵ)
 
   return (quad, lin), dx′
 end
@@ -180,11 +183,12 @@ function apply!(o::Rprop, state, x::AbstractArray{T}, dx) where T
     ℓ, Γ = T.(o.ell), T.(o.gamma)
     g, η = state
   
+    # Branch-free, so that array types which trace the broadcast (Reactant) work too.
     η = broadcast(g, η, dx) do g, η, dx
-        g * dx > 0 ? min(η * ℓ[2], Γ[2]) : g * dx < 0 ? max(η * ℓ[1], Γ[1]) : η
+        ifelse(g * dx > 0, min(η * ℓ[2], Γ[2]), ifelse(g * dx < 0, max(η * ℓ[1], Γ[1]), η))
     end
     g = broadcast(g, dx) do g, dx
-        g * dx < 0 ? zero(T) : T(dx)
+        ifelse(g * dx < 0, zero(g), oftype(g, dx))
     end
     dx′ = @lazy η * sign(g)
 

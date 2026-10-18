@@ -137,8 +137,11 @@ _step!(st, ps, gs) = (Optimisers.update!(st, ps, gs); nothing)
         Adam(0.01f0),
         RAdam(0.01f0),
         Rprop(),
+        RMSProp(),
         AdaGrad(),
         AMSGrad(),
+        MixedPrecision(Adam(0.01f0)),
+        OptimiserChain(Adam(0.1f0), ClipNorm(1)),
         OptimiserChain(AccumGrad(3), Adam(0.1f0)),
         OptimiserChain(ClipGrad(1), AccumGrad(2), Adam(0.1f0)),
         OptimiserChain(AccumGrad(2), AccumGrad(2), Momentum()),
@@ -157,6 +160,55 @@ _step!(st, ps, gs) = (Optimisers.update!(st, ps, gs); nothing)
         step_ra!(st_ra, p_ra, cdev(g))
     end
     @test Array(p_ra) ≈ p_cpu rtol=1e-5
+end
+
+# On GPU an eager broadcast over device arrays is compiled, so the rules' broadcast
+# closures are traced and must not branch on element values, and scalar indexing is
+# disallowed. 6 steps reach RAdam's rectified branch (t ≥ 5).
+@testset "eager update! on device matches CPU: $(rule)" for rule in (
+        Rprop(),
+        RAdam(0.01f0),
+        RMSProp(),
+        ClipNorm(1),
+        OptimiserChain(Adam(0.1f0), ClipNorm(1)),
+    )
+    rng = Random.MersenneTwister(0)
+    p = randn(rng, Float32, 5)
+    grads = [randn(rng, Float32, 5) for _ in 1:6]
+
+    st, p_cpu = Optimisers.setup(rule, p), copy(p)
+    p_ra = cdev(copy(p))
+    st_ra = Optimisers.setup(rule, p_ra)
+    for g in grads
+        Optimisers.update!(st, p_cpu, g)
+        Optimisers.update!(st_ra, p_ra, cdev(g))
+    end
+    @test Array(p_ra) ≈ p_cpu rtol=1e-5
+end
+
+# The new value must reach the rules inside the container, and stay tracked so that an
+# already-compiled `update!` uses it.
+@testset "adjust! reaches the rules in a wrapped $(nameof(typeof(rule)))" for rule in (
+        OptimiserChain(WeightDecay(0f0), Descent(0.1f0)),
+        OptimiserChain(OptimiserChain(AccumGrad(1), Descent(0.1f0)), WeightDecay(0f0)),
+        MixedPrecision(Descent(0.1f0)),
+    )
+    ps = cdev((; w = Float32[0.1, 0.2, 0.3, 0.4]))
+    gs = cdev((; w = ones(Float32, 4)))
+    st = Optimisers.setup(rule, ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+
+    Optimisers.adjust!(st, 0f0)
+    w = Array(ps.w)
+    Optimisers.update!(st, ps, gs)
+    @test Array(ps.w) == w
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) == w
+
+    st2 = Optimisers.adjust(st; eta = 0.5f0)
+    @test typeof(st2) == typeof(st)
+    step_ra!(st2, ps, gs)
+    @test Array(ps.w) ≈ w .- 0.5f0
 end
 
 @testset "onevalue keeps a Reactant array on its device" begin
