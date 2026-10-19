@@ -21,6 +21,7 @@ Optimisers.NAdam
 Optimisers.AdamW
 Optimisers.AdaBelief
 Optimisers.Lion
+Optimisers.Muon
 ```
 
 In addition to the main course, you may wish to order some of these condiments:
