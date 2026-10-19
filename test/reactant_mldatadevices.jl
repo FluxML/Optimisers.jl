@@ -167,10 +167,11 @@ end
 # disallowed. 6 steps reach RAdam's rectified branch (t ≥ 5).
 @testset "eager update! on device matches CPU: $(rule)" for rule in (
         Rprop(),
-        RAdam(0.01f0),
         RMSProp(),
         ClipNorm(1),
-        OptimiserChain(Adam(0.1f0), ClipNorm(1)),
+        # On Julia 1.10 Reactant cannot materialise the longer lazy updates of `RAdam` and
+        # `Adam` eagerly: `Broadcast.flatten` of them infers no concrete eltype.
+        (VERSION >= v"1.11" ? (RAdam(0.01f0), OptimiserChain(Adam(0.1f0), ClipNorm(1))) : ())...,
     )
     rng = Random.MersenneTwister(0)
     p = randn(rng, Float32, 5)
