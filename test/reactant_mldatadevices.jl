@@ -167,10 +167,11 @@ end
 # disallowed. 6 steps reach RAdam's rectified branch (t ≥ 5).
 @testset "eager update! on device matches CPU: $(rule)" for rule in (
         Rprop(),
-        RAdam(0.01f0),
         RMSProp(),
         ClipNorm(1),
-        OptimiserChain(Adam(0.1f0), ClipNorm(1)),
+        # On Julia 1.10 Reactant cannot materialise the longer lazy updates of `RAdam` and
+        # `Adam` eagerly: `Broadcast.flatten` of them infers no concrete eltype.
+        (VERSION >= v"1.11" ? (RAdam(0.01f0), OptimiserChain(Adam(0.1f0), ClipNorm(1))) : ())...,
     )
     rng = Random.MersenneTwister(0)
     p = randn(rng, Float32, 5)
@@ -209,6 +210,35 @@ end
     @test typeof(st2) == typeof(st)
     step_ra!(st2, ps, gs)
     @test Array(ps.w) ≈ w .- 0.5f0
+end
+
+# `ClipNorm` has no `eta`, and its `omega` stays tracked so that an already-compiled
+# `update!` uses the new value.
+@testset "adjust! on a wrapped ClipNorm: $(rule)" for rule in (
+        ClipNorm(1f0),
+        OptimiserChain(ClipNorm(1f0), Descent(1f0)),
+    )
+    ps = cdev((; w = Float32[0.1, 0.2, 0.3, 0.4]))
+    gs = cdev((; w = fill(10f0, 4)))
+    st = Optimisers.setup(rule, ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+
+    Optimisers.adjust!(st, 1f0)
+    w = Array(ps.w)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ w .- 0.5f0
+
+    Optimisers.adjust!(st; omega = 2f0)
+    w = Array(ps.w)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ w .- 1f0
+end
+
+@testset "adjust! on a wrapped rule holding no tracked number" begin
+    ps = cdev((; w = Float32[0.1, 0.2, 0.3, 0.4]))
+    st = Optimisers.setup(Descent(1), ps)
+    Optimisers.adjust!(st, 2)
+    @test st.w.rule.opt.eta === 2
 end
 
 @testset "onevalue keeps a Reactant array on its device" begin
