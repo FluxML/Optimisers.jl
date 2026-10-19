@@ -85,8 +85,12 @@ end
 # Mirrors `Lux.DistributedOptimizer`'s `_adjust` idiom. Delegating to the inner rule's
 # own `adjust` (not `_adjust`) keeps its checks and aliases, e.g. `RMSProp`'s `centred`.
 function Optimisers._adjust(opt::ReactantOptimiser, nt::NamedTuple)
-    dev = with_track_numbers(get_device(opt), AbstractFloat)
-    return ReactantOptimiser(Optimisers.adjust(opt.opt; dev(nt)...))
+    dev = get_device(opt)
+    # A rule holding no tracked number, e.g. an integer `Descent(1)`, keeps the new values
+    # on the host too.
+    dev isa ReactantDevice || return ReactantOptimiser(Optimisers.adjust(opt.opt; nt...))
+    nt′ = with_track_numbers(dev, AbstractFloat)(nt)
+    return ReactantOptimiser(Optimisers.adjust(opt.opt; nt′...))
 end
 
 # Containers hold individually wrapped rules, and each of those moves the values itself.
@@ -132,10 +136,11 @@ end
 Optimisers.make_reactant_compatible(opt::Optimisers.AccumGrad, dev::ReactantDevice) =
     ReactantOptimiser(with_track_numbers(dev, Integer)(opt))
 
-# `throw` forced to false: raising a host-side error is illegal under tracing.
+# `throw` forced to false: raising a host-side error is illegal under tracing. `p` stays
+# on the host, as `_norm` branches on it.
 Optimisers.make_reactant_compatible(opt::Optimisers.ClipNorm, dev::ReactantDevice) =
     ReactantOptimiser(Optimisers.ClipNorm(
-        with_track_numbers(dev, Integer)(opt.omega), opt.p, false))
+        with_track_numbers(dev, AbstractFloat)(opt.omega), opt.p, false))
 
 # --- automatic wrapping at setup ------------------------------------------
 # `Optimisers.setup(rule, model)` calls this hook. When `model` sits on a Reactant
