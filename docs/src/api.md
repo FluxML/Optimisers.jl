@@ -23,6 +23,21 @@ Optimisers.AdaBelief
 Optimisers.Lion
 ```
 
+## Deprecated Aliases
+
+The following names are retained for compatibility. Use the corresponding CamelCase
+rule names in new code.
+
+```@docs
+Optimisers.ADAM
+Optimisers.NADAM
+Optimisers.ADAMW
+Optimisers.RADAM
+Optimisers.OADAM
+Optimisers.ADAGrad
+Optimisers.ADADelta
+```
+
 In addition to the main course, you may wish to order some of these condiments:
 
 ```@docs
