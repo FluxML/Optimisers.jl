@@ -254,6 +254,37 @@ end
   @test x4 ≈ x3
 end
 
+@testset "Lion matches the paper" begin
+  # https://github.com/FluxML/Optimisers.jl/issues/245
+  # Algorithm 2 of https://arxiv.org/abs/2302.06675, without weight decay
+  function lion_ref(x, grads; η, β)
+    x, m = copy(x), zero(x)
+    for g in grads
+      c = @. β[1] * m + (1 - β[1]) * g
+      @. x -= η * sign(c)
+      @. m = β[2] * m + (1 - β[2]) * g
+    end
+    x, m
+  end
+  x0 = randn(5)
+  # A run of positive gradients, then small negative ones: the momentum should
+  # keep the step going in the original direction for a while.
+  grads = [[fill(1.0, 5) .+ 0.1 .* rand(5) for _ in 1:30]; [fill(-0.05, 5) for _ in 1:10]]
+  for β in [(0.9, 0.99), (0.95, 0.98), (0.9, 0.999)]
+    st = Optimisers.setup(Lion(0.01, β), x0)
+    x = x0
+    for g in grads
+      st, x = Optimisers.update(st, x, g)
+    end
+    xref, mref = lion_ref(x0, grads; η = 0.01, β)
+    @test x ≈ xref
+    @test st.state ≈ mref
+  end
+  st = Optimisers.setup(Lion(0.1, (0.9, 0.99)), [0.0])
+  st, _ = Optimisers.update(st, [0.0], [1.0])
+  @test st.state ≈ [0.01]
+end
+
 @testset "Float16 epsilon" begin
   # issue https://github.com/FluxML/Optimisers.jl/issues/167
   x = Float16[0.579, -0.729, 0.5493]
