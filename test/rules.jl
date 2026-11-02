@@ -264,6 +264,39 @@ end
   @test x ≈ Float16[1.835, -0.886, 0.5493] rtol=1e-3
 end
 
+@testset "AMSGrad starts from zero state" begin
+  # issue https://github.com/FluxML/Optimisers.jl/issues/247
+  function amsgrad_ref(x, grads; η=0.001, β=(0.9, 0.999), ϵ=1e-8)
+    m = zero(x); v = zero(x); v̂ = zero(x); x = copy(x)
+    for g in grads
+      @. m = β[1] * m + (1 - β[1]) * g
+      @. v = β[2] * v + (1 - β[2]) * g^2
+      @. v̂ = max(v̂, v)
+      @. x -= η * m / (sqrt(v̂) + ϵ)
+    end
+    x
+  end
+
+  x0 = [1.0, 1.0]
+  @test Optimisers.setup(AMSGrad(), x0).state == (zeros(2), zeros(2), zeros(2))
+
+  # zero gradient must not move the parameter
+  s, x = Optimisers.setup(AMSGrad(), x0), x0
+  for _ in 1:3
+    s, x = Optimisers.update(s, x, zeros(2))
+  end
+  @test x == x0
+
+  # small and mixed gradients match the reference update
+  for grads in ([fill(1e-6, 2) for _ in 1:3], [randn(2) for _ in 1:5])
+    s, x = Optimisers.setup(AMSGrad(), x0), x0
+    for g in grads
+      s, x = Optimisers.update(s, x, g)
+    end
+    @test x ≈ amsgrad_ref(x0, grads)
+  end
+end
+
 @testset "MixedPrecision" begin
   x = rand(Float16, 2)
   opt_state = Optimisers.setup(MixedPrecision(Adam(1e-3)), x)

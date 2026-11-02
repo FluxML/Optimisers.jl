@@ -452,8 +452,7 @@ optimiser. Parameters don't need tuning.
   epsilon = 1e-8
 end
 
-init(o::AMSGrad, x::AbstractArray) =
-  (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
+init(o::AMSGrad, x::AbstractArray) = (zero(x), zero(x), zero(x))
 
 function apply!(o::AMSGrad, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
