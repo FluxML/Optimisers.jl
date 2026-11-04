@@ -30,6 +30,7 @@ Optimisers.AccumGrad
 Optimisers.ClipGrad
 Optimisers.ClipNorm
 Optimisers.MixedPrecision
+Optimisers.add_mixed_precision
 Optimisers.OptimiserChain
 Optimisers.SignDecay
 Optimisers.WeightDecay
