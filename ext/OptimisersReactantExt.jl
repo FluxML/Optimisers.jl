@@ -116,8 +116,8 @@ end
 
 # The branches assign new states, and the conditional writes each new value into the traced number
 # that held the old one. A number the state shares with the rule, as Adam's `βt` and `beta` after a
-# traced `setup`, would change the rule too, so each state gets numbers of its own. The compiler
-# folds the additions away.
+# traced `setup`, would change the rule too (EnzymeAD/Reactant.jl#3725), so each state gets
+# numbers of its own. The compiler folds the additions away.
 _unalias(x::TracedRNumber) = x + zero(x)
 _unalias(x::TracedRNumber{Bool}) = x | false
 _unalias(x::Union{Tuple,NamedTuple}) = map(_unalias, x)
