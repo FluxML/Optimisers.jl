@@ -929,3 +929,16 @@ end
 
 adjust(o::MixedPrecision{T}, eta::Real) where T = MixedPrecision(T, adjust(o.rule, eta))
 adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; kw...))
+
+# For a rule that starts with `AccumGrad`: whether this step completes the accumulation, and the
+# state after only accumulating the gradient. Other rules give `nothing`. See `_update_or_accumulate!`.
+_accumulation_done(rule, state) = nothing
+_accumulation_done(o::AccumGrad, (_, counter)) = counter == o.n
+_accumulation_done(o::OptimiserChain, states) =
+  isempty(o.opts) ? nothing : _accumulation_done(first(o.opts), first(states))
+_accumulation_done(o::MixedPrecision, (_, state)) = _accumulation_done(o.rule, state)
+
+_accumulate(o::AccumGrad, state, dx) = first(apply!(o, state, nothing, dx))
+_accumulate(o::OptimiserChain, states, dx) =
+  (_accumulate(first(o.opts), first(states), dx), Base.tail(states)...)
+_accumulate(o::MixedPrecision, (xT, state), dx) = (xT, _accumulate(o.rule, state, dx))

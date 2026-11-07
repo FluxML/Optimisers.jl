@@ -82,8 +82,24 @@ function update!(tree, model, grad, higher...)
   _grads!(grads, tree, model, grad, higher...)
   # Second walk is to update the model. The params cache indexed by (tree,x),
   # so that identified Leafs can tie isbits parameters, but setup won't do that for you:
-  newmodel = _update!(tree, model; grads, params = IdDict())
+  newmodel = _update_or_accumulate!(_accumulation_done(grads), tree, model, grads, grad, higher...)
   tree, newmodel  # note that tree is guaranteed to be updated. Also that it's not necc a tree.
+end
+
+# `done` is whether this step completes the accumulation of gradients, when every leaf's rule starts
+# with `AccumGrad`, and `nothing` otherwise. Eagerly `AccumGrad` skips the rest of the rule by itself,
+# which it can't under tracing: the Reactant extension specialises this on a traced `done`.
+_update_or_accumulate!(done, tree, model, grads, grad...) = _update!(tree, model; grads, params = IdDict())
+
+function _accumulation_done(grads::IdDict{<:Leaf})
+  done = nothing
+  for ℓ in keys(grads)
+    ℓ.frozen && continue
+    d = _accumulation_done(ℓ.rule, ℓ.state)
+    d === nothing && return nothing
+    done = done === nothing ? d : done | d
+  end
+  done
 end
 
 function _update!(tree, x; grads, params)
