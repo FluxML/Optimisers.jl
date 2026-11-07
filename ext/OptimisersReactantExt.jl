@@ -98,6 +98,50 @@ _select(c, new::NamedTuple{K}, old::NamedTuple{K}) where {K} =
     map((n, o) -> _select(c, n, o), new, old)
 _select(c, new, old) = new
 
+# Selecting the old state back still runs the whole optimiser on every step. When every leaf's rule
+# starts with `AccumGrad`, a traced conditional instead runs the update only on the steps where some
+# leaf completes its accumulation, and on the others only accumulates. The leaves are arrays, which
+# `_update!` writes in place under tracing, so the model is returned as it is.
+function Optimisers._update_or_accumulate!(done::TracedRNumber{Bool}, tree, model, grads, grad...)
+    for ℓ in keys(grads)
+        ℓ.state = _unalias(ℓ.state)
+    end
+    Reactant.@trace track_numbers=false if done
+        _update_all!(tree, model, grad...)
+    else
+        _accumulate_all!(tree, model, grad...)
+    end
+    return model
+end
+
+# The branches assign new states, and the conditional writes each new value into the traced number
+# that held the old one. A number the state shares with the rule, as Adam's `βt` and `beta` after a
+# traced `setup`, would change the rule too (EnzymeAD/Reactant.jl#3725), so each state gets
+# numbers of its own. The compiler folds the additions away.
+_unalias(x::TracedRNumber) = x + zero(x)
+_unalias(x::TracedRNumber{Bool}) = x | false
+_unalias(x::Union{Tuple,NamedTuple}) = map(_unalias, x)
+_unalias(x) = x
+
+# A traced conditional can't capture the `IdDict` of gradients, so each branch collects its own.
+function _update_all!(tree, model, grad...)
+    Optimisers._update!(tree, model; grads = _leaf_grads(tree, model, grad...), params = IdDict())
+    return nothing
+end
+
+function _accumulate_all!(tree, model, grad...)
+    for (ℓ, dxs) in _leaf_grads(tree, model, grad...)
+        ℓ.frozen || (ℓ.state = Optimisers._accumulate(ℓ.rule, ℓ.state, first(dxs)))
+    end
+    return nothing
+end
+
+function _leaf_grads(tree, model, grad...)
+    grads = IdDict{Optimisers.Leaf, Any}()
+    Optimisers._grads!(grads, tree, model, grad...)
+    return grads
+end
+
 # RAdam under tracing. Stock `apply!` (rules.jl) takes a host-side
 # `if ρ > 4` branch, which fires `TypeError: non-boolean
 # (TracedRNumber{Bool}) used in boolean context` because `ρ` is a

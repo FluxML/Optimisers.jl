@@ -39,6 +39,11 @@ Optimisers.apply!(opt::ReactantOptimiser, state, x, y) =
 
 Optimisers.init(opt::ReactantOptimiser, ps) = Optimisers.init(opt.opt, ps)
 
+Optimisers._accumulation_done(opt::ReactantOptimiser, state) =
+    Optimisers._accumulation_done(opt.opt, state)
+Optimisers._accumulate(opt::ReactantOptimiser, state, dx) =
+    Optimisers._accumulate(opt.opt, state, dx)
+
 # Beta-carrying rules: the stock inits use `T.(o.beta)`, which materialises the
 # tracked betas to host constants; swap in the device-preserving conversion.
 for common_opt in (:Adam, :AdaMax, :NAdam, :AdamW, :AdaBelief)

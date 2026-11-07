@@ -143,6 +143,8 @@ _step!(st, ps, gs) = (Optimisers.update!(st, ps, gs); nothing)
         MixedPrecision(Adam(0.01f0)),
         OptimiserChain(Adam(0.1f0), ClipNorm(1)),
         OptimiserChain(AccumGrad(3), Adam(0.1f0)),
+        OptimiserChain(AccumGrad(2), ClipNorm(1), Adam(0.1f0)),
+        MixedPrecision(OptimiserChain(AccumGrad(3), Adam(0.1f0))),
         OptimiserChain(ClipGrad(1), AccumGrad(2), Adam(0.1f0)),
         OptimiserChain(AccumGrad(2), AccumGrad(2), Momentum()),
         OptimiserChain(OptimiserChain(AccumGrad(2), Adam(0.1f0)), WeightDecay()),
@@ -160,6 +162,48 @@ _step!(st, ps, gs) = (Optimisers.update!(st, ps, gs); nothing)
         step_ra!(st_ra, p_ra, cdev(g))
     end
     @test Array(p_ra) ≈ p_cpu rtol=1e-5
+end
+
+# With `AccumGrad`, the update of the whole tree runs only on the steps where some leaf completes its
+# accumulation. Also when the counters drift apart (a leaf frozen for two steps), or when a leaf's
+# rule doesn't accumulate. A frozen leaf is compiled in, so the step is recompiled on freezing.
+accum_rule() = OptimiserChain(AccumGrad(3), Adam(0.1f0))
+@testset "compiled update! of a tree matches eager: $name" for (name, setup, frozen_for) in (
+        ("accumulating", ps -> Optimisers.setup(accum_rule(), ps), 0),
+        ("a leaf frozen", ps -> Optimisers.setup(accum_rule(), ps), 2),
+        ("mixed rules", ps -> (; a = Optimisers.setup(accum_rule(), ps.a),
+                                 b = Optimisers.setup(Adam(0.1f0), ps.b)), 0),
+    )
+    rng = Random.MersenneTwister(0)
+    ps = (; a = randn(rng, Float32, 5), b = randn(rng, Float32, 3))
+    grads = [map(x -> randn(rng, Float32, size(x)), ps) for _ in 1:9]
+
+    ps_ra = cdev(deepcopy(ps))
+    st, st_ra = setup(ps), setup(ps_ra)
+    frozen_for > 0 && (Optimisers.freeze!(st.b); Optimisers.freeze!(st_ra.b))
+    step_ra! = Reactant.@compile _step!(st_ra, ps_ra, cdev(grads[1]))
+    for (k, g) in enumerate(grads)
+        if frozen_for > 0 && k == frozen_for + 1
+            Optimisers.thaw!(st.b); Optimisers.thaw!(st_ra.b)
+            step_ra! = Reactant.@compile _step!(st_ra, ps_ra, cdev(g))
+        end
+        Optimisers.update!(st, ps, g)
+        step_ra!(st_ra, ps_ra, cdev(g))
+    end
+    @test Array(ps_ra.a) ≈ ps.a rtol=1e-5
+    @test Array(ps_ra.b) ≈ ps.b rtol=1e-5
+end
+
+@testset "compiled update! has a conditional only if all leaves accumulate: $name" for (name, setup, n) in (
+        ("accumulating", ps -> Optimisers.setup(accum_rule(), ps), 1),
+        ("mixed rules", ps -> (; a = Optimisers.setup(accum_rule(), ps.a),
+                                 b = Optimisers.setup(Adam(0.1f0), ps.b)), 0),
+    )
+    ps = cdev((; a = randn(Float32, 5), b = randn(Float32, 3)))
+    gs = cdev((; a = randn(Float32, 5), b = randn(Float32, 3)))
+    st = setup(ps)
+    hlo = string(Reactant.@code_hlo optimize=false _step!(st, ps, gs))
+    @test count("stablehlo.if", hlo) == n
 end
 
 # On GPU an eager broadcast over device arrays is compiled, so the rules' broadcast
