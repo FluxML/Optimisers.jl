@@ -3,7 +3,7 @@ using ChainRulesCore: ChainRulesCore, NoTangent, ProjectTo, unthunk
 const NoT = NoTangent()
 
 """
-    destructure(model) -> vector, reconstructor
+    destructure(model; alias = false) -> vector, reconstructor
 
 Copies all [`trainable`](@ref Optimisers.trainable), [`isnumeric`](@ref Optimisers.isnumeric) parameters in the model
 to a vector, and returns also a function which reverses this transformation.
@@ -26,12 +26,37 @@ but will permit more exotic numbers like `ForwardDiff.Dual`.
 If `model` contains only GPU arrays, then `vector` will also live on the GPU.
 At present, a mixture of GPU and ordinary CPU arrays is undefined behaviour.
 
+With `alias = true`, `re(p)` makes no copies: each parameter array of the new model is
+a reshaped `view` of `p`, so writing into `p` changes this model.
+Its element types follow `p`, as there is no conversion. Tied arrays are views of the same part of `p`.
+Every parameter array must be a `StridedArray`, which excludes for example `SArray` and `Diagonal`.
+
+```jldoctest
+julia> v, re = destructure((x = [1.0, 2.0], y = (sin, [3.0 4.0])); alias = true)
+([1.0, 2.0, 3.0, 4.0], Restructure(NamedTuple, ..., 4; alias = true))
+
+julia> p = Float32[5, 6, 7, 8]; m = re(p)
+(x = Float32[5.0, 6.0], y = (sin, Float32[7.0 8.0]))
+
+julia> p[1] = 0; m.x
+2-element view(::Vector{Float32}, 1:2) with eltype Float32:
+ 0.0
+ 6.0
+```
+
 See also [`destructure!`](@ref), which writes into the model instead of copying it.
 """
-function destructure(x)
+function destructure(x; alias::Bool = false)
   flat, off, len, ntied = _flatten(x)
-  flat, Restructure(x, off, len, ntied)
+  alias || return flat, Restructure(x, off, len, ntied)
+  _check_aliasable(x)
+  flat, Restructure(x, off, len, ntied, Val(:alias))
 end
+
+_check_aliasable(x) = foreach(_check_aliasable_leaf, trainables(x))
+_check_aliasable_leaf(y) = y isa StridedArray ||
+  throw(ArgumentError("destructure(model; alias = true) needs strided parameter arrays, which a view can replace, but got $(typeof(y))"))
+ChainRulesCore.@non_differentiable _check_aliasable(x)
 
 """
     destructure!(model) -> vector, re!
@@ -81,7 +106,7 @@ julia> v
 function destructure!(x)
   flat, off, len, ntied = _flatten(x)
   _check_writable(x)
-  flat, _restructure!(x, off, len, ntied)
+  flat, Restructure(x, off, len, ntied, Val(:inplace))
 end
 
 function destructure!(flat::AbstractVector, x)
@@ -89,7 +114,7 @@ function destructure!(flat::AbstractVector, x)
   len == length(flat) || throw(DimensionMismatch("destructure! expected a vector of length $len, got $(length(flat))"))
   foreach(_check_writable_leaf, leaves)
   _copyleaves!(flat, leaves)
-  flat, _restructure!(x, off, len, ntied)
+  flat, Restructure(x, off, len, ntied, Val(:inplace))
 end
 
 _check_writable(x) = foreach(_check_writable_leaf, trainables(x))
@@ -118,23 +143,24 @@ true
 ```
 
 The one returned by [`destructure!`](@ref) instead writes `p` into the model's arrays,
-and is printed as `Restructure!`.
+and is printed as `Restructure!`. The one from `destructure(model; alias = true)` builds the model
+out of views of `p`.
 """
 struct Restructure{T,S,M}
   model::T
   offsets::S
   length::Int
   ntied::Int
-  inplace::Val{M}  # a field, not only a type parameter, so that Functors' reconstruction keeps it
+  mode::Val{M}  # :copy, :inplace or :alias. A field, not only a type parameter, so that Functors' reconstruction keeps it
 end
-Restructure(model, offsets, length::Int, ntied::Int = 0) = Restructure(model, offsets, length, ntied, Val(false))
-_restructure!(model, offsets, length::Int, ntied::Int) = Restructure(model, offsets, length, ntied, Val(true))
+Restructure(model, offsets, length::Int, ntied::Int = 0) = Restructure(model, offsets, length, ntied, Val(:copy))
 
 (re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length, re.ntied)
-(re::Restructure{<:Any, <:Any, true})(flat::AbstractVector) = _rebuild!(re.model, re.offsets, flat, re.length, re.ntied)
+(re::Restructure{<:Any, <:Any, :inplace})(flat::AbstractVector) = _rebuild!(re.model, re.offsets, flat, re.length, re.ntied)
+(re::Restructure{<:Any, <:Any, :alias})(flat::AbstractVector) = _rebuild_alias(re.model, re.offsets, flat, re.length, re.ntied)
 (re::Restructure)(x, flat::AbstractVector) = re(flat)(x)
-Base.show(io::IO, re::Restructure{T,S,M}) where {T,S,M} =
-  print(io, M ? "Restructure!(" : "Restructure(", T.name.name, ", ..., ", re.length, ")")
+Base.show(io::IO, re::Restructure{T,S,M}) where {T,S,M} = print(io, M === :inplace ? "Restructure!(" : "Restructure(",
+  T.name.name, ", ..., ", re.length, M === :alias ? "; alias = true)" : ")")
 Base.length(re::Restructure) = re.length
 
 # The offsets mirror _trainable(x): an Int at each parameter array, `nothing` at each non-trainable child.
@@ -239,12 +265,26 @@ _children_expr(::Type{<:Tuple}, args) = :(($(args...),))
 _istrainable(::Type{O}, i) where O = fieldtype(O, i) !== Nothing
 
 function _rebuild(x, off, flat::AbstractVector, len::Int = length(flat), ntied::Int = 0)
-  len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
-  ntied == 0 ? _build(x, off, flat, nothing) : _build(x, off, flat, Vector{Any}(nothing, ntied))
+  _checklength(len, flat)
+  _build(x, off, flat, _cache(ntied))
 end
+
+# Wrapping flat makes _build use views instead of copies:
+struct _Alias{V<:AbstractVector}
+  flat::V
+end
+function _rebuild_alias(x, off, flat::AbstractVector, len::Int, ntied::Int)
+  _checklength(len, flat)
+  _build(x, off, _Alias(flat), _cache(ntied))
+end
+
+_checklength(len, flat) = len == length(flat) ||
+  throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
+_cache(ntied) = ntied == 0 ? nothing : Vector{Any}(nothing, ntied)
 
 _getat(y::AbstractArray, o::Integer, flat::AbstractVector) =
   ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+_getat(y::AbstractArray, o::Integer, a::_Alias) = reshape(view(a.flat, o .+ (1:length(y))), axes(y))
 
 _build(x, o::Integer, flat, cache) = _getat(x, o, flat)
 function _build(x, t::Tied, flat, cache)
@@ -261,11 +301,6 @@ function _build(x, off, flat, cache)  # Dict, Array of arrays
   re(mapvalue((c, o) -> o === nothing ? c : _build(c, o, flat, cache), ch, off))
 end
 
-function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat, len, ntied)
-  _rebuild_back(dx) = (NoT, NoT, NoT, _accum!(x, off, dx, _zero(flat)), NoT, NoT)
-  _rebuild(x, off, flat, len, ntied), _rebuild_back
-end
-
 _zero(x) = map!(zero, similar(x, float(eltype(x))), x)  # mutable zero array for _accum!
 ChainRulesCore.@non_differentiable _zero(x)
 
@@ -274,7 +309,7 @@ ChainRulesCore.@non_differentiable _zero(x)
 ###
 
 function _rebuild!(x, off, flat::AbstractVector, len::Int, ntied::Int)
-  len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
+  _checklength(len, flat)
   _write!(x, off, flat, ntied == 0 ? nothing : falses(ntied))
   x
 end
@@ -301,10 +336,10 @@ function _write!(x::AbstractDict, off::AbstractDict, flat, seen)
   end
 end
 
-# The same linear map as _rebuild, so the same pullback:
-function ChainRulesCore.rrule(::typeof(_rebuild!), x, off, flat, len, ntied)
-  _rebuild!_back(dx) = (NoT, NoT, NoT, _accum!(x, off, dx, _zero(flat)), NoT, NoT)
-  _rebuild!(x, off, flat, len, ntied), _rebuild!_back
+# All three rebuilds are the same linear map, so they have the same pullback:
+function ChainRulesCore.rrule(f::Union{typeof(_rebuild), typeof(_rebuild_alias), typeof(_rebuild!)}, x, off, flat, len, ntied)
+  _rebuild_back(dx) = (NoT, NoT, NoT, _accum!(x, off, dx, _zero(flat)), NoT, NoT)
+  f(x, off, flat, len, ntied), _rebuild_back
 end
 
 ###

@@ -320,6 +320,19 @@ end
 This cannot replace `re` in the ForwardDiff example above, as `Dual` numbers do not fit into the model's arrays.
 Conversely, `destructure!(flat, model)` writes the model's parameters into an existing vector `flat`.
 
+To avoid copying altogether, `destructure(model; alias = true)` returns a `re` which builds
+the model out of views of the vector, making `re(v)` almost free.
+As there is no conversion, the model's element types follow `v`, so this also accepts `Dual` numbers.
+And writing into `flat` changes the models built from it:
+
+```julia
+flat, re = destructure(model; alias = true)
+m = re(flat)  # m's arrays are views of flat
+
+∇flat = Zygote.gradient(v -> sum(re(v)(image)), flat)[1]
+Optimisers.update!(st, flat, ∇flat)  # this also updates m
+```
+
 ## Collecting all trainable parameters
 
 Sometimes it is useful to collect all trainable parameters in a model,
