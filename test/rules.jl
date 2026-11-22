@@ -328,11 +328,13 @@ end
     @test_throws DomainError Muon(-0.1)
     @test_throws DomainError Muon(0.02, 1)
     @test_throws TypeError Muon(nesterov = 1)
+    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true)"
   end
 
   @testset "only matrices" begin
     @test_throws ArgumentError Optimisers.setup(Muon(), rand(3))
     @test_throws ArgumentError Optimisers.setup(Muon(), (w = rand(2, 2), k = rand(3, 3, 2, 4)))
+    @test_throws ArgumentError Optimisers.apply!(Muon(), nothing, rand(3), rand(3))
   end
 
   # Five steps of X ← a X + b (X X') X + c (X X')² X act on each singular value of X
