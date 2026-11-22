@@ -249,7 +249,7 @@ init(o::Lion, x::AbstractArray) = zero(x)
 function apply!(o::Lion, state, x::AbstractArray{T}, dx) where T
   η, β = T(o.eta), T.(o.beta)
 
-  @.. state = β[2] * dx + (1-β[2]) * state
+  @.. state = β[2] * state + (1-β[2]) * dx
 
   # The paper writes the update in terms of the old momentum,
   # but easy to solve in terms of the current momentum instead:
