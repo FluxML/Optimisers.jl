@@ -607,6 +607,126 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 end
 
 """
+    Muon(η = 0.02, μ = 0.95, λ = 0; nesterov = true)
+    Muon(; [eta, mu, lambda, nesterov])
+
+[Muon](https://kellerjordan.github.io/posts/muon/) optimiser for matrix parameters,
+following Keller Jordan's [reference implementation](https://github.com/KellerJordan/Muon).
+
+Each step updates the momentum `m = μ * m + (1 - μ) * dx`, then orthogonalises it: `O` has
+the same singular vectors as `m`, but singular values close to one. (With `nesterov = true`,
+the default, this acts on `μ * m + (1 - μ) * dx` instead.) A parameter `x` of size `(r, c)`
+then changes by `x .-= η .* (sqrt(max(1, r / c)) .* O .+ λ .* x)`.
+For Flux's `Dense`, whose weight is `(out, in)` like that of PyTorch's `Linear`,
+this is the same scaling as in the reference.
+
+`O` comes from five steps of a quintic Newton-Schulz iteration, starting from `m / norm(m)`.
+Its coefficients are tuned for speed rather than convergence: singular values of
+`m / norm(m)` above about `0.003` end up between `0.68` and `1.2`, and smaller ones stay smaller.
+This runs in the element type of `x`, while the reference uses `BFloat16`.
+
+# Parameters
+- Learning rate (`η == eta`): Amount by which gradients are discounted before updating
+                       the weights.
+- Momentum (`μ == mu`): Decay of the exponential moving average `m` of the gradient,
+                  with `0 ≤ μ < 1`.
+- Weight decay (`λ == lambda`): Decoupled weight decay, multiplied by the learning rate,
+                  as in the reference and in [`AdamW`](@ref).
+- Keyword `nesterov`: If `true`, orthogonalise `μ * m + (1 - μ) * dx` (with the new `m`)
+                  instead of `m`.
+
+# Which parameters
+
+Muon is meant for the hidden weight matrices of a network. Everything else should use a
+standard rule such as [`AdamW`](@ref): biases and normalisation gains, and also the input
+embedding and the output layer, although these are matrices too. As the shape of a parameter
+does not tell which is which, `setup` throws an error on any array which is not a matrix,
+rather than silently using another rule. This includes convolution kernels: the reference
+flattens PyTorch's `(c_out, c_in, k...)` kernels to `(c_out, :)` matrices, but Flux stores
+them as `(k..., c_in, c_out)`.
+
+To use Muon for some matrices only, set up the whole model with another rule,
+then replace the states of those matrices:
+
+```jldoctest
+julia> using Functors: fmap, fmap_with_path
+
+julia> model = (embed = ones(2, 5), hidden = (weight = ones(2, 2), bias = zeros(2)), head = ones(5, 2));
+
+julia> state = fmap_with_path(Optimisers.setup(AdamW(), model);
+                              exclude = (kp, s) -> s isa Optimisers.Leaf) do kp, s
+         x = getkeypath(model, kp)
+         kp[1] == :hidden && ndims(x) == 2 ? Optimisers.setup(Muon(), x) : s
+       end;
+
+julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.Leaf)
+(embed = :AdamW, hidden = (weight = :Muon, bias = :AdamW), head = :AdamW)
+
+julia> state.hidden.weight
+Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0 0.0; 0.0 0.0])
+```
+"""
+struct Muon{Teta,Tmu,Tlambda} <: AbstractRule
+  eta::Teta
+  mu::Tmu
+  lambda::Tlambda
+  nesterov::Bool
+end
+
+function Muon(η, μ = 0.95, λ = 0.0; nesterov::Bool = true)
+  η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
+  0 <= μ < 1 || throw(DomainError(μ, "the momentum must satisfy 0 ≤ μ < 1"))
+  return Muon(float(η), float(μ), float(λ), nesterov)
+end
+
+Muon(; eta = 0.02, mu = 0.95, lambda = 0.0, kw...) = Muon(eta, mu, lambda; kw...)
+
+init(o::Muon, x::AbstractMatrix) = zero(x)
+init(o::Muon, x::AbstractArray) = _muon_matrix_only(x)
+
+function apply!(o::Muon, mom, x::AbstractMatrix{T}, dx) where T
+  η, μ, λ = T(o.eta), T(o.mu), T(o.lambda)
+
+  @.. mom = μ * mom + (1 - μ) * dx
+  O = _newton_schulz5(o.nesterov ? (@. μ * mom + (1 - μ) * dx) : mom)
+  γ = real(T)(sqrt(max(1, size(x, 1) / size(x, 2))))
+
+  return mom, @lazy η * (γ * O + λ * x)
+end
+apply!(o::Muon, state, x::AbstractArray, dx) = _muon_matrix_only(x)
+
+_muon_matrix_only(x) = throw(ArgumentError("Muon only accepts matrices, not $(summary(x)). " *
+  "Use another rule such as AdamW for this parameter, as explained in the docstring of Muon."))
+
+function Base.show(io::IO, o::Muon)
+  print(io, "Muon(eta=$(o.eta), mu=$(o.mu), lambda=$(o.lambda), nesterov=$(o.nesterov))")
+end
+
+# Keller Jordan's quintic iteration, X ← a X + (b A + c A²) X with A = X X', from X = G / ‖G‖.
+# The Gram matrix is taken on the shorter side, and the buffers are reused across steps.
+function _newton_schulz5(G::AbstractMatrix{T}) where T
+  a, b, c = real(T).((3.4445, -4.7750, 2.0315))
+  X = similar(G)
+  X .= G ./ (sqrt.(_sumabs2(G)) .+ _eps(T, 1e-7))  # reduces with dims to avoid a GPU readback
+  tall = size(X, 1) > size(X, 2)
+  k = min(size(X)...)
+  A, B, Y = similar(X, k, k), similar(X, k, k), similar(X)
+  for _ in 1:5
+    tall ? mul!(A, X', X) : mul!(A, X, X')
+    copyto!(B, A)
+    mul!(B, A, A, c, b)
+    copyto!(Y, X)
+    tall ? mul!(Y, X, B, one(a), a) : mul!(Y, B, X, one(a), a)
+    X, Y = Y, X
+  end
+  return X
+end
+
+_sumabs2(G) = sum(abs2, vec(G); dims = 1)
+_sumabs2(G::AbstractArray{<:Union{Float16, Complex{Float16}}}) =
+  sum(x -> abs2(convert(promote_type(eltype(G), Float32), x)), vec(G); dims = 1)  # avoids overflow and underflow
+
+"""
     WeightDecay(λ = 5e-4)
     WeightDecay(; [lambda])
 

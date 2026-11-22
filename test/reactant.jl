@@ -99,6 +99,26 @@ end
     @test Array(p_ra) ≈ p_cpu rtol=1e-6
 end
 
+@testset "Muon parity with CPU, size $sz" for sz in ((6, 4), (4, 6))
+    rng = Random.MersenneTwister(0)
+    p = randn(rng, sz)
+    grads = [randn(rng, sz) for _ in 1:3]
+    opt = Muon(0.011, 0.9, 0.1)
+
+    st_cpu, p_cpu = Optimisers.setup(opt, p), copy(p)
+    for g in grads
+        st_cpu, p_cpu = Optimisers.update(st_cpu, p_cpu, g)
+    end
+
+    opt_ra = Reactant.to_rarray(opt; track_numbers=AbstractFloat)
+    p_ra = Reactant.to_rarray(copy(p))
+    st_ra = @jit Optimisers.setup(opt_ra, p_ra)
+    for g in grads
+        st_ra, p_ra = @jit Optimisers.update!(st_ra, p_ra, Reactant.to_rarray(g))
+    end
+    @test Array(p_ra) ≈ p_cpu rtol=1e-6
+end
+
 @testset "AccumGrad" begin
     opt = OptimiserChain(AccumGrad(2), Descent(1.0))
     opt_ra = Reactant.to_rarray(opt; track_numbers=Number)

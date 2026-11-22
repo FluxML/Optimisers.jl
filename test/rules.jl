@@ -19,6 +19,9 @@ RULES = [
   RMSProp(centred = true), AdamW(couple=false),
 ]
 
+# Rules which accept only matrices, used where every parameter is a matrix:
+MATRIX_RULES = [Muon(), OptimiserChain(ClipNorm(), Muon(nesterov = false))]
+
 name(o) = typeof(o).name.name  # just for printing testset headings
 name(o::OptimiserChain) = join(name.(o.opts), " → ")
 name(o::RMSProp) = o.centred ? "RMSProp(centred = true)" : :RMSProp
@@ -33,7 +36,7 @@ end
 
 @testset "independence" begin
   empty!(LOG)
-  @testset "$(name(o))" for o in RULES
+  @testset "$(name(o))" for o in [RULES; MATRIX_RULES]
     w = randn(10, 10)
     w′ = randn(10, 10)
     iloss(x, w, w′) = mean((w*x .- w′*x) .^ 2)
@@ -50,7 +53,7 @@ end
 
 @testset "simple sum" begin
   empty!(LOG)
-  @testset "$(name(o))" for o in RULES
+  @testset "$(name(o))" for o in [RULES; MATRIX_RULES]
     m = shuffle!(reshape(1:64, 8, 8) .+ 0.0)
     s = Optimisers.setup(o, m)
     for _ in 1:10^5
@@ -69,7 +72,7 @@ end
 
 @testset "original" begin
   empty!(LOG)
-  @testset "$(name(o))" for o in RULES
+  @testset "$(name(o))" for o in [RULES; MATRIX_RULES]
     w′ = (α = rand(3, 3), β = rand(3, 3))
     w = (α = 5rand(3, 3), β = rand(3, 3))
     st = Optimisers.setup(o, w)
@@ -137,7 +140,7 @@ end
 end
 
 @testset "gradient types" begin
-  @testset "$(name(o))" for o in RULES
+  @testset "$(name(o))" for o in [RULES; MATRIX_RULES]
     x = (a = ones(2,2), b = transpose(ones(2,2)))
     s = Optimisers.setup(o, x)
 
@@ -316,4 +319,75 @@ end
   @test opt2 isa MixedPrecision{Float64, <:Adam}
 
   @test_throws ArgumentError OptimiserChain(MixedPrecision(Adam()))
+end
+
+@testset "Muon" begin
+  @testset "constructors" begin
+    @test Muon(0.1, 0.9, 0.01; nesterov = false) === Muon(eta = 0.1, mu = 0.9, lambda = 0.01, nesterov = false)
+    @test Optimisers.adjust(Muon(nesterov = false), 0.1) === Muon(0.1; nesterov = false)
+    @test_throws DomainError Muon(-0.1)
+    @test_throws DomainError Muon(0.02, 1)
+    @test_throws TypeError Muon(nesterov = 1)
+  end
+
+  @testset "only matrices" begin
+    @test_throws ArgumentError Optimisers.setup(Muon(), rand(3))
+    @test_throws ArgumentError Optimisers.setup(Muon(), (w = rand(2, 2), k = rand(3, 3, 2, 4)))
+  end
+
+  # Five steps of X ← a X + b (X X') X + c (X X')² X act on each singular value of X
+  # as σ ↦ a σ + b σ³ + c σ⁵, here with Keller Jordan's coefficients:
+  p5(σ) = foldl((σ, _) -> 3.4445σ - 4.7750σ^3 + 2.0315σ^5, 1:5; init = σ)
+  orthogonalise(G) = (F = svd(G); F.U * Diagonal(p5.(F.S ./ (norm(G) + 1e-7))) * F.Vt)
+
+  @testset "Newton-Schulz, $T, size $sz" for T in (Float64, ComplexF64), sz in ((6, 4), (4, 6), (5, 5))
+    G = randn(T, sz)
+    @test Optimisers._newton_schulz5(G) ≈ orthogonalise(G)
+  end
+
+  @testset "reference algorithm, nesterov = $nesterov, size $sz" for nesterov in (true, false),
+                                                                    sz in ((6, 4), (4, 6))
+    # Keller Jordan's `muon_update` and `Muon.step`. From zero momentum the first two
+    # orthogonalised inputs are parallel with or without `nesterov`, so take three steps.
+    η, μ, λ = 0.02, 0.9, 0.1
+    x = randn(sz)
+    st = Optimisers.setup(Muon(η, μ, λ; nesterov), x)
+    x_ref, m = copy(x), zero(x)
+    for _ in 1:3
+      g = randn(sz)
+      m = μ * m + (1 - μ) * g
+      u = nesterov ? μ * m + (1 - μ) * g : m
+      x_ref = (1 - η * λ) * x_ref - η * sqrt(max(1, sz[1] / sz[2])) * orthogonalise(u)
+      st, x = Optimisers.update(st, x, g)
+    end
+    @test x ≈ x_ref
+    @test st.state ≈ m
+  end
+
+  @testset "element type $T" for T in (Float16, Float32, Float64, ComplexF32)
+    x = randn(T, 4, 3)
+    st, x′ = Optimisers.update(Optimisers.setup(Muon(), x), x, randn(T, 4, 3))
+    @test x′ isa Matrix{T}
+    @test st.state isa Matrix{T}
+  end
+
+  @testset "type stability, size $sz" for sz in ((8, 4), (4, 8))
+    x = randn(Float32, sz)
+    @inferred Optimisers._newton_schulz5(x)
+    @inferred Optimisers.apply!(Muon(), zero(x), x, x)
+  end
+
+  @testset "StaticArrays" begin
+    # Like the "mutation check" above, but only up to rounding, as BLAS is not used.
+    x = randn(4, 3)
+    xs = SMatrix{4, 3}(x)
+    st, sts = Optimisers.setup(Muon(), x), Optimisers.setup(Muon(), xs)
+    for _ in 1:5
+      g = randn(4, 3)
+      st, x = Optimisers.update!(st, x, g)
+      sts, xs = Optimisers.update!(sts, xs, SMatrix{4, 3}(g))
+    end
+    @test xs isa SMatrix{4, 3, Float64}
+    @test xs ≈ x
+  end
 end

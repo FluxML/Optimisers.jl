@@ -24,6 +24,10 @@ end
 Optimisers._norm(dx::Union{ConcretePJRTArray,ConcreteIFRTArray}, p::Real) =
     Reactant.@jit LinearAlgebra.norm(dx, p)
 
+# BLAS cannot multiply concrete arrays, so compile the whole iteration of `Muon`.
+Optimisers._newton_schulz5(G::Union{ConcretePJRTArray{<:Any,2},ConcreteIFRTArray{<:Any,2}}) =
+    Reactant.@jit Optimisers._newton_schulz5(G)
+
 const ReactantStyle = Union{
     Broadcast.ArrayStyle{ConcretePJRTArray}, Broadcast.ArrayStyle{ConcreteIFRTArray},
     Reactant.TracedRArrayOverrides.AbstractReactantArrayStyle,
