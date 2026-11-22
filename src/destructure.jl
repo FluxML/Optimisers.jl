@@ -19,7 +19,7 @@ julia> re([3, 5, 7+11im])
 ```
 
 If `model` contains various number types, they are promoted to make `vector`,
-and are usually restored by `Restructure`. Such restoration follows the rules 
+and are usually restored by `Restructure`. Such restoration follows the rules
 of `ChainRulesCore.ProjectTo`, and thus will restore floating point precision,
 but will permit more exotic numbers like `ForwardDiff.Dual`.
 
@@ -27,8 +27,8 @@ If `model` contains only GPU arrays, then `vector` will also live on the GPU.
 At present, a mixture of GPU and ordinary CPU arrays is undefined behaviour.
 """
 function destructure(x)
-  flat, off, len = _flatten(x)
-  flat, Restructure(x, off, len)
+  flat, off, len, ntied = _flatten(x)
+  flat, Restructure(x, off, len, ntied)
 end
 
 """
@@ -55,117 +55,221 @@ struct Restructure{T,S}
   model::T
   offsets::S
   length::Int
+  ntied::Int
 end
-(re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length)
+Restructure(model, offsets, length::Int) = Restructure(model, offsets, length, 0)
+(re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length, re.ntied)
 (re::Restructure)(x, flat::AbstractVector) = re(flat)(x)
 Base.show(io::IO, re::Restructure{T}) where T = print(io, "Restructure(", T.name.name, ", ..., ", re.length, ")")
 Base.length(re::Restructure) = re.length
 
-# This flattens a model, and returns a web of offsets for later use:
-function _flatten(x)
-  isnumeric(x) && return vcat(_vec(x)), 0, length(x)  # trivial case
-  arrays = AbstractVector[]
-  len = Ref(0)
-  off = fmap(x; exclude = isnumeric, walk = TrainableStructWalk()) do y
-    push!(arrays, _vec(y))
-    o = len[]
-    len[] = o + length(y)
-    o
-  end
-  isempty(arrays) && return Bool[], off, 0
-  return reduce(vcat, arrays), off, len[]
+# The offsets mirror _trainable(x): an Int at each parameter array, `nothing` at each non-trainable child.
+# An object reached more than once, by the rule of Functors' cache, is wrapped as Tied, numbered k:
+struct Tied{O}
+  k::Int
+  offsets::O
 end
 
+# Used by trainables:
 struct TrainableStructWalk <: AbstractWalk end
 
 (::TrainableStructWalk)(recurse, x) = mapvalue(recurse, _trainable(x))
 
-_vec(x::Number) = LinRange(x,x,1)
-_vec(x::AbstractArray) = vec(x)
+###
+### flatten
+###
+
+function _flatten(x)
+  counts = IdDict{Any,Int}()
+  _count!(counts, x)
+  plan = _Plan(counts, IdDict{Any,Any}(), AbstractArray[], Ref(0), Ref(0))
+  off = _plan!(plan, x)
+  len, ntied = plan.len[], plan.ntied[]
+  isempty(plan.leaves) && return Bool[], off, 0, ntied
+  T = mapreduce(eltype, promote_type, plan.leaves)
+  flat = similar(vec(first(plan.leaves)), T, len)
+  o = 0
+  for y in plan.leaves
+    copyto!(flat, o + 1, vec(y), 1, length(y))
+    o += length(y)
+  end
+  flat, off, len, ntied
+end
+
+_values(x::AbstractDict) = values(x)
+_values(x) = x
+
+function _count!(counts::IdDict{Any,Int}, x)
+  if _usecache(x)
+    n = counts[x] = get(counts, x, 0) + 1
+    n > 1 && return
+  end
+  isnumeric(x) && return
+  for c in _values(_trainable(x))
+    c === nothing || _count!(counts, c)
+  end
+end
+
+struct _Plan
+  counts::IdDict{Any,Int}
+  seen::IdDict{Any,Any}
+  leaves::Vector{AbstractArray}
+  len::Base.RefValue{Int}
+  ntied::Base.RefValue{Int}
+end
+
+function _plan!(p::_Plan, x)
+  if _usecache(x) && p.counts[x] > 1
+    haskey(p.seen, x) && return p.seen[x]
+    k = p.ntied[] += 1
+    return p.seen[x] = Tied(k, _plan_node!(p, x))
+  end
+  _plan_node!(p, x)
+end
+
+function _plan_node!(p::_Plan, x)
+  if isnumeric(x)
+    o = p.len[]
+    push!(p.leaves, x)
+    p.len[] = o + length(x)
+    return o
+  end
+  mapvalue(c -> c === nothing ? nothing : _plan!(p, c), _trainable(x))
+end
 
 function ChainRulesCore.rrule(::typeof(_flatten), x)
-  flat, off, len = _flatten(x)
+  flat, off, len, ntied = _flatten(x)
   _maybewarn()
-  _flatten_back((dflat, _, _)) = (NoT, _rebuild(x, off, unthunk(dflat), len; walk = _Tangent_biwalk(), prune = NoT))
-  (flat, off, len), _flatten_back
+  _flatten_back((dflat, _, _, _)) = (NoT, _tangent(x, off, unthunk(dflat), ntied))
+  (flat, off, len, ntied), _flatten_back
 end
 
-# This reconstructs either a model like x, or a gradient for it:
-function _rebuild(x, off, flat::AbstractVector, len = length(flat); walk = _Trainable_biwalk(), kw...)
+###
+### rebuild
+###
+
+# Nodes whose offsets are a Tuple or NamedTuple are unrolled using the type of the offsets,
+# which is Nothing exactly at non-trainable children. Only x and its offsets pass through the
+# recursion, not a tuple of x's children, which is not part of the parent's type, so Julia's
+# recursion limiter would widen it to Any.
+_children_expr(::Type{<:NamedTuple{K}}, args) where K = :(NamedTuple{$K}(($(args...),)))
+_children_expr(::Type{<:Tuple}, args) = :(($(args...),))
+_istrainable(::Type{O}, i) where O = fieldtype(O, i) !== Nothing
+
+function _rebuild(x, off, flat::AbstractVector, len::Int = length(flat), ntied::Int = 0)
   len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
-  fmap(x, off; exclude = isnumeric, walk, kw...) do y, o
-    _getat(y, o, flat)
-  end
+  ntied == 0 ? _build(x, off, flat, nothing) : _build(x, off, flat, Vector{Any}(nothing, ntied))
 end
 
-_getat(y::Number, o::Int, flat::AbstractVector) = ProjectTo(y)(flat[o + 1])
-_getat(y::AbstractArray, o::Int, flat::AbstractVector) =
+_getat(y::AbstractArray, o::Integer, flat::AbstractVector) =
   ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
 
-struct _Trainable_biwalk <: AbstractWalk end
-
-function (::_Trainable_biwalk)(f, x, aux)
-  ch, re = functor(typeof(x), x)
-  au, _ = functor(typeof(x), aux)
-  _trainmap(f, ch, _trainable(x), au) |> re
+_build(x, o::Integer, flat, cache) = _getat(x, o, flat)
+function _build(x, t::Tied, flat, cache)
+  y = cache[t.k]
+  y === nothing || return y::Base.promote_op(_build, typeof(x), typeof(t.offsets), typeof(flat), typeof(cache))
+  return cache[t.k] = _build(x, t.offsets, flat, cache)
+end
+@generated function _build(x, off::Union{Tuple, NamedTuple}, flat, cache)
+  args = [_istrainable(off, i) ? :(_build(ch[$i], off[$i], flat, cache)) : :(ch[$i]) for i in 1:fieldcount(off)]
+  :((ch, re) = functor(x); re($(_children_expr(off, args))))
+end
+function _build(x, off, flat, cache)  # Dict, Array of arrays
+  ch, re = functor(x)
+  re(mapvalue((c, o) -> o === nothing ? c : _build(c, o, flat, cache), ch, off))
 end
 
-function _trainmap(f, ch, tr, aux)
-  map(ch, tr, aux) do c, t, a  # isnothing(t) indicates non-trainable field, safe given isnumeric(c)
-    isnothing(t) ? c : f(t, a)
-  end
+function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat, len, ntied)
+  _rebuild_back(dx) = (NoT, NoT, NoT, _accum!(x, off, dx, _zero(flat)), NoT, NoT)
+  _rebuild(x, off, flat, len, ntied), _rebuild_back
 end
 
-struct _Tangent_biwalk <: AbstractWalk end
-
-function (::_Tangent_biwalk)(f, x, aux)  # use with prune = NoT
-  ch, re = functor(typeof(x), x)
-  au, _ = functor(typeof(x), aux)
-  y = _trainmap(f, ch, _trainable(x), au)
-  y isa Tuple{} && return NoT
-  p = ProjectTo(x)
-  if p isa ProjectTo  # e.g. Array, NamedTuple
-    p(y)
-  else  # p === identity for unknown structs
-    Tangent{typeof(x), typeof(y)}(y)
-  end
-end
-
-function ChainRulesCore.rrule(::typeof(_rebuild), x, off, flat, len; kw...)
-  _rebuild_back(dx) = (NoT, NoT, NoT, _grad!(x, unthunk(dx), off, _zero(flat)), NoT)
-  _rebuild(x, off, flat, len; kw...), _rebuild_back
-end
-
-_zero(x) = map!(zero, similar(x, float(eltype(x))), x)  # mutable zero array for _grad!
+_zero(x) = map!(zero, similar(x, float(eltype(x))), x)  # mutable zero array for _accum!
 ChainRulesCore.@non_differentiable _zero(x)
 
-# This is the gradient of model reconstruction, accumulating duplicates:
-function _grad!(x, dx, off, flat::AbstractVector)
-  x′, _ = functor(typeof(x), x)
-  dx′, _ = functor(typeof(x), base(dx))
-  off′, _ = functor(typeof(x), off)
-  for (xᵢ, dxᵢ, oᵢ) in zip(x′, dx′, off′)
-    flat = _grad!(xᵢ, dxᵢ, oᵢ, flat)
-  end
-  flat
-end
-function _grad!(x, dx, off::Integer, flat::AbstractVector{T}) where T
-  dx_un = unthunk(dx)
-  T2 = promote_type(T, eltype(dx_un))
+###
+### gradient of rebuild, accumulating at all tied positions
+###
+
+_accum!(x, off, dx, flat) = (dx = unthunk(dx); dx isa Zero ? flat : _accum_node!(x, off, dx, flat))
+
+_accum_node!(x, t::Tied, dx, flat) = _accum!(x, t.offsets, dx, flat)
+function _accum_node!(x, off::Integer, dx, flat::AbstractVector{T}) where T
+  T2 = promote_type(T, eltype(dx))
   if T != T2  # then we must widen the type
     flat = copyto!(similar(flat, T2), flat)
   end
-  @views flat[off .+ (1:length(x))] .+= vec(dx_un)  # must visit all tied nodes
+  @views flat[off .+ (1:length(x))] .+= vec(dx)
   flat
 end
-_grad!(x, dx::Zero, off, flat::AbstractVector) = flat
-_grad!(x, dx::Zero, off::Integer, flat::AbstractVector) = flat  # ambiguity
+# Cotangents are structured like x's fields, hence functor(typeof(x), dx) for their children:
+@generated function _accum_node!(x, off::Union{Tuple, NamedTuple}, dx, flat)
+  steps = [:(flat = _accum!(ch[$i], off[$i], dch[$i], flat)) for i in 1:fieldcount(off) if _istrainable(off, i)]
+  quote
+    ch, _ = functor(x)
+    dch, _ = functor(typeof(x), base(dx))
+    $(steps...)
+    flat
+  end
+end
+function _accum_node!(x, off, dx, flat)  # Array of arrays
+  ch, _ = functor(x)
+  dch, _ = functor(typeof(x), base(dx))
+  for (c, o, d) in zip(ch, off, dch)
+    o === nothing || (flat = _accum!(c, o, d, flat))
+  end
+  flat
+end
+function _accum_node!(x::AbstractDict, off::AbstractDict, dx, flat)
+  dch = base(dx)
+  for (k, c) in pairs(x)
+    off[k] === nothing || (flat = _accum!(c, off[k], get(dch, k, nothing), flat))
+  end
+  flat
+end
 
-# These are only needed for 2nd derivatives:
-function ChainRulesCore.rrule(::typeof(_grad!), x, dx, off, flat)
+###
+### gradient of flatten, a tangent for the model
+###
+
+_tangent(x, off, dflat::AbstractVector, ntied::Int) = _tang(x, off, dflat, falses(ntied))
+_tangent(x, off, ::Zero, ntied::Int) = NoT
+
+# The gradient of flatten goes to the first tied position only. With seen = nothing, to all.
+_firstvisit!(seen::AbstractVector{Bool}, k::Int) = seen[k] ? false : (seen[k] = true)
+_firstvisit!(::Nothing, k::Int) = true
+ChainRulesCore.@non_differentiable _firstvisit!(seen, k)
+
+_tang(x, o::Integer, dflat, seen) = _getat(x, o, dflat)
+_tang(x, t::Tied, dflat, seen) = _firstvisit!(seen, t.k) ? _tang(x, t.offsets, dflat, seen) : NoT
+@generated function _tang(x, off::Union{Tuple, NamedTuple}, dflat, seen)
+  args = [_istrainable(off, i) ? :(_tang(ch[$i], off[$i], dflat, seen)) : :NoT for i in 1:fieldcount(off)]
+  :((ch, re) = functor(x); _structural(x, $(_children_expr(off, args)), re))
+end
+function _tang(x, off, dflat, seen)  # Dict, Array of arrays
+  ch, re = functor(x)
+  _structural(x, mapvalue((c, o) -> o === nothing ? NoT : _tang(c, o, dflat, seen), ch, off), re)
+end
+
+# From the tangents y of x's children: a natural tangent for wrappers like Transpose,
+# else a Tangent with x's fields.
+_structural(x, y, re) = all(d -> d isa AbstractZero, _values(y)) ? NoT : _structural_tangent(x, y, re)
+_structural_tangent(x::AbstractArray, y::AbstractArray, re) = ProjectTo(x)(y)
+_structural_tangent(x::AbstractArray, y, re) = re(y)
+_structural_tangent(x::Union{Tuple, NamedTuple, AbstractDict}, y, re) = Tangent{typeof(x), typeof(y)}(y)
+function _structural_tangent(x, y, re)
+  y isa NamedTuple && keys(y) ⊆ fieldnames(typeof(x)) && return Tangent{typeof(x)}(; y...)
+  throw(ArgumentError("cannot express the gradient of `destructure` for $(typeof(x)), as its `functor` children are not its fields"))
+end
+
+###
+### second derivatives
+###
+
+function ChainRulesCore.rrule(::typeof(_accum!), x, off, dx, flat)
   @warn "second derivatives of Restructure may not work yet, sorry!" maxlog=3
-  _grad_back(dflat) = (NoT, NoT, _rebuild(x, off, unthunk(dflat); walk = _Tangent_biwalk(), prune = NoT), NoT, NoT)
-  _grad!(x, dx, off, flat), _grad_back
+  _accum_back(dflat) = (NoT, NoT, NoT, _tang(x, off, unthunk(dflat), nothing), NoT)
+  _accum!(x, off, dx, flat), _accum_back
 end
 base(dx::Tangent{<:Tangent}) = backing(dx).backing  # might be needed for gradient(gradient(destructure))
 base(dx::Tangent{Any, <:NamedTuple{(:backing,)}}) = base(backing(dx).backing)  # Zygote version
@@ -174,4 +278,3 @@ function ChainRulesCore.rrule(::typeof(_maybewarn))
   @warn "second derivatives of destructure may not work yet, sorry!" maxlog=3
   nothing, _ -> (NoT,)
 end
-
