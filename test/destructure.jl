@@ -1,3 +1,4 @@
+using ForwardDiff
 
 m1 = collect(1:3.0)
 m2 = (collect(1:3.0), collect(4:6.0))
@@ -314,6 +315,7 @@ end
   m3 = (a = rand(2), b = (c = rand(2, 2), d = sin, e = (rand(Float32, 1),)), f = 1)
   v3, re3 = destructure(m3)
   @test @inferred(re3(v3)) isa typeof(m3)
+  @test @inferred(re3(ForwardDiff.Dual.(v3, 1.0))).b.e[1] isa Vector{<:ForwardDiff.Dual{Nothing, Float32}}
 end
 
 @testset "reverse over reverse, gradient penalty" begin
@@ -388,8 +390,9 @@ end
   m9′′ = deepcopy(m9)
   v9, re9! = destructure!(zeros(Float32, 7), m9′′)
   @test v9 isa Vector{Float32} && v9 == 1:7
-  re9!(v9 .+ 1)
+  @test_logs re9!(v9 .+ 1)  # less precise than the model, so no warning
   @test m9′′.c[1] == mat .+ 1
+  @test m9′′.a isa Vector{Float64}
 
   # errors
   @test_throws DimensionMismatch re7!([10, 20])
@@ -398,7 +401,7 @@ end
   @test_throws ArgumentError destructure!((a = SA[1.0, 2.0], b = [3.0]))
   @test_throws ArgumentError destructure!(zeros(3), (a = SA[1.0, 2.0], b = [3.0]))
   @test_throws ArgumentError destructure!((a = Diagonal([1.0, 2.0]),))
-  @test_throws InexactError destructure!([1.0, 2.0])[2]([1, 2im])
+  @test_throws ArgumentError destructure!([1.0, 2.0])[2]([1, 2im])
 end
 
 @testset "gradient of rebuild!" begin
@@ -434,7 +437,13 @@ end
   @test m.x == [0, 5, 6]
   m.z[1] = 10
   @test p[4] == 10
-  @test eltype(re3(Float32.(p)).x) == Float32  # follows p, no conversion
+  # views cannot convert, so p must have the model's element type
+  @test_throws "needs a vector of Float64" re3(Float32.(p))
+  @test_throws "needs a vector of Float64" re3(collect(1:6))
+  @test_throws "no complex parameters" re3(ComplexF64.(p))
+  @test eltype(re3(ForwardDiff.Dual.(p, 1.0)).x) == ForwardDiff.Dual{Nothing, Float64, 1}
+  @test_throws "needs a vector of ForwardDiff.Dual{Nothing, Float64, 1}" re3(ForwardDiff.Dual.(Float32.(p), 1f0))
+  @test_throws "one element type" destructure(m9; alias = true)
   @test re3 isa Optimisers.Restructure{<:Any, <:Any, :alias}
   @test sprint(show, re3) == "Restructure(NamedTuple, ..., 6; alias = true)"
   @test length(re3) == 6
@@ -449,7 +458,8 @@ end
   @test m8a[1].x === m8a[1].y == [10, 11, 12]
   @test m8a[2].b.x == [13]
   @test m8a[3][1] == [14]
-  m9a = destructure(m9; alias = true)[2](collect(10.0:10:70))
+  mat64 = Float64.(mat)
+  m9a = destructure((a = m1, b = mat64, c = [mat64, m1]); alias = true)[2](collect(10.0:10:70))
   @test m9a.a === m9a.c[2] == [10, 20, 30]
   @test m9a.b === m9a.c[1] == [40 60; 50 70]
 
@@ -499,4 +509,76 @@ end
   @test gradient(loss(destructure(t; alias = true)[2]), q)[1] ≈ gradient(loss(destructure(t)[2]), q)[1]
 
   @test gradient(m -> destructure(m; alias = true)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
+end
+
+@testset "element types, issue 95" begin
+  m = (x = Float32[1, 2], y = TwoThirds(Float32[3 4], Float32[5], Float32[6]))  # y.c is not trainable
+  v, re = destructure(m)
+  @test v isa Vector{Float32}
+  @test (@test_logs re(v .+ 1)).x isa Vector{Float32}
+  m64 = @test_logs (:warn, r"precision Float64, for a model whose parameters are Float32") re(Float64.(v))
+  @test m64.x isa Vector{Float32}
+  @test m64.y.a isa Matrix{Float32}
+  @test m64.y.c === m.y.c  # shared with the model
+  @test (@test_logs re(1:4)).y.a isa Matrix{Float32}
+  @test (@test_logs re(Float16.(v))).x isa Vector{Float32}  # no precision is lost
+
+  # Dual numbers take the model's precision, so ForwardDiff and Zygote see the same model
+  d = ForwardDiff.Dual.(Float64.(v), 1.0)
+  @test (@test_logs (:warn, r"precision Float64") re(d)).x isa Vector{ForwardDiff.Dual{Nothing, Float32, 1}}
+  d32 = ForwardDiff.Dual.(v, 1f0)
+  @test eltype((@test_logs re(d32)).x) == eltype(d32)
+  loss(p) = sum(abs2, re(p).x) + sum(re(p).y.a)
+  p = Float64.(v) .+ 0.1
+  gf = @test_logs (:warn,) match_mode=:any ForwardDiff.gradient(loss, p)
+  gz = @test_logs (:warn,) match_mode=:any Zygote.gradient(loss, p)[1]
+  @test gf == gz == [2 .* Float32.(p[1:2]); 1; 1]  # computed in Float32
+  h = @test_logs (:warn,) match_mode=:any ForwardDiff.hessian(q -> sum(abs2, re(q).x), p)  # nested Duals
+  @test h == Diagonal([2, 2, 0, 0])
+
+  # real parameters stay real, complex ones complex
+  @test_throws "no complex parameters" re(ComplexF32.(v))
+  mc = (x = [1.0, 2.0], y = [3.0 + 4.0im])
+  vc, rec = destructure(mc)
+  @test vc isa Vector{ComplexF64}
+  @test rec(2vc) == (x = [2.0, 4.0], y = [6.0 + 8.0im])
+  @test rec([1 + 9im, 2, 3]).x == [1, 2]
+  mc32 = @test_logs rec(ComplexF32.(vc))
+  @test mc32.x isa Vector{Float64} && mc32.y isa Vector{ComplexF64}
+  @test rec([1.0, 2.0, 3.0]).y isa Vector{ComplexF64}
+
+  # structured arrays keep their structure, and precision
+  @testset "$(nameof(typeof(w)))" for w in (Diagonal(Float32[1, 2]), Symmetric(Float32[1 2; 2 3]),
+                                           UpperTriangular(Float32[1 2; 0 3]), SA{Float32}[1, 2])
+    vw, rew = destructure((; w))
+    @test typeof(@test_logs((:warn,), rew(Float64.(vw))).w) == typeof(w)
+    @test rew(vw).w == w
+  end
+
+  # mixed precision is kept, without a warning
+  mm = (a = Float16[1, 2], b = Float32[3])
+  vm, rem = destructure(mm)
+  @test vm isa Vector{Float32}
+  @test (@test_logs rem(vm)).a isa Vector{Float16}
+
+  # Functors' reconstruction finds the model's new precision
+  re64 = fmap(y -> y isa AbstractArray{Float32} ? Float64.(y) : y, re)
+  @test (@test_logs re64(Float64.(v))).x isa Vector{Float64}
+  @test (@test_logs Optimisers.Restructure(re64.model, re.offsets, re.length)(Float64.(v))).x isa Vector{Float64}
+
+  # in place: converts, and warns about lost precision too
+  m′ = deepcopy(m)
+  re! = destructure!(m′)[2]
+  @test (@test_logs (:warn, r"Restructure! got numbers of precision Float64") re!(Float64.(v))).x isa Vector{Float32}
+  @test_throws "no complex parameters" re!(ComplexF32.(v))
+
+  # with alias, the vector must have the model's element type
+  rea = destructure(m; alias = true)[2]
+  @test (@test_logs rea(v)).x isa SubArray{Float32}
+  @test_throws "needs a vector of Float32" rea(Float64.(v))
+  @test_throws "needs a vector of Float32" rea(Float16.(v))
+  @test_throws "no complex parameters" rea(ComplexF32.(v))
+  @test eltype(rea(d32).x) == eltype(d32)
+  @test_throws ArgumentError rea(d)
+  @test_throws "one element type" destructure(mm; alias = true)
 end

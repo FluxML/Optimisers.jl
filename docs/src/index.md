@@ -289,6 +289,21 @@ By default, all numeric arrays visible to [Functors.jl](https://github.com/FluxM
 are assumed to contain trainable parameters.
 Tied parameters (arrays appearing in different layers) are included only once in `flat`.
 
+Each array of the new model `re(v)` has the element type of the corresponding array in `model`.
+Rebuilding the Float32 `model` above from a `Vector{Float64}` gives Float32 parameters,
+and `re(v)` warns once about this, as it loses precision.
+To compute in Float64, convert the model before `destructure`, for instance with Flux's `f64`.
+This also converts the non-trainable arrays, such as the running statistics of `BatchNorm`,
+which are not in `flat`, and which `re` shares with `model`.
+The `Dual` numbers used by ForwardDiff stay `Dual`, but also take the precision of `model`,
+so that ForwardDiff and Zygote differentiate the same model.
+Real parameters stay real, so a complex `v` is an error for a model without complex parameters,
+and structured arrays such as `Diagonal` keep their structure.
+
+The vector `flat` lives on the same device as the parameters of `model`, which must all be on one device.
+When MLDataDevices.jl is loaded, as it is by Flux and Lux, `destructure` checks this.
+The new model `re(v)` lives on the device of `v`.
+
 Lux stores only the trainable parameters in `params`.
 This can also be flattened to a plain `Vector` in the same way:
 
@@ -322,7 +337,8 @@ Conversely, `destructure!(flat, model)` writes the model's parameters into an ex
 
 To avoid copying altogether, `destructure(model; alias = true)` returns a `re` which builds
 the model out of views of the vector, making `re(v)` almost free.
-As there is no conversion, the model's element types follow `v`, so this also accepts `Dual` numbers.
+As a view cannot convert, `v` must have the element type of the model's parameters
+(or be `Dual` numbers of that precision), and `re(v)` throws an error otherwise.
 And writing into `flat` changes the models built from it:
 
 ```julia
