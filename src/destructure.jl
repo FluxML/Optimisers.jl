@@ -25,11 +25,77 @@ but will permit more exotic numbers like `ForwardDiff.Dual`.
 
 If `model` contains only GPU arrays, then `vector` will also live on the GPU.
 At present, a mixture of GPU and ordinary CPU arrays is undefined behaviour.
+
+See also [`destructure!`](@ref), which writes into the model instead of copying it.
 """
 function destructure(x)
   flat, off, len, ntied = _flatten(x)
   flat, Restructure(x, off, len, ntied)
 end
+
+"""
+    destructure!(model) -> vector, re!
+    destructure!(vector, model) -> vector, re!
+
+Like [`destructure`](@ref), but `re!(p)` copies `p` into the parameter arrays of `model` itself,
+and returns `model`, instead of building a new one. Every parameter array must allow this,
+see [`maywrite`](@ref Optimisers.maywrite).
+
+The second method writes the parameters of `model` into the existing `vector`.
+
+As `re!(p)` converts `p` to the element types of these arrays, it cannot accept for example
+`ForwardDiff.Dual` numbers. Use `re(p)` from `destructure` for those.
+
+!!! warning "Gradients"
+    Zygote can differentiate `re!(p)`, but only through the model it returns.
+    Use `m2 = re!(p)` and then `m2(x)`, even though `m2 === model`: a loss computed
+    with the original `model` gets a silently wrong gradient.
+    Call `re!` once per gradient, as a second call overwrites arrays which
+    the first call's pullbacks may still read.
+    With Enzyme, `re!` holds the arrays it writes into, so it must be passed as
+    `Duplicated(re!, Enzyme.make_zero(re!))`: with `Const(re!)` the gradient is silently wrong.
+
+# Example
+```jldoctest
+julia> m = (x = [1.0, 2.0], y = (sin, Float32[3.0 4.0]));
+
+julia> v, re! = destructure!(m)
+([1.0, 2.0, 3.0, 4.0], Restructure!(NamedTuple, ..., 4))
+
+julia> re!([3, 5, 7, 9]) === m
+true
+
+julia> m
+(x = [3.0, 5.0], y = (sin, Float32[7.0 9.0]))
+
+julia> destructure!(v, (x = [0.1, 0.2], y = (cos, [0.3 0.4])));
+
+julia> v
+4-element Vector{Float64}:
+ 0.1
+ 0.2
+ 0.3
+ 0.4
+```
+"""
+function destructure!(x)
+  flat, off, len, ntied = _flatten(x)
+  _check_writable(x)
+  flat, _restructure!(x, off, len, ntied)
+end
+
+function destructure!(flat::AbstractVector, x)
+  off, leaves, len, ntied = _plan(x)
+  len == length(flat) || throw(DimensionMismatch("destructure! expected a vector of length $len, got $(length(flat))"))
+  foreach(_check_writable_leaf, leaves)
+  _copyleaves!(flat, leaves)
+  flat, _restructure!(x, off, len, ntied)
+end
+
+_check_writable(x) = foreach(_check_writable_leaf, trainables(x))
+_check_writable_leaf(y) = maywrite(y) ||
+  throw(ArgumentError("destructure! needs parameter arrays it can write into, but got $(typeof(y)), for which `Optimisers.maywrite` is false"))
+ChainRulesCore.@non_differentiable _check_writable(x)
 
 """
     Restructure(Model, ..., length)
@@ -50,17 +116,25 @@ Dense(2, 2, σ)      # 6 parameters
 julia> m([0.2, 0.3]) ≈ re([0.2, 0.3], -4:1)
 true
 ```
+
+The one returned by [`destructure!`](@ref) instead writes `p` into the model's arrays,
+and is printed as `Restructure!`.
 """
-struct Restructure{T,S}
+struct Restructure{T,S,M}
   model::T
   offsets::S
   length::Int
   ntied::Int
+  inplace::Val{M}  # a field, not only a type parameter, so that Functors' reconstruction keeps it
 end
-Restructure(model, offsets, length::Int) = Restructure(model, offsets, length, 0)
+Restructure(model, offsets, length::Int, ntied::Int = 0) = Restructure(model, offsets, length, ntied, Val(false))
+_restructure!(model, offsets, length::Int, ntied::Int) = Restructure(model, offsets, length, ntied, Val(true))
+
 (re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length, re.ntied)
+(re::Restructure{<:Any, <:Any, true})(flat::AbstractVector) = _rebuild!(re.model, re.offsets, flat, re.length, re.ntied)
 (re::Restructure)(x, flat::AbstractVector) = re(flat)(x)
-Base.show(io::IO, re::Restructure{T}) where T = print(io, "Restructure(", T.name.name, ", ..., ", re.length, ")")
+Base.show(io::IO, re::Restructure{T,S,M}) where {T,S,M} =
+  print(io, M ? "Restructure!(" : "Restructure(", T.name.name, ", ..., ", re.length, ")")
 Base.length(re::Restructure) = re.length
 
 # The offsets mirror _trainable(x): an Int at each parameter array, `nothing` at each non-trainable child.
@@ -80,20 +154,28 @@ struct TrainableStructWalk <: AbstractWalk end
 ###
 
 function _flatten(x)
+  off, leaves, len, ntied = _plan(x)
+  isempty(leaves) && return Bool[], off, 0, ntied
+  T = mapreduce(eltype, promote_type, leaves)
+  flat = _copyleaves!(similar(vec(first(leaves)), T, len), leaves)
+  flat, off, len, ntied
+end
+
+function _plan(x)
   counts = IdDict{Any,Int}()
   _count!(counts, x)
   plan = _Plan(counts, IdDict{Any,Any}(), AbstractArray[], Ref(0), Ref(0))
   off = _plan!(plan, x)
-  len, ntied = plan.len[], plan.ntied[]
-  isempty(plan.leaves) && return Bool[], off, 0, ntied
-  T = mapreduce(eltype, promote_type, plan.leaves)
-  flat = similar(vec(first(plan.leaves)), T, len)
+  off, plan.leaves, plan.len[], plan.ntied[]
+end
+
+function _copyleaves!(flat::AbstractVector, leaves)
   o = 0
-  for y in plan.leaves
+  for y in leaves
     copyto!(flat, o + 1, vec(y), 1, length(y))
     o += length(y)
   end
-  flat, off, len, ntied
+  flat
 end
 
 _values(x::AbstractDict) = values(x)
@@ -186,6 +268,44 @@ end
 
 _zero(x) = map!(zero, similar(x, float(eltype(x))), x)  # mutable zero array for _accum!
 ChainRulesCore.@non_differentiable _zero(x)
+
+###
+### rebuild in place, writing each tied array once
+###
+
+function _rebuild!(x, off, flat::AbstractVector, len::Int, ntied::Int)
+  len == length(flat) || throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
+  _write!(x, off, flat, ntied == 0 ? nothing : falses(ntied))
+  x
+end
+
+_write!(x, o::Integer, flat, seen) = (copyto!(x, 1, flat, o + 1, length(x)); nothing)
+_write!(x, t::Tied, flat, seen) = _firstvisit!(seen, t.k) ? _write!(x, t.offsets, flat, seen) : nothing
+@generated function _write!(x, off::Union{Tuple, NamedTuple}, flat, seen)
+  steps = [:(_write!(ch[$i], off[$i], flat, seen)) for i in 1:fieldcount(off) if _istrainable(off, i)]
+  quote
+    ch, _ = functor(x)
+    $(steps...)
+    nothing
+  end
+end
+function _write!(x, off, flat, seen)  # Array of arrays
+  ch, _ = functor(x)
+  for (c, o) in zip(ch, off)
+    o === nothing || _write!(c, o, flat, seen)
+  end
+end
+function _write!(x::AbstractDict, off::AbstractDict, flat, seen)
+  for (k, c) in pairs(x)
+    off[k] === nothing || _write!(c, off[k], flat, seen)
+  end
+end
+
+# The same linear map as _rebuild, so the same pullback:
+function ChainRulesCore.rrule(::typeof(_rebuild!), x, off, flat, len, ntied)
+  _rebuild!_back(dx) = (NoT, NoT, NoT, _accum!(x, off, dx, _zero(flat)), NoT, NoT)
+  _rebuild!(x, off, flat, len, ntied), _rebuild!_back
+end
 
 ###
 ### gradient of rebuild, accumulating at all tied positions

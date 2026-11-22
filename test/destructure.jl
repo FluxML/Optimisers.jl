@@ -328,3 +328,98 @@ end
   re3 = Optimisers.Restructure(re.model, re.offsets, re.length)
   @test re3([4, 5, 6]) == (x = [4.0, 5.0], y = [6.0])
 end
+
+@testset "destructure!" begin
+  m3′ = deepcopy(m3)
+  v3, re3! = destructure!(m3′)
+  @test v3 == 1:6
+  @test @inferred(re3!(4:9)) === m3′
+  @test m3′ == (x = [4,5,6], y = sin, z = [7,8,9])
+  @test m3 == (x = 1:3, y = sin, z = 4:6)
+  @test re3! isa Optimisers.Restructure{<:Any, <:Any, true}
+  @test sprint(show, re3!) == "Restructure!(NamedTuple, ..., 6)"
+  @test length(re3!) == 6
+  # Functors' reconstruction, used by e.g. Flux's gpu, keeps it in-place:
+  @test fmap(x -> x isa AbstractArray ? 2x : x, re3!) isa Optimisers.Restructure{<:Any, <:Any, true}
+
+  m7′ = deepcopy(m7)
+  v7, re7! = destructure!(m7′)
+  @test v7 == 1:3
+  re7!([10,20,30])
+  @test m7′.a == (sin, [10,20,30])
+  @test m7′.b == (cos, [4,5,6])
+  @test m7′.c == (tan, [7,8,9])
+
+  # tied arrays, and arrays of arrays
+  m8′ = deepcopy(m8)
+  destructure!(m8′)[2](10:14)
+  @test m8′[1].x === m8′[1].y == [10, 11, 12]
+  @test m8′[2].b.x == [13]
+  @test m8′[3][1] == [14]
+  m9′ = deepcopy(m9)
+  destructure!(m9′)[2](10:10:70)
+  @test m9′.a === m9′.c[2] == [10, 20, 30]
+  @test m9′.b === m9′.c[1] == [40 60; 50 70]
+
+  sk = Splat([1.0, 2.0], (x = 3, y = [4.0, 5.0]))  # issue 62
+  destructure!(sk)[2]([10, 20, 30, 40])
+  @test sk.layers == ([10, 20], (x = 3, y = [30, 40]))
+
+  d = Dict(:a => Dict(:b => [1.0], :c => [2.0, 3.0]), :d => [4.0])  # issue 154
+  vd, red! = destructure!(d)
+  @test red!(10vd) === d
+  @test d[:a][:b] == [10] && d[:a][:c] == [20, 30] && d[:d] == [40]
+
+  W = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+  t = (enc = TLayer(W, zeros(3)), dec = TLayer(transpose(W), zeros(2)))
+  destructure!(t)[2](1:11)
+  @test t.enc.w === W == [1 4; 2 5; 3 6]
+  @test t.dec.w.parent === W
+  @test t.dec.b == [10, 11]
+
+  a = [1.0, 2.0]
+  @test destructure!(a)[2]([3, 4]) === a == [3, 4]
+  @test destructure!((sin, cos))[2](Bool[]) == (sin, cos)
+
+  # writing the model into an existing vector
+  v = zeros(6)
+  @test destructure!(v, m3)[1] === v
+  @test v == 1:6
+  m9′′ = deepcopy(m9)
+  v9, re9! = destructure!(zeros(Float32, 7), m9′′)
+  @test v9 isa Vector{Float32} && v9 == 1:7
+  re9!(v9 .+ 1)
+  @test m9′′.c[1] == mat .+ 1
+
+  # errors
+  @test_throws DimensionMismatch re7!([10, 20])
+  @test_throws DimensionMismatch re7!([10, 20, 30, 40])
+  @test_throws DimensionMismatch destructure!(zeros(5), m3)
+  @test_throws ArgumentError destructure!((a = SA[1.0, 2.0], b = [3.0]))
+  @test_throws ArgumentError destructure!(zeros(3), (a = SA[1.0, 2.0], b = [3.0]))
+  @test_throws ArgumentError destructure!((a = Diagonal([1.0, 2.0]),))
+  @test_throws InexactError destructure!([1.0, 2.0])[2]([1, 2im])
+end
+
+@testset "gradient of rebuild!" begin
+  re1! = destructure!(deepcopy(m1))[2]
+  @test gradient(x -> re1!(x)[1], rand(3))[1] == [1,0,0]
+
+  re3! = destructure!(deepcopy(m3))[2]
+  @test gradient(x -> re3!(x).x[3], rand(6))[1] == [0,0,1,0,0,0]
+  @test gradient(x -> re3!(x).z[1], rand(6))[1] == [0,0,0,1,0,0]
+
+  re4! = destructure!(deepcopy(m4))[2]
+  @test gradient(rand(6)) do x
+    m = re4!(x)
+    m.x[1] + 2*m.y[2] + 3*m.z[3]
+  end[1] == [1,2,0, 0,0,3]
+
+  w = (W = [1.0 2.0; 3.0 4.0], b = [0.0, 0.0])
+  p, rew! = destructure!(w)
+  q = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+  loss(m) = sum(abs2, m.W * [1, 1] .+ m.b)
+  @test gradient(q -> loss(rew!(q)), q)[1] == gradient(q -> loss(destructure(w)[2](q)), q)[1]
+
+  @test gradient(m -> destructure!(m)[1][1], deepcopy(m3))[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
+end
