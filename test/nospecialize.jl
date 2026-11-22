@@ -20,10 +20,23 @@ struct NSArray <: AbstractVector{Float64}; parent::Vector{Float64}; end
 Base.size(x::NSArray) = size(x.parent)
 Base.getindex(x::NSArray, i::Int) = x.parent[i]
 Optimisers.isnumeric(::NSArray) = false
+struct NSIntArray <: AbstractVector{Int}; parent::Vector{Int}; end
+Base.size(x::NSIntArray) = size(x.parent)
+Base.getindex(x::NSIntArray, i::Int) = x.parent[i]
+Optimisers.isnumeric(::NSIntArray) = true
 struct NSDictLike; d; end
 Functors.functor(::Type{<:NSDictLike}, x) = x.d, y -> NSDictLike(y)
 struct NSLater; a; b; end
+struct NSLaterFunctor; a; b; end
+struct NSLaterChildren; a; b; end
+struct NSLaterLeaf; a; b; end
+struct NSLaterArray <: AbstractVector{Float64}; parent::Vector{Float64}; end
+Base.size(x::NSLaterArray) = size(x.parent)
+Base.getindex(x::NSLaterArray, i::Int) = x.parent[i]
 struct NSFresh{T}; a::T; b; end
+struct NSFreshArray{T} <: AbstractVector{T}; parent::Vector{T}; end
+Base.size(x::NSFreshArray) = size(x.parent)
+Base.getindex(x::NSFreshArray, i::Int) = x.parent[i]
 
 function nospecialize_agrees(x)
   ps, ref = nospecialize_trainables(x), trainables(x)
@@ -38,6 +51,7 @@ end
 @testset "nospecialize_trainables agrees with trainables" begin
   W, v = [1.0 2.0; 3.0 4.0], [5.0, 6.0]
   lay = NSMutable(W, v)
+  p = NSPlain(1:3.0, v)  # not remembered by the cache, so its range appears twice
   dict = Dict(i => [Float64(i)] for i in 1:40)  # merge in _trainable may reorder it
   objs = Any[
     W, v, 1.0, "s", nothing, sin, Int, (), (;), [1, 2], [1.0 + im], 1:3.0,
@@ -49,7 +63,7 @@ end
     NSPlain(W, v), NSPlain(sin, (W, v)), lay, (lay, lay), NSPlain(lay, NSPlain(lay, v)),
     (NSPlain(W, v), NSPlain(W, v)), NSEmpty(), NSSubset(W, v, [7.0]), NSTrainable(W, v),
     NSOldTuple(W, v), NSChildren(W, v), NSIsLeaf(W), (NSIsLeaf(W), NSIsLeaf(W)), NSLeaf(W),
-    NSArray([1.0]), Foo(W, v), TwoThirds(W, v, [7.0]), MutTwo(W, v),
+    NSArray([1.0]), NSIntArray([1]), (p, p), Foo(W, v), TwoThirds(W, v, [7.0]), MutTwo(W, v),
     (a = (NSPlain(W, v), true), b = [lay, Dict(:k => lay)], c = NSTrainable(lay, W)),
   ]
   disagree = with_logger(NullLogger()) do  # NSOldTuple warns
@@ -65,11 +79,26 @@ end
   @eval Optimisers.trainable(x::NSLater) = (; b = x.b)
   @test keys(Base.invokelatest(nospecialize_trainable, x)) == [:b]
   @test Base.invokelatest(nospecialize_trainables, x) == [[2.0]]
+
+  l = NSLaterLeaf(1:3.0, [1.0])
+  # object, new method, length(trainables(x)) before and after
+  cases = [
+    (NSLaterFunctor([1.0], [2.0]), :(Functors.functor(::Type{<:NSLaterFunctor}, x) = ((; b = x.b), y -> NSLaterFunctor(x.a, y.b))), 2, 1),
+    (NSLaterChildren([1.0], [2.0]), :(Functors.children(x::NSLaterChildren) = (; b = x.b)), 2, 2),
+    ((l, l), :(Functors.isleaf(::NSLaterLeaf) = true), 3, 2),
+    (NSLaterArray([1.0]), :(Optimisers.isnumeric(::NSLaterArray) = false), 1, 0),
+  ]
+  check(x) = (nospecialize_agrees(x), length(trainables(x)))
+  for (x, ex, before, after) in cases
+    @test check(x) == (true, before)
+    @eval $ex
+    @test Base.invokelatest(check, x) == (true, after)
+  end
 end
 
 @testset "nospecialize_trainables compiles nothing for a type with the default methods" begin
-  x = (NSFresh([1.0], NSFresh(:a, [2.0])), [3.0])
-  @test nospecialize_trainables(x) == [[1.0], [2.0], [3.0]]
+  x = (NSFresh([1.0], NSFresh(:a, [2.0])), [3.0], NSFreshArray([4.0]))
+  @test nospecialize_trainables(x) == [[1.0], [2.0], [3.0], [4.0]]
   @test keys(nospecialize_trainable(x[1])) == [:a, :b]
   # `which` may create a MethodInstance, but without compiled code:
   compiled_for_NSFresh(f) = any(methods(f)) do m
