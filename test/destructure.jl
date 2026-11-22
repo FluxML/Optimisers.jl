@@ -336,11 +336,11 @@ end
   @test @inferred(re3!(4:9)) === m3′
   @test m3′ == (x = [4,5,6], y = sin, z = [7,8,9])
   @test m3 == (x = 1:3, y = sin, z = 4:6)
-  @test re3! isa Optimisers.Restructure{<:Any, <:Any, true}
+  @test re3! isa Optimisers.Restructure{<:Any, <:Any, :inplace}
   @test sprint(show, re3!) == "Restructure!(NamedTuple, ..., 6)"
   @test length(re3!) == 6
   # Functors' reconstruction, used by e.g. Flux's gpu, keeps it in-place:
-  @test fmap(x -> x isa AbstractArray ? 2x : x, re3!) isa Optimisers.Restructure{<:Any, <:Any, true}
+  @test fmap(x -> x isa AbstractArray ? 2x : x, re3!) isa Optimisers.Restructure{<:Any, <:Any, :inplace}
 
   m7′ = deepcopy(m7)
   v7, re7! = destructure!(m7′)
@@ -422,4 +422,81 @@ end
   @test gradient(q -> loss(rew!(q)), q)[1] == gradient(q -> loss(destructure(w)[2](q)), q)[1]
 
   @test gradient(m -> destructure!(m)[1][1], deepcopy(m3))[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
+end
+
+@testset "destructure with alias" begin
+  v3, re3 = destructure(m3; alias = true)
+  @test v3 == 1:6
+  p = collect(4.0:9.0)
+  m = @inferred re3(p)
+  @test m == (x = [4,5,6], y = sin, z = [7,8,9])
+  p[1] = 0
+  @test m.x == [0, 5, 6]
+  m.z[1] = 10
+  @test p[4] == 10
+  @test eltype(re3(Float32.(p)).x) == Float32  # follows p, no conversion
+  @test re3 isa Optimisers.Restructure{<:Any, <:Any, :alias}
+  @test sprint(show, re3) == "Restructure(NamedTuple, ..., 6; alias = true)"
+  @test length(re3) == 6
+  @test fmap(x -> x isa AbstractArray ? 2x : x, re3) isa Optimisers.Restructure{<:Any, <:Any, :alias}
+
+  m7a = destructure(m7; alias = true)[2]([10.0, 20, 30])
+  @test m7a.a == (sin, [10, 20, 30])
+  @test m7a.b === m7.b
+
+  # tied arrays are views of the same part of p, also arrays of arrays
+  m8a = destructure(m8; alias = true)[2](collect(10.0:14.0))
+  @test m8a[1].x === m8a[1].y == [10, 11, 12]
+  @test m8a[2].b.x == [13]
+  @test m8a[3][1] == [14]
+  m9a = destructure(m9; alias = true)[2](collect(10.0:10:70))
+  @test m9a.a === m9a.c[2] == [10, 20, 30]
+  @test m9a.b === m9a.c[1] == [40 60; 50 70]
+
+  W = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+  t = (enc = TLayer(W, zeros(3)), dec = TLayer(transpose(W), zeros(2)))
+  q = collect(1.0:11.0)
+  ta = destructure(t; alias = true)[2](q)
+  @test ta.dec.w.parent === ta.enc.w == [1 4; 2 5; 3 6]
+  @test Base.mightalias(ta.enc.w, q)
+
+  d = Dict(:a => Dict(:b => [1.0], :c => [2.0, 3.0]), :d => [4.0])  # issue 154
+  vd, red = destructure(d; alias = true)
+  da = red(vd)
+  vd .*= 10
+  @test da[:a][:b] == [10] && da[:a][:c] == [20, 30] && da[:d] == [40]
+
+  sk = Splat([1.0, 2.0], (x = 3, y = [4.0, 5.0]))  # issue 62
+  @test destructure(sk; alias = true)[2]([10.0, 20, 30, 40]).layers == ([10, 20], (x = 3, y = [30, 40]))
+
+  # a model made of views can be destructured again
+  v3a, re3a = destructure(re3(p); alias = true)
+  @test v3a == p
+  @test re3a(v3) == m3
+
+  @test destructure([1.0, 2.0]; alias = true)[2]([3.0, 4.0]) == [3, 4]
+  @test destructure((sin, cos); alias = true)[2](Bool[]) == (sin, cos)
+
+  @test_throws DimensionMismatch re3(rand(5))
+  @test_throws ArgumentError destructure((a = SA[1.0, 2.0], b = [3.0]); alias = true)
+  @test_throws ArgumentError destructure((a = Diagonal([1.0, 2.0]),); alias = true)
+end
+
+@testset "gradient of rebuild with alias" begin
+  re1 = destructure(m1; alias = true)[2]
+  @test gradient(x -> re1(x)[1], rand(3))[1] == [1,0,0]
+
+  re4 = destructure(m4; alias = true)[2]
+  @test gradient(rand(6)) do x
+    m = re4(x)
+    m.x[1] + 2*m.y[2] + 3*m.z[3]
+  end[1] == [1,2,0, 0,0,3]
+
+  W = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+  t = (enc = TLayer(W, zeros(3)), dec = TLayer(transpose(W), zeros(2)))
+  q = rand(11)
+  loss(re) = q -> (m = re(q); sum(m.dec.w * tanh.(m.enc.w * [1, 2] .+ m.enc.b) .+ m.dec.b))
+  @test gradient(loss(destructure(t; alias = true)[2]), q)[1] ≈ gradient(loss(destructure(t)[2]), q)[1]
+
+  @test gradient(m -> destructure(m; alias = true)[1][1], m3)[1] == (x = [1,0,0], y = nothing, z = [0,0,0])
 end
