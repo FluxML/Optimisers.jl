@@ -187,6 +187,26 @@ end
     @test Array(p_ra) ≈ p_cpu rtol=1e-5
 end
 
+# Muon needs matrices. Eagerly, its Newton-Schulz iteration is compiled on its own.
+@testset "Muon on device matches CPU" begin
+    rule = Muon(0.01f0, 0.9f0, 0.1f0)
+    rng = Random.MersenneTwister(0)
+    p = randn(rng, Float32, 6, 4)
+    grads = [randn(rng, Float32, 6, 4) for _ in 1:3]
+
+    st, p_cpu = Optimisers.setup(rule, p), copy(p)
+    p_ra, p_eager = cdev(copy(p)), cdev(copy(p))
+    st_ra, st_eager = Optimisers.setup(rule, p_ra), Optimisers.setup(rule, p_eager)
+    step_ra! = Reactant.@compile _step!(st_ra, p_ra, cdev(grads[1]))
+    for g in grads
+        Optimisers.update!(st, p_cpu, g)
+        step_ra!(st_ra, p_ra, cdev(g))
+        Optimisers.update!(st_eager, p_eager, cdev(g))
+    end
+    @test Array(p_ra) ≈ p_cpu rtol=1e-5
+    @test Array(p_eager) ≈ p_cpu rtol=1e-5
+end
+
 # The new value must reach the rules inside the container, and stay tracked so that an
 # already-compiled `update!` uses it.
 @testset "adjust! reaches the rules in a wrapped $(nameof(typeof(rule)))" for rule in (

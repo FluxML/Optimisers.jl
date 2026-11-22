@@ -24,6 +24,14 @@ end
 Optimisers._norm(dx::Union{ConcretePJRTArray,ConcreteIFRTArray}, p::Real) =
     Reactant.@jit LinearAlgebra.norm(dx, p)
 
+# BLAS cannot multiply concrete arrays, so compile the whole iteration of `Muon`.
+# While tracing `apply!` with an untyped gradient, inference reaches this method, and on
+# Julia 1.10 optimising the inferred `@jit` crashes (φ node not at the start of a block).
+# `invokelatest` keeps it out of inference.
+Optimisers._newton_schulz5(G::Union{ConcretePJRTArray{<:Any,2},ConcreteIFRTArray{<:Any,2}}) =
+    Base.invokelatest(_compiled_newton_schulz5, G)
+_compiled_newton_schulz5(G) = Reactant.@jit Optimisers._newton_schulz5(G)
+
 const ReactantStyle = Union{
     Broadcast.ArrayStyle{ConcretePJRTArray}, Broadcast.ArrayStyle{ConcreteIFRTArray},
     Reactant.TracedRArrayOverrides.AbstractReactantArrayStyle,
