@@ -18,28 +18,50 @@ julia> re([3, 5, 7+11im])
 (x = [3.0, 5.0], y = (sin, ComplexF64[7.0 + 11.0im]))
 ```
 
-If `model` contains various number types, they are promoted to make `vector`,
-and are usually restored by `Restructure`. Such restoration follows the rules
-of `ChainRulesCore.ProjectTo`, and thus will restore floating point precision,
-but will permit more exotic numbers like `ForwardDiff.Dual`.
+If `model` contains various number types, they are promoted to make `vector`.
 
-If `model` contains only GPU arrays, then `vector` will also live on the GPU.
-At present, a mixture of GPU and ordinary CPU arrays is undefined behaviour.
+# Element types
+
+Each parameter array of the new model `re(p)` has the element type of `model`'s array:
+* A `Vector{Float64}` gives Float32 parameters where `model`'s were Float32.
+  As this loses precision, `re(p)` warns once when `p` is more precise than `model`.
+  To compute in Float64, convert `model` before `destructure`, e.g. with Flux's `f64`.
+* Real parameters stay real, and complex ones complex. A complex `p` is an error
+  when `model` has no complex parameters, otherwise the real ones take its real part.
+* Structured arrays such as `Diagonal` keep their structure.
+* Numbers which carry derivatives pass through, so that `re(p)` works with ForwardDiff and ReverseDiff.
+  But `ForwardDiff.Dual` numbers take the precision of `model`, so that
+  ForwardDiff and Zygote differentiate the same model.
+
+Non-trainable arrays, such as the running statistics of a `BatchNorm` layer,
+are not in `vector`. `re(p)` shares them with `model`, so they keep its element type.
+
+# Devices
+
+The parameter arrays of `re(p)` are slices of `p`, so they live where `p` does:
+if `p` is on a GPU, then so are they.
+All the parameter arrays of `model` must be on one device, and then so is `vector`.
+When MLDataDevices.jl is loaded (as it is by Flux and Lux), `destructure` checks this.
+
+# Aliasing
 
 With `alias = true`, `re(p)` makes no copies: each parameter array of the new model is
 a reshaped `view` of `p`, so writing into `p` changes this model.
-Its element types follow `p`, as there is no conversion. Tied arrays are views of the same part of `p`.
-Every parameter array must be a `StridedArray`, which excludes for example `SArray` and `Diagonal`.
+As a view cannot convert, `p` must have the element type of `model`'s parameters,
+or else be `ForwardDiff.Dual` numbers of their precision, and `re(p)` throws an error otherwise.
+So all parameter arrays must have one element type, and must be `StridedArray`s,
+which excludes for example `SArray` and `Diagonal`.
+Tied arrays are views of the same part of `p`.
 
 ```jldoctest
 julia> v, re = destructure((x = [1.0, 2.0], y = (sin, [3.0 4.0])); alias = true)
 ([1.0, 2.0, 3.0, 4.0], Restructure(NamedTuple, ..., 4; alias = true))
 
-julia> p = Float32[5, 6, 7, 8]; m = re(p)
-(x = Float32[5.0, 6.0], y = (sin, Float32[7.0 8.0]))
+julia> p = [5.0, 6.0, 7.0, 8.0]; m = re(p)
+(x = [5.0, 6.0], y = (sin, [7.0 8.0]))
 
 julia> p[1] = 0; m.x
-2-element view(::Vector{Float32}, 1:2) with eltype Float32:
+2-element view(::Vector{Float64}, 1:2) with eltype Float64:
  0.0
  6.0
 ```
@@ -48,12 +70,18 @@ See also [`destructure!`](@ref), which writes into the model instead of copying 
 """
 function destructure(x; alias::Bool = false)
   flat, off, len, ntied = _flatten(x)
-  alias || return flat, Restructure(x, off, len, ntied)
+  alias || return flat, Restructure(x, off, len, ntied, Val(:copy), Val(eltype(flat)))
   _check_aliasable(x)
-  flat, Restructure(x, off, len, ntied, Val(:alias))
+  flat, Restructure(x, off, len, ntied, Val(:alias), Val(eltype(flat)))
 end
 
-_check_aliasable(x) = foreach(_check_aliasable_leaf, trainables(x))
+function _check_aliasable(x)
+  leaves = trainables(x)
+  foreach(_check_aliasable_leaf, leaves)
+  Ts = unique(map(eltype, leaves))
+  length(Ts) <= 1 ||
+    throw(ArgumentError("destructure(model; alias = true) needs parameter arrays of one element type, as views of one vector have its element type, but got $(join(Ts, ", "))"))
+end
 _check_aliasable_leaf(y) = y isa StridedArray ||
   throw(ArgumentError("destructure(model; alias = true) needs strided parameter arrays, which a view can replace, but got $(typeof(y))"))
 ChainRulesCore.@non_differentiable _check_aliasable(x)
@@ -70,6 +98,8 @@ The second method writes the parameters of `model` into the existing `vector`.
 
 As `re!(p)` converts `p` to the element types of these arrays, it cannot accept for example
 `ForwardDiff.Dual` numbers. Use `re(p)` from `destructure` for those.
+Like `re(p)`, it warns once when `p` is more precise than the model's parameters,
+and a complex `p` is an error when the model has no complex parameters.
 
 !!! warning "Gradients"
     Zygote can differentiate `re!(p)`, but only through the model it returns.
@@ -106,15 +136,16 @@ julia> v
 function destructure!(x)
   flat, off, len, ntied = _flatten(x)
   _check_writable(x)
-  flat, Restructure(x, off, len, ntied, Val(:inplace))
+  flat, Restructure(x, off, len, ntied, Val(:inplace), Val(eltype(flat)))
 end
 
 function destructure!(flat::AbstractVector, x)
   off, leaves, len, ntied = _plan(x)
   len == length(flat) || throw(DimensionMismatch("destructure! expected a vector of length $len, got $(length(flat))"))
+  _check_devices(push!(copy(leaves), flat))
   foreach(_check_writable_leaf, leaves)
   _copyleaves!(flat, leaves)
-  flat, Restructure(x, off, len, ntied, Val(:inplace))
+  flat, Restructure(x, off, len, ntied, Val(:inplace), Val(_promote_eltype(leaves)))
 end
 
 _check_writable(x) = foreach(_check_writable_leaf, trainables(x))
@@ -146,22 +177,51 @@ The one returned by [`destructure!`](@ref) instead writes `p` into the model's a
 and is printed as `Restructure!`. The one from `destructure(model; alias = true)` builds the model
 out of views of `p`.
 """
-struct Restructure{T,S,M}
+struct Restructure{T,S,M,E}
   model::T
   offsets::S
   length::Int
   ntied::Int
-  mode::Val{M}  # :copy, :inplace or :alias. A field, not only a type parameter, so that Functors' reconstruction keeps it
+  mode::Val{M}  # :copy, :inplace or :alias
+  eltype::Val{E}  # of the model's parameters, promoted, as for the vector from destructure
 end
-Restructure(model, offsets, length::Int, ntied::Int = 0) = Restructure(model, offsets, length, ntied, Val(:copy))
+Restructure(model, offsets, length::Int, ntied::Int = 0, mode::Val = Val(:copy)) =
+  Restructure(model, offsets, length, ntied, mode, Val(_promote_eltype(trainables(model))))
 
-(re::Restructure)(flat::AbstractVector) = _rebuild(re.model, re.offsets, flat, re.length, re.ntied)
-(re::Restructure{<:Any, <:Any, :inplace})(flat::AbstractVector) = _rebuild!(re.model, re.offsets, flat, re.length, re.ntied)
-(re::Restructure{<:Any, <:Any, :alias})(flat::AbstractVector) = _rebuild_alias(re.model, re.offsets, flat, re.length, re.ntied)
+# Only the model is a child, and reconstruction finds its new eltype, e.g. after Flux's f64:
+Functors.functor(::Type{<:Restructure}, re) = (; re.model), y -> Restructure(y.model, re.offsets, re.length, re.ntied, re.mode)
+
+(re::Restructure)(flat::AbstractVector) = (_check_eltype(re, flat); _rebuild(re.model, re.offsets, flat, re.length, re.ntied))
+(re::Restructure{<:Any, <:Any, :inplace})(flat::AbstractVector) = (_check_eltype(re, flat); _rebuild!(re.model, re.offsets, flat, re.length, re.ntied))
+(re::Restructure{<:Any, <:Any, :alias})(flat::AbstractVector) = (_check_eltype(re, flat); _rebuild_alias(re.model, re.offsets, flat, re.length, re.ntied))
 (re::Restructure)(x, flat::AbstractVector) = re(flat)(x)
 Base.show(io::IO, re::Restructure{T,S,M}) where {T,S,M} = print(io, M === :inplace ? "Restructure!(" : "Restructure(",
   T.name.name, ", ..., ", re.length, M === :alias ? "; alias = true)" : ")")
 Base.length(re::Restructure) = re.length
+
+function _check_eltype(re::Restructure{<:Any, <:Any, M, E}, ::AbstractVector{P}) where {M, E, P}
+  re.length == 0 && return nothing
+  P <: Complex && !(E <: Complex) &&
+    throw(ArgumentError("Restructure got a vector of $P, but the model has no complex parameters"))
+  if M === :alias
+    _eltype_for(E, P) === P || throw(ArgumentError("Restructure from `destructure(model; alias = true)` needs a vector of $(_eltype_for(E, P)), the element type of the model's parameters, as views cannot convert it, but got $P"))
+  else
+    p, e = _precision(P), _precision(E)
+    p === nothing || e === nothing || promote_type(p, e) === e || _warn_precision(Val(M), e, p)
+  end
+  nothing
+end
+
+# Of plain floats, else nothing. ForwardDiff's extension finds the precision of Dual numbers:
+_precision(::Type{P}) where P = P <: Union{AbstractFloat, Complex{<:AbstractFloat}} ? real(P) : nothing
+
+@noinline _warn_precision(::Val, e, p) = @warn """Restructure got numbers of precision $p, for a model whose parameters are $e.
+  The new model has the element types of the old one, so this loses precision.
+  To compute in $p, convert the model before `destructure` (e.g. with Flux's `f64`), or else convert the vector.""" maxlog=1
+@noinline _warn_precision(::Val{:inplace}, e, p) = @warn """Restructure! got numbers of precision $p, for a model whose parameters are $e.
+  They are converted to the element types of the model's arrays, so this loses precision.""" maxlog=1
+
+ChainRulesCore.@non_differentiable _check_eltype(re, flat)
 
 # The offsets mirror _trainable(x): an Int at each parameter array, `nothing` at each non-trainable child.
 # An object reached more than once, by the rule of Functors' cache, is wrapped as Tied, numbered k:
@@ -182,10 +242,16 @@ struct TrainableStructWalk <: AbstractWalk end
 function _flatten(x)
   off, leaves, len, ntied = _plan(x)
   isempty(leaves) && return Bool[], off, 0, ntied
-  T = mapreduce(eltype, promote_type, leaves)
-  flat = _copyleaves!(similar(vec(first(leaves)), T, len), leaves)
+  _check_devices(leaves)
+  flat = _copyleaves!(similar(vec(first(leaves)), _promote_eltype(leaves), len), leaves)
   flat, off, len, ntied
 end
+
+_promote_eltype(leaves) = isempty(leaves) ? Bool : mapreduce(eltype, promote_type, leaves)
+
+# Checks that all arrays are on one device, when MLDataDevices is loaded:
+_check_devices(arrays) = nothing
+ChainRulesCore.@non_differentiable _check_devices(arrays)
 
 function _plan(x)
   counts = IdDict{Any,Int}()
@@ -282,9 +348,19 @@ _checklength(len, flat) = len == length(flat) ||
   throw(DimensionMismatch("Rebuild expected a vector of length $len, got $(length(flat))"))
 _cache(ntied) = ntied == 0 ? nothing : Vector{Any}(nothing, ntied)
 
+# ProjectTo restores structure such as Diagonal, and the element type, except for SArray and Dual numbers:
 _getat(y::AbstractArray, o::Integer, flat::AbstractVector) =
-  ProjectTo(y)(reshape(flat[o .+ (1:length(y))], axes(y)))  # ProjectTo is just correcting eltypes
+  ProjectTo(y)(_numbers(_eltype_for(eltype(y), eltype(flat)), reshape(flat[o .+ (1:length(y))], axes(y))))
 _getat(y::AbstractArray, o::Integer, a::_Alias) = reshape(view(a.flat, o .+ (1:length(y))), axes(y))
+
+# The element type for a rebuilt array: that of the model's array Y, for plain numbers p::P.
+# Other numbers pass through, except that ForwardDiff's extension gives Dual numbers the precision of Y.
+_eltype_for(::Type{Y}, ::Type{P}) where {Y, P} =
+  P <: Union{AbstractFloat, Integer, Complex{<:AbstractFloat}, Complex{<:Integer}} ? Y : _retype(P, Y)
+_retype(::Type{P}, ::Type) where P = P
+
+_numbers(::Type{T}, z::AbstractArray{T}) where T = z
+_numbers(::Type{T}, z::AbstractArray) where T = broadcast(x -> convert(T, T <: Real ? real(x) : x), z)
 
 _build(x, o::Integer, flat, cache) = _getat(x, o, flat)
 function _build(x, t::Tied, flat, cache)
@@ -395,7 +471,7 @@ _firstvisit!(seen::AbstractVector{Bool}, k::Int) = seen[k] ? false : (seen[k] = 
 _firstvisit!(::Nothing, k::Int) = true
 ChainRulesCore.@non_differentiable _firstvisit!(seen, k)
 
-_tang(x, o::Integer, dflat, seen) = _getat(x, o, dflat)
+_tang(x, o::Integer, dflat, seen) = ProjectTo(x)(reshape(dflat[o .+ (1:length(x))], axes(x)))
 _tang(x, t::Tied, dflat, seen) = _firstvisit!(seen, t.k) ? _tang(x, t.offsets, dflat, seen) : NoT
 @generated function _tang(x, off::Union{Tuple, NamedTuple}, dflat, seen)
   args = [_istrainable(off, i) ? :(_tang(ch[$i], off[$i], dflat, seen)) : :NoT for i in 1:fieldcount(off)]

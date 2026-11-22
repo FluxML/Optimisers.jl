@@ -1,12 +1,15 @@
 module OptimisersEnzymeCoreExt
 
-import Optimisers: trainable, setup, update!, isnumeric, AbstractRule, _setup
-import EnzymeCore: Duplicated, Const
+import Optimisers: trainable, setup, update!, isnumeric, AbstractRule, _setup, _check_eltype, _check_devices
+import EnzymeCore: Duplicated, Const, EnzymeRules
 
 using Functors: fmapstructure
 
 trainable(x::Duplicated) = (; val = x.val)
 trainable(x::Const) = (;)
+
+EnzymeRules.inactive(::typeof(_check_eltype), args...) = nothing
+EnzymeRules.inactive(::typeof(_check_devices), args...) = nothing
 
 """
     setup(rule::AbstractRule, model_grad::Duplicated)

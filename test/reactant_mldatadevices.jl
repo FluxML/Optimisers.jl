@@ -293,3 +293,10 @@ end
     @test st[1].rule === st[2].rule                  # shared, un-wrapped rule
     @test !(get_device(st[1].rule) isa ReactantDevice)
 end
+
+@testset "destructure checks devices, also while tracing" begin
+    m = Reactant.to_rarray((a = [1.0, 2.0], b = [3.0]))
+    @test destructure(m)[1] isa Reactant.ConcretePJRTArray
+    flatsum(m) = sum(destructure(m)[1])
+    @test (@jit flatsum(m)) ≈ 6
+end
