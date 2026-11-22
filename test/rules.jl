@@ -287,14 +287,28 @@ end
   end
   @test x == x0
 
-  # small and mixed gradients match the reference update
-  for grads in ([fill(1e-6, 2) for _ in 1:3], [randn(2) for _ in 1:5])
+  # first step with g = 1 is η(1-β1)/(√(1-β2)+ϵ), with no bias correction
+  s, x = Optimisers.update(Optimisers.setup(AMSGrad(), x0), x0, ones(2))
+  @test x ≈ x0 .- 3.1622766601686935e-3
+
+  # small and decaying gradients match the reference update; in the latter,
+  # v̂ stays above v after the first step, exercising the max
+  grads_small = [fill(1e-6, 2) for _ in 1:3]
+  grads_decay = [[1e-3, 1e-2], [1e-5, -1e-5], [0.0, 0.0], [1e-5, 1e-5]]
+  for grads in (grads_small, grads_decay)
     s, x = Optimisers.setup(AMSGrad(), x0), x0
     for g in grads
       s, x = Optimisers.update(s, x, g)
     end
     @test x ≈ amsgrad_ref(x0, grads)
   end
+  @test all(s.state[3] .> s.state[2])
+
+  # state keeps the parameter eltype
+  s32 = Optimisers.setup(AMSGrad(), Float32[1, 1])
+  s32, x32 = Optimisers.update(s32, Float32[1, 1], Float32[0.5, -0.5])
+  @test eltype(x32) == Float32
+  @test all(t -> eltype(t) == Float32, s32.state)
 end
 
 @testset "MixedPrecision" begin

@@ -438,6 +438,9 @@ end
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
 
+As in Algorithm 2 of the paper, the moment estimates start from zero and
+are not bias-corrected, unlike in [`Adam`](@ref).
+
 # Parameters
 - Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
