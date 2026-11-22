@@ -299,4 +299,16 @@ end
     @test destructure(m)[1] isa Reactant.ConcretePJRTArray
     flatsum(m) = sum(destructure(m)[1])
     @test (@jit flatsum(m)) ≈ 6
+
+    m2 = Reactant.to_rarray((a = [1.0 2.0; 3.0 4.0], b = Float32[5.0]))
+    v2, re2 = destructure(m2)
+    @test Array(v2) == [1, 3, 2, 4, 5]
+    m2′ = re2(v2)
+    @test Array(m2′.a) == [1 2; 3 4]
+    @test m2′.b isa Reactant.ConcretePJRTArray{Float32}
+    rebuildsum(v) = sum(re2(v).b)
+    @test (@jit rebuildsum(v2)) ≈ 5
+    v2, re2! = destructure!(m2)
+    @test re2!([10.0, 20, 30, 40, 50]) === m2
+    @test Array(m2.a) == [10 30; 20 40] && Array(m2.b) == Float32[50]
 end

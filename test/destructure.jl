@@ -89,11 +89,6 @@ end
     @test gradient([1,2,3.0]) do v
       sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (v, [4,5,6.0]))[1][1])
     end[1] ≈ [8,16,24]
-    # With Diffractor, non-leaf _grad!(x, dx, off, flat::AbstractVector) gets double-wrapped dx:
-    # off = (0, 3), dx = Tangent{Tangent{Tuple{Vector{Float64}, Vector{Float64}}, ...
-    # until you add explicit double-unwrap: base(dx::Tangent{<:Tangent}) = backing(dx).backing
-    # With Zygote, instead:
-    # dx = Tangent{Any}(backing = Tangent{Any}([4.0, 8.0, 12.0], ZeroTangent()),)
 
     @test gradient([1,2,3.0]) do v
       sum(gradient(m -> sum(destructure(m)[1])^3, (v, [4,5,6.0]))[1][1])
@@ -102,8 +97,6 @@ end
     @test gradient([1,2,3.0]) do v
       sum(abs2, gradient(m -> sum(abs2, destructure(m)[1]), (x = v, y = sin, z = [4,5,6.0]))[1][1])
     end[1] ≈ [8,16,24]
-    # Zygote error in (::typeof(∂(canonicalize)))(Δ::NamedTuple{(:backing,), Tuple{NamedTuple{(:x, :y, :z)
-    # Diffractor error in perform_optic_transform
   end
 end
 
@@ -137,18 +130,18 @@ end
   @test gradient(x -> sum(abs2, re9(x).c[1]), 1:7)[1] == [0,0,0, 8,10,12,14]
 
   @testset "second derivative" begin
-    @test_broken gradient(collect(1:6.0)) do y
+    @test gradient(collect(1:6.0)) do y
       sum(abs2, gradient(x -> sum(abs2, re2(x)[1]), y)[1])
     end[1] ≈ [8,16,24,0,0,0]
-    # ERROR: Need an adjoint for constructor ChainRulesCore.Tangent{Any, Tuple{Vector{Float64}, ChainRulesCore.ZeroTangent}}. Gradient is of type Tuple{Vector{Float64}, Vector{Float64}}
-    # with Zygote, which can be fixed by:
-    # Zygote.@adjoint Tangent{T,B}(x::Tuple) where {T,B<:Tuple} = Tangent{T,B}(x), dx -> (dx,)
 
-    @test_broken gradient(collect(1:6.0)) do y
+    @test gradient(collect(1:6.0)) do y
       sum(abs2, gradient(x -> sum(abs2, re3(x).z), y)[1])
     end[1] ≈ [0,0,0,32,40,48]
-    # Not fixed by this:
-    # Zygote.@adjoint Tangent{T,B}(x::NamedTuple) where {T,B<:NamedTuple} = Tangent{T,B}(x), dx -> (dx,)
+
+    re3t = destructure((x = m1, y = sin, z = m1))[2]  # tied
+    @test gradient(collect(1:3.0)) do y
+      sum(abs2, gradient(x -> sum(abs2, re3t(x).z), y)[1])
+    end[1] ≈ [8,16,24]
   end
 end
 
@@ -259,8 +252,10 @@ struct TChain{T<:Tuple}; layers::T; end
   @test sk2.layers[1] == [10, 20]
   @test sk2.layers[2] == (x = 3, y = [40, 50])
   @test gradient(p -> sum(abs2, re(p).layers[2].y), v)[1] == [0, 0, 8, 10]
-  # The gradient of destructure w.r.t. sk would need Splat's fields:
+  # The gradient of destructure w.r.t. sk would need Splat's fields, and so would the second derivative of re:
   @test_throws ArgumentError gradient(m -> sum(destructure(m)[1]), sk)
+  dx = (layers = (nothing, (x = nothing, y = [1.0, 1.0])),)  # Zygote's gradient w.r.t. re(v)
+  @test_throws ArgumentError Optimisers._tangent_like(dx, sk, re.offsets, v, nothing)
 end
 
 @testset "non-trainable children get no gradient, issue 72" begin
@@ -279,6 +274,8 @@ end
   @test g == [o == 2 || o == 3 ? 1 : o == 4 ? 3 : 0 for o in v]
   gd = gradient(x -> sum(abs2, destructure(x)[1]), d)[1]
   @test gd[:a][:c] == [4, 6] && gd[:d] == [8]
+  # Zygote's nested AD would drop the second derivative of re, so it is an error:
+  @test_throws ArgumentError Optimisers._tangent_like(Dict(:d => [1.0]), d, re.offsets, v, nothing)
 end
 
 @testset "Transpose and Adjoint" begin

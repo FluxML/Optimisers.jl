@@ -18,6 +18,23 @@ for CA in (:ConcretePJRTArray, :ConcreteIFRTArray)
         x.sharding)
 end
 
+# Copying between a parameter array and its part of the vector of `destructure` scalar-indexes,
+# which is disallowed on GPU. Build that vector on the host and copy it once, and copy whole
+# arrays into the parameters of `destructure!`.
+for CA in (:ConcretePJRTArray, :ConcreteIFRTArray)
+    @eval begin
+        Optimisers._copyleaves!(flat::$CA, leaves) = copyto!(flat,
+            Optimisers._copyleaves!(Vector{eltype(flat)}(undef, length(flat)), map(Array, leaves)))
+        function Optimisers._write!(x::$CA, o::Integer, flat, seen)
+            y = Array(flat[o .+ (1:length(x))])
+            copyto!(x, reshape(convert(Array{eltype(x)}, y), size(x)))
+            nothing
+        end
+    end
+end
+
+Optimisers._convert(::Type{T}, x::TracedRNumber) where {T} = convert(TracedRNumber{T}, x)
+
 # `LinearAlgebra.norm` iterates, and so does the `Broadcasted` reduction reached when the
 # gradient is the lazy output of a previous rule. Materialise the latter, and compute the
 # norm of a concrete array in a compiled function (a traced one has its own `norm`).
