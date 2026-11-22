@@ -540,6 +540,45 @@ end
       end
     end  # tied weights
 
+    @testset "update & adjust leave arrays of arrays alone" begin  # issue 265
+      w = [1.0, 2.0]
+      model = (b = [w],)
+      st = Optimisers.setup(Adam(0.1), model)
+      st2, m2 = Optimisers.update(st, model, (b = [[1.0, 1.0]],))
+      @test w == [1.0, 2.0]
+      @test st.b[1].state[1] == [0.0, 0.0]
+      @test m2.b[1] ≈ [0.9, 1.9]
+      @test st2.b[1].state[1] ≈ [0.1, 0.1]
+
+      layers = [Foo([1.0], [2.0]), Foo([3.0], [4.0])]  # like Flux.Chain([...])
+      st = Optimisers.setup(Descent(0.1), layers)
+      _, l2 = Optimisers.update(st, layers, [(x = [1.0], y = [1.0]), nothing])
+      @test layers[1].x == [1.0]
+      @test l2[1].x ≈ [0.9]
+      @test l2[2].x == layers[2].x == [3.0]
+
+      w = [1.0, 2.0]
+      model = (a = w, b = [w])
+      st = Optimisers.setup(Descent(0.1), model)
+      _, m2 = Optimisers.update(st, model, (a = [1.0, 1.0], b = [[1.0, 1.0]]))
+      @test m2.a ≈ [0.8, 1.8]  # one step with the summed gradient
+      @test m2.a === m2.b[1]
+      @test w == [1.0, 2.0]
+      _, m3 = Optimisers.update(st, model, (a = [1.0, 1.0], b = nothing))
+      @test m3.a ≈ [0.9, 1.9]
+      @test m3.a === m3.b[1]
+
+      st2 = Optimisers.adjust(st, 0.5)
+      @test st2.a.rule.eta == 0.5
+      @test st2.a === st2.b[1]
+      st3 = Optimisers.adjust(st; eta = 0.5)
+      @test st3.b[1].rule.eta == 0.5
+      st4 = Optimisers.adjust(st, Momentum())
+      @test st4.b[1].rule isa Momentum
+      @test st.a.rule.eta == 0.1
+      @test st.b[1].rule.eta == 0.1
+    end
+
     @testset "2nd-order interface" begin
       @testset "BiRule" begin
         m = (α = ([1.0], sin), γ = Float32[4,3,2])
