@@ -359,7 +359,8 @@ _eltype_for(::Type{Y}, ::Type{P}) where {Y, P} =
 _retype(::Type{P}, ::Type) where P = P
 
 _numbers(::Type{T}, z::AbstractArray{T}) where T = z
-_numbers(::Type{T}, z::AbstractArray) where T = broadcast(x -> convert(T, T <: Real ? real(x) : x), z)
+_numbers(::Type{T}, z::AbstractArray) where T = broadcast(x -> _convert(T, T <: Real ? real(x) : x), z)
+_convert(::Type{T}, x) where T = convert(T, x)  # Reactant's extension converts traced numbers
 
 _build(x, o::Integer, flat, cache) = _getat(x, o, flat)
 function _build(x, t::Tied, flat, cache)
@@ -581,4 +582,6 @@ end
 __like(dx::Tuple, x, y::Tuple, re) = Tangent{typeof(dx), typeof(y)}(y)
 __like(dx::AbstractArray, x::AbstractArray, y::AbstractArray, re) = y  # Array of arrays
 __like(dx::AbstractArray, x::AbstractArray, y, re) = re(y)  # natural tangent of a wrapper like Transpose
-__like(dx::AbstractDict, x, y::AbstractDict, re) = y
+# Zygote's nested AD would silently drop this, giving a zero second derivative:
+__like(dx::AbstractDict, x, y, re) =
+  throw(ArgumentError("second derivatives of `Restructure` are not supported for a model containing a Dict"))

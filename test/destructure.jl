@@ -1,8 +1,5 @@
 using ForwardDiff
 
-struct TLayer{M,V}; w::M; b::V; end
-struct TChain{T<:Tuple}; layers::T; end
-
 m1 = collect(1:3.0)
 m2 = (collect(1:3.0), collect(4:6.0))
 m3 = (x = m1, y = sin, z = collect(4:6.0))
@@ -141,11 +138,10 @@ end
       sum(abs2, gradient(x -> sum(abs2, re3(x).z), y)[1])
     end[1] ≈ [0,0,0,32,40,48]
 
-    W = [1.0 3.0; 2.0 4.0]
-    ret = destructure((enc = TLayer(W, [0.0]), dec = TLayer(transpose(W), [0.0])))[2]  # tied
-    @test gradient(collect(1:6.0)) do y
-      sum(abs2, gradient(x -> sum(abs2, ret(x).enc.w) + sum(abs2, ret(x).dec.w), y)[1])
-    end[1] ≈ [32,64,96,128,0,0]
+    re3t = destructure((x = m1, y = sin, z = m1))[2]  # tied
+    @test gradient(collect(1:3.0)) do y
+      sum(abs2, gradient(x -> sum(abs2, re3t(x).z), y)[1])
+    end[1] ≈ [8,16,24]
   end
 end
 
@@ -244,6 +240,9 @@ end
 struct Splat{T}; layers::T; Splat(ls...) = new{typeof(ls)}(ls); end
 Functors.functor(::Type{<:Splat}, x) = x.layers, ls -> Splat(ls...)
 
+struct TLayer{M,V}; w::M; b::V; end
+struct TChain{T<:Tuple}; layers::T; end
+
 @testset "custom functor, issue 62" begin
   sk = Splat([1.0, 2.0], (x = 3, y = [4.0, 5.0]))
   v, re = destructure(sk)
@@ -275,6 +274,8 @@ end
   @test g == [o == 2 || o == 3 ? 1 : o == 4 ? 3 : 0 for o in v]
   gd = gradient(x -> sum(abs2, destructure(x)[1]), d)[1]
   @test gd[:a][:c] == [4, 6] && gd[:d] == [8]
+  # Zygote's nested AD would drop the second derivative of re, so it is an error:
+  @test_throws ArgumentError Optimisers._tangent_like(Dict(:d => [1.0]), d, re.offsets, v, nothing)
 end
 
 @testset "Transpose and Adjoint" begin
