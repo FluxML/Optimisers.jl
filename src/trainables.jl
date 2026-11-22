@@ -1,11 +1,14 @@
 
 """
-    trainables(x, path = false)
+    trainables(x; path = false)
 
 Return an iterable over all the trainable parameters in `x`, that is all the numerical
 arrays (see [`isnumeric`](@ref Optimisers.isnumeric)) which are reachable through [`trainable`](@ref Optimisers.trainable).
 
 Parameters appearing multiple times in the model (tied weights) will be present only once in the output.
+Likewise, the gradient with respect to `x` holds the gradient of such an array at its first position only,
+and `nothing` at the others, as for [`destructure`](@ref). So [`update`](@ref Optimisers.update), which adds up the gradients
+at all positions of a tied array, counts it once.
 
 If `path = false`, the output is a list of numerical arrays.
 
@@ -76,7 +79,7 @@ end
 
 function ∇trainables(x, Δ)
     i = 0
-    return fmapstructure(x; exclude = isnumeric, walk = TrainableStructWalk()) do _
+    return fmapstructure(x; exclude = isnumeric, walk = TrainableStructWalk(), prune = nothing) do _
                 return Δ[i+=1]
            end
 end
@@ -100,7 +103,7 @@ end
 struct TrainableStructWalkWithPath <: AbstractWalk end
 
 function (::TrainableStructWalkWithPath)(recurse, kp::KeyPath, x)
-    x_children = trainable(x)
+    x_children = _trainable(x)  # in the order of functor(x), like TrainableStructWalk
     kps = mapkey(c -> KeyPath(kp, c), x_children)
     return mapvalue(recurse, kps, x_children)
 end
@@ -113,7 +116,7 @@ end
 
 function ∇trainables_with_path(x, Δ)
     i = 0
-    return fmapstructure(x; exclude = isnumeric, walk = TrainableStructWalk()) do _
+    return fmapstructure(x; exclude = isnumeric, walk = TrainableStructWalk(), prune = nothing) do _
                 Δi = Δ[i+=1]
                 if isnothing(Δi)
                     return nothing

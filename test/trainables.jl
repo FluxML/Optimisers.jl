@@ -76,25 +76,44 @@ end
     @test g.z == [8.0, 10.0, 12.0]
 
     g = gradient(loss, m4)[1]
-    @test g == (x = [2.0, 4.0, 6.0], y = [2.0, 4.0, 6.0], z = [8.0, 10.0, 12.0])
-    g.x === g.y # shared gradient for shared weights
+    @test g == (x = [2.0, 4.0, 6.0], y = nothing, z = [8.0, 10.0, 12.0])  # tied, so at the first position only
 
     g = gradient(loss, m5)[1]
-    @test g == (a = ((x = [2.0, 4.0, 6.0], y = nothing, z = [8.0, 10.0, 12.0]), nothing), b = ([2.0, 4.0, 6.0], nothing), c = ((x = [2.0, 4.0, 6.0], y = [2.0, 4.0, 6.0], z = [8.0, 10.0, 12.0]), nothing))
+    @test g == (a = ((x = [2.0, 4.0, 6.0], y = nothing, z = [8.0, 10.0, 12.0]), nothing), b = nothing, c = ((x = nothing, y = nothing, z = [8.0, 10.0, 12.0]), nothing))
     
     g = gradient(loss, m6)[1]
-    @test g == (a = [2.0, 4.0, 6.0], b = ComplexF64[8.0 + 2.0im], c = [2.0, 4.0, 6.0])
+    @test g == (a = [2.0, 4.0, 6.0], b = ComplexF64[8.0 + 2.0im], c = nothing)
     
     g = gradient(loss, m7)[1]
     @test g == (a = (nothing, [2.0, 4.0, 6.0]), b = nothing, c = nothing)
 
     g = gradient(loss, m8)[1]
-    @test g[1] == (x = [2.0, 4.0, 6.0], y = [2.0, 4.0, 6.0])
+    @test g[1] == (x = [2.0, 4.0, 6.0], y = nothing)
     @test g[2] == (a = nothing, b = (x = [8.0], y = nothing), c = nothing)
     @test g[3] == [[10.0]]
 
     g = gradient(loss, m9)[1]
-    @test g == (a = [2.0, 4.0, 6.0], b = Float32[8.0 12.0; 10.0 14.0], c = Array[Float32[8.0 12.0; 10.0 14.0], [2.0, 4.0, 6.0]])
+    @test g == (a = [2.0, 4.0, 6.0], b = Float32[8.0 12.0; 10.0 14.0], c = nothing)
+end
+
+@testset "tied gradient, as for destructure and update" begin
+    loss(m) = sum([sum(abs2, p) for p in trainables(m)])
+    loss_flat(m) = sum(abs2, destructure(m)[1])
+    for m in (m4, m5, m6, m8, m9)
+        @test gradient(loss, m)[1] == gradient(loss_flat, m)[1]
+    end
+
+    w = [1.0, 2.0, 3.0]
+    m = (x = w, y = (w, [4.0]), z = MutTwo([5.0], w))
+    g = gradient(m -> sum(abs2, trainables(m)[1]), m)[1]
+    g_direct = gradient(m -> sum(abs2, m.x), m)[1]
+    st = Optimisers.setup(Descent(0.1), m)
+    m2 = Optimisers.update(st, m, g)[2]
+    @test m2.x ≈ Optimisers.update(st, m, g_direct)[2].x ≈ 0.8 .* w
+    @test m2.x === m2.y[1] === m2.z.y
+
+    g = gradient(m -> sum(abs2, trainables(m; path = true)[1][2]), m)[1]
+    @test Optimisers.update(st, m, g)[2].x ≈ 0.8 .* w
 end
 
 @testset "dict" begin
@@ -136,6 +155,13 @@ end
 
     g = gradient(loss, m4)[1]
     @test g.x == [2.0, 4.0, 6.0]
-    @test g.y == [2.0, 4.0, 6.0]
+    @test g.y === nothing
     @test g.z === nothing
+
+    # trainable(::Foo) reverses the fields, but the order is that of functor, as without path:
+    f = Foo([1.0], [2.0, 3.0])
+    @test trainables(f; path = true) == [(KeyPath(:x,), [1.0]), (KeyPath(:y,), [2.0, 3.0])]
+    @test last.(trainables(f; path = true)) == trainables(f)
+    g = gradient(f -> sum(trainables(f; path = true)[2][2]), f)[1]
+    @test g == (x = nothing, y = [1.0, 1.0])
 end

@@ -146,6 +146,8 @@ apply!(o, state, x, dx, dx2, dxs...) = apply!(o, state, x, dx)
 
 Returns `true` on any parameter to be adjusted by Optimisers.jl,
 namely arrays of non-integer numbers. Returns `false` on all other types.
+So a scalar, even a `Float64`, is not a parameter, while a 0-dimensional array
+such as `fill(1.0)`, or an `SArray`, is.
 
 Requires also that `Functors.isleaf(x) == true`, to focus on e.g. the
 parent of a transposed matrix, not the wrapper.
