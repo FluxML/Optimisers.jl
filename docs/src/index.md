@@ -304,6 +304,22 @@ flat, re = destructure(params)
 end
 ```
 
+To avoid allocating a new model on every call, [`destructure!`](@ref Optimisers.destructure!)
+returns instead `re!`, which copies a vector into the model's own arrays, and returns the same model.
+With Zygote, the loss must use the model it returns:
+
+```julia
+flat, re! = destructure!(model)
+
+∇flat = Zygote.gradient(flat) do v
+  m = re!(v)     # the same object as model, with new parameters
+  sum(m(image))
+end
+```
+
+This cannot replace `re` in the ForwardDiff example above, as `Dual` numbers do not fit into the model's arrays.
+Conversely, `destructure!(flat, model)` writes the model's parameters into an existing vector `flat`.
+
 ## Collecting all trainable parameters
 
 Sometimes it is useful to collect all trainable parameters in a model,
