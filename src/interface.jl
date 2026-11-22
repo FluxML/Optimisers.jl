@@ -152,7 +152,7 @@ parent of a transposed matrix, not the wrapper.
 """
 isnumeric(x::AbstractArray{<:Number}) = isleaf(x)  # isleaf to allow for e.g. transposed shared weights
 isnumeric(x::AbstractArray{<:Integer}) = false
-isnumeric(x) = false
+isnumeric(@nospecialize(x)) = false  # compiled once, for nospecialize_trainables
 
 """
     maywrite(x) -> Bool

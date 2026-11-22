@@ -1,6 +1,6 @@
 module Optimisers
 
-using Functors: functor, fmap, fmap_with_path, 
+using Functors: Functors, functor, fmap, fmap_with_path,
                 KeyPath, haskeypath, getkeypath,
                 isleaf, @functor, fmapstructure, children, AbstractWalk
 using LinearAlgebra
@@ -20,6 +20,8 @@ export destructure
 include("trainables.jl")
 export trainables
 export KeyPath, haskeypath, getkeypath # from Functors.jl
+
+include("nospecialize.jl")
 
 include("rules.jl")
 export Descent, Adam, Momentum, Nesterov, Rprop, RMSProp,
@@ -49,6 +51,7 @@ MLDataDevices.jl are present.
 function make_reactant_compatible end
 
 @compat public apply!, init, setup, update, update!, make_reactant_compatible
+@compat public nospecialize_trainable, nospecialize_trainables
 
 ###
 ### one-array functions

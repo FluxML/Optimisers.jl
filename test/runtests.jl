@@ -635,6 +635,9 @@ end
   @testset verbose=true "Trainables" begin
     include("trainables.jl")
   end
+  @testset verbose=true "nospecialize" begin
+    include("nospecialize.jl")
+  end
   @testset verbose=true "Optimisation Rules" begin
     include("rules.jl")
   end
