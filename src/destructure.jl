@@ -7,7 +7,7 @@ const NoT = NoTangent()
 
 Copies all [`trainable`](@ref Optimisers.trainable), [`isnumeric`](@ref Optimisers.isnumeric) parameters in the model
 to a vector, and returns also a function which reverses this transformation.
-Differentiable.
+Differentiable, also to higher order, such as a Hessian by Zygote over Zygote.
 
 # Example
 ```jldoctest
@@ -313,7 +313,6 @@ end
 
 function ChainRulesCore.rrule(::typeof(_flatten), x)
   flat, off, len, ntied = _flatten(x)
-  _maybewarn()
   _flatten_back((dflat, _, _, _)) = (NoT, _tangent(x, off, unthunk(dflat), ntied))
   (flat, off, len, ntied), _flatten_back
 end
@@ -414,18 +413,74 @@ end
 
 # All three rebuilds are the same linear map, so they have the same pullback:
 function ChainRulesCore.rrule(f::Union{typeof(_rebuild), typeof(_rebuild_alias), typeof(_rebuild!)}, x, off, flat, len, ntied)
-  _rebuild_back(dx) = (NoT, NoT, NoT, _accum!(x, off, dx, _zero(flat)), NoT, NoT)
+  _rebuild_back(dx) = (NoT, NoT, NoT, _gradflat(x, off, dx, flat, nothing), NoT, NoT)
   f(x, off, flat, len, ntied), _rebuild_back
 end
 
 ###
-### gradient of rebuild, accumulating at all tied positions
+### the two pullbacks, each the adjoint of the other
 ###
 
-_accum!(x, off, dx, flat) = (dx = unthunk(dx); dx isa Zero ? flat : _accum_node!(x, off, dx, flat))
+# _gradflat accumulates a tangent dx of x into a new vector like flat, the gradient of rebuild.
+# _tangent slices a vector dflat into a tangent of x, the gradient of flatten.
+# With ties = nothing, they use every position of a tied array; with ties = ntied, the first only.
+# Each one's rrule calls the other, so that nested AD never differentiates their internals.
+_gradflat(x, off, dx, flat::AbstractVector, ties) = _accum!(x, off, dx, _zero(flat), _seen(ties))
+_gradflat(x, off, dx, ::Zero, ties) = NoT
 
-_accum_node!(x, t::Tied, dx, flat) = _accum!(x, t.offsets, dx, flat)
-function _accum_node!(x, off::Integer, dx, flat::AbstractVector{T}) where T
+_tangent(x, off, dflat::AbstractVector, ties) = _tang(x, off, dflat, _seen(ties))
+_tangent(x, off, ::Zero, ties) = NoT
+
+# As _tangent, but in the form of dx, as the cotangent of _gradflat's argument dx:
+_tangent_like(dx, x, off, dflat::AbstractVector, ties) = _cot(dx, x, off, dflat, _seen(ties))
+_tangent_like(dx, x, off, ::Zero, ties) = NoT
+
+function ChainRulesCore.rrule(::typeof(_gradflat), x, off, dx, flat, ties)
+  _gradflat_back(dflat) = (NoT, NoT, NoT, _tangent_like(dx, x, off, unthunk(dflat), ties), NoT, NoT)
+  _gradflat(x, off, dx, flat, ties), _gradflat_back
+end
+function ChainRulesCore.rrule(::typeof(_tangent), x, off, dflat, ties)
+  _tangent_back(dt) = (NoT, NoT, NoT, _gradflat(x, off, dt, dflat, ties), NoT)
+  _tangent(x, off, dflat, ties), _tangent_back
+end
+function ChainRulesCore.rrule(::typeof(_tangent_like), dx, x, off, dflat, ties)
+  _tangent_like_back(dt) = (NoT, NoT, NoT, NoT, _gradflat(x, off, dt, dflat, ties), NoT)
+  _tangent_like(dx, x, off, dflat, ties), _tangent_like_back
+end
+
+_seen(::Nothing) = nothing
+_seen(ntied::Int) = falses(ntied)
+
+_firstvisit!(seen::AbstractVector{Bool}, k::Int) = seen[k] ? false : (seen[k] = true)
+_firstvisit!(::Nothing, k::Int) = true
+
+# Where dx is zero, the walk still marks the tied arrays it passes, so that both maps agree on which position is first:
+_skip!(off, ::Nothing) = nothing
+_skip!(::Union{Integer, Nothing}, seen::AbstractVector{Bool}) = nothing
+_skip!(t::Tied, seen::AbstractVector{Bool}) = _firstvisit!(seen, t.k) ? _skip!(t.offsets, seen) : nothing
+_skip!(off, seen::AbstractVector{Bool}) = foreach(o -> _skip!(o, seen), _values(off))
+
+# The children of dx, matching those of functor(x). As well as ChainRules' Tangent and Zygote's NamedTuple,
+# this accepts the form of nested AD, which treats a Tangent as a struct with one field, backing:
+_children(x, dx) = functor(typeof(x), _strip(x, dx))[1]
+_children(x::AbstractDict, dx) = _strip(x, dx)
+_strip(x, dx::Tangent) = _strip(x, base(dx))
+_strip(x, dx::NamedTuple{(:backing,)}) = hasfield(typeof(x), :backing) ? dx : _strip(x, dx.backing)
+_strip(x, dx) = dx
+
+###
+### accumulate a tangent into a flat vector
+###
+
+function _accum!(x, off, dx, flat, seen)
+  dx = unthunk(dx)
+  dx isa Zero || return _accum_node!(x, off, dx, flat, seen)
+  _skip!(off, seen)
+  flat
+end
+
+_accum_node!(x, t::Tied, dx, flat, seen) = _firstvisit!(seen, t.k) ? _accum_node!(x, t.offsets, dx, flat, seen) : flat
+function _accum_node!(x, off::Integer, dx, flat::AbstractVector{T}, seen) where T
   T2 = promote_type(T, eltype(dx))
   if T != T2  # then we must widen the type
     flat = copyto!(similar(flat, T2), flat)
@@ -433,43 +488,33 @@ function _accum_node!(x, off::Integer, dx, flat::AbstractVector{T}) where T
   @views flat[off .+ (1:length(x))] .+= vec(dx)
   flat
 end
-# Cotangents are structured like x's fields, hence functor(typeof(x), dx) for their children:
-@generated function _accum_node!(x, off::Union{Tuple, NamedTuple}, dx, flat)
-  steps = [:(flat = _accum!(ch[$i], off[$i], dch[$i], flat)) for i in 1:fieldcount(off) if _istrainable(off, i)]
+@generated function _accum_node!(x, off::Union{Tuple, NamedTuple}, dx, flat, seen)
+  steps = [:(flat = _accum!(ch[$i], off[$i], dch[$i], flat, seen)) for i in 1:fieldcount(off) if _istrainable(off, i)]
   quote
     ch, _ = functor(x)
-    dch, _ = functor(typeof(x), base(dx))
+    dch = _children(x, dx)
     $(steps...)
     flat
   end
 end
-function _accum_node!(x, off, dx, flat)  # Array of arrays
+function _accum_node!(x, off, dx, flat, seen)  # Array of arrays
   ch, _ = functor(x)
-  dch, _ = functor(typeof(x), base(dx))
-  for (c, o, d) in zip(ch, off, dch)
-    o === nothing || (flat = _accum!(c, o, d, flat))
+  for (c, o, d) in zip(ch, off, _children(x, dx))
+    o === nothing || (flat = _accum!(c, o, d, flat, seen))
   end
   flat
 end
-function _accum_node!(x::AbstractDict, off::AbstractDict, dx, flat)
-  dch = base(dx)
+function _accum_node!(x::AbstractDict, off::AbstractDict, dx, flat, seen)
+  dch = _children(x, dx)
   for (k, c) in pairs(x)
-    off[k] === nothing || (flat = _accum!(c, off[k], get(dch, k, nothing), flat))
+    off[k] === nothing || (flat = _accum!(c, off[k], get(dch, k, nothing), flat, seen))
   end
   flat
 end
 
 ###
-### gradient of flatten, a tangent for the model
+### slice a flat vector into a tangent of the model
 ###
-
-_tangent(x, off, dflat::AbstractVector, ntied::Int) = _tang(x, off, dflat, falses(ntied))
-_tangent(x, off, ::Zero, ntied::Int) = NoT
-
-# The gradient of flatten goes to the first tied position only. With seen = nothing, to all.
-_firstvisit!(seen::AbstractVector{Bool}, k::Int) = seen[k] ? false : (seen[k] = true)
-_firstvisit!(::Nothing, k::Int) = true
-ChainRulesCore.@non_differentiable _firstvisit!(seen, k)
 
 _tang(x, o::Integer, dflat, seen) = ProjectTo(x)(reshape(dflat[o .+ (1:length(x))], axes(x)))
 _tang(x, t::Tied, dflat, seen) = _firstvisit!(seen, t.k) ? _tang(x, t.offsets, dflat, seen) : NoT
@@ -484,7 +529,7 @@ end
 
 # From the tangents y of x's children: a natural tangent for wrappers like Transpose,
 # else a Tangent with x's fields.
-_structural(x, y, re) = all(d -> d isa AbstractZero, _values(y)) ? NoT : _structural_tangent(x, y, re)
+_structural(x, y, re) = _allzero(y) ? NoT : _structural_tangent(x, y, re)
 _structural_tangent(x::AbstractArray, y::AbstractArray, re) = ProjectTo(x)(y)
 _structural_tangent(x::AbstractArray, y, re) = re(y)
 _structural_tangent(x::Union{Tuple, NamedTuple, AbstractDict}, y, re) = Tangent{typeof(x), typeof(y)}(y)
@@ -492,20 +537,48 @@ function _structural_tangent(x, y, re)
   y isa NamedTuple && keys(y) ⊆ fieldnames(typeof(x)) && return Tangent{typeof(x)}(; y...)
   throw(ArgumentError("cannot express the gradient of `destructure` for $(typeof(x)), as its `functor` children are not its fields"))
 end
+_allzero(y) = all(d -> d isa AbstractZero, _values(y))
 
 ###
-### second derivatives
+### the same, in the form of a given tangent dx
 ###
 
-function ChainRulesCore.rrule(::typeof(_accum!), x, off, dx, flat)
-  @warn "second derivatives of Restructure may not work yet, sorry!" maxlog=3
-  _accum_back(dflat) = (NoT, NoT, NoT, _tang(x, off, unthunk(dflat), nothing), NoT)
-  _accum!(x, off, dx, flat), _accum_back
+# The walk is that of _accum!, so that the two are adjoint:
+function _cot(dx, x, off, dflat, seen)
+  dx = unthunk(dx)
+  dx isa Zero || return _cot_node(dx, x, off, dflat, seen)
+  _skip!(off, seen)
+  NoT
 end
-base(dx::Tangent{<:Tangent}) = backing(dx).backing  # might be needed for gradient(gradient(destructure))
-base(dx::Tangent{Any, <:NamedTuple{(:backing,)}}) = base(backing(dx).backing)  # Zygote version
-_maybewarn() = nothing
-function ChainRulesCore.rrule(::typeof(_maybewarn))
-  @warn "second derivatives of destructure may not work yet, sorry!" maxlog=3
-  nothing, _ -> (NoT,)
+
+_cot_node(dx, x, t::Tied, dflat, seen) = _firstvisit!(seen, t.k) ? _cot_node(dx, x, t.offsets, dflat, seen) : NoT
+_cot_node(dx, x, o::Integer, dflat, seen) = ProjectTo(dx)(reshape(dflat[o .+ (1:length(x))], axes(x)))
+@generated function _cot_node(dx, x, off::Union{Tuple, NamedTuple}, dflat, seen)
+  args = [_istrainable(off, i) ? :(_cot(dch[$i], ch[$i], off[$i], dflat, seen)) : :NoT for i in 1:fieldcount(off)]
+  quote
+    ch, re = functor(x)
+    dch = _children(x, dx)
+    _like(dx, x, $(_children_expr(off, args)), re)
+  end
 end
+function _cot_node(dx, x, off, dflat, seen)  # Dict, Array of arrays
+  ch, re = functor(x)
+  _like(dx, x, mapvalue((c, o, d) -> o === nothing ? NoT : _cot(d, c, o, dflat, seen), ch, off, _children(x, dx)), re)
+end
+
+# From the tangents y of x's children, a tangent in the form of dx. Nested AD sees a Tangent
+# as a struct, so its tangent is a Tangent of a Tangent:
+_like(dx, x, y, re) = _allzero(y) ? NoT : __like(dx, x, y, re)
+__like(dx::Tangent, x, y, re) = Tangent{typeof(dx)}(backing = __like(backing(dx), x, y, re))
+function __like(dx::NamedTuple{K}, x, y, re) where K
+  K === (:backing,) && !hasfield(typeof(x), :backing) &&
+    return Tangent{typeof(dx)}(backing = __like(dx.backing, x, y, re))
+  y isa NamedTuple && all(k -> k in K || y[k] isa AbstractZero, keys(y)) ||
+    throw(ArgumentError("cannot express the second derivative of `Restructure` for $(typeof(x)), as its `functor` children are not its fields"))
+  z = NamedTuple{K}(map(k -> get(y, k, NoT), K))
+  Tangent{typeof(dx), typeof(z)}(z)
+end
+__like(dx::Tuple, x, y::Tuple, re) = Tangent{typeof(dx), typeof(y)}(y)
+__like(dx::AbstractArray, x::AbstractArray, y::AbstractArray, re) = y  # Array of arrays
+__like(dx::AbstractArray, x::AbstractArray, y, re) = re(y)  # natural tangent of a wrapper like Transpose
+__like(dx::AbstractDict, x, y::AbstractDict, re) = y
