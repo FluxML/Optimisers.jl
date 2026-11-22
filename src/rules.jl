@@ -438,6 +438,9 @@ end
 The [AMSGrad](https://openreview.net/forum?id=ryQu7f-RZ) version of the Adam
 optimiser. Parameters don't need tuning.
 
+As in Algorithm 2 of the paper, the moment estimates start from zero and
+are not bias-corrected, unlike in [`Adam`](@ref).
+
 # Parameters
 - Learning rate (`η == eta`): Amount by which gradients are discounted before updating
                        the weights.
@@ -452,8 +455,7 @@ optimiser. Parameters don't need tuning.
   epsilon = 1e-8
 end
 
-init(o::AMSGrad, x::AbstractArray) =
-  (onevalue(o.epsilon, x), onevalue(o.epsilon, x), onevalue(o.epsilon, x))
+init(o::AMSGrad, x::AbstractArray) = (zero(x), zero(x), zero(x))
 
 function apply!(o::AMSGrad, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
