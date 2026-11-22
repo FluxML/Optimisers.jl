@@ -241,3 +241,90 @@ tmp1
     y, bk = Zygote.pullback(x -> sum(destructure(x)[1]), (3, 4))
     @test bk(1.0) == (nothing,)
 end
+
+# A functor whose children are not its fields, like Flux's Chain once was:
+struct Splat{T}; layers::T; Splat(ls...) = new{typeof(ls)}(ls); end
+Functors.functor(::Type{<:Splat}, x) = x.layers, ls -> Splat(ls...)
+
+struct TLayer{M,V}; w::M; b::V; end
+struct TChain{T<:Tuple}; layers::T; end
+
+@testset "custom functor, issue 62" begin
+  sk = Splat([1.0, 2.0], (x = 3, y = [4.0, 5.0]))
+  v, re = destructure(sk)
+  @test v == [1, 2, 4, 5]
+  sk2 = re(10v)
+  @test sk2 isa Splat
+  @test sk2.layers[1] == [10, 20]
+  @test sk2.layers[2] == (x = 3, y = [40, 50])
+  @test gradient(p -> sum(abs2, re(p).layers[2].y), v)[1] == [0, 0, 8, 10]
+  # The gradient of destructure w.r.t. sk would need Splat's fields:
+  @test_throws ArgumentError gradient(m -> sum(destructure(m)[1]), sk)
+end
+
+@testset "non-trainable children get no gradient, issue 72" begin
+  m = TwoThirds([1.0, 2.0], [3.0], [4.0, 5.0])
+  @test gradient(x -> destructure(x)[1][2]^2, m)[1] == (a = [0.0, 4.0], b = nothing, c = nothing)
+end
+
+@testset "Dict, issue 154" begin
+  d = Dict(:a => Dict(:b => [1.0], :c => [2.0, 3.0]), :d => [4.0])
+  v, re = destructure(d)
+  @test sort(v) == 1:4
+  d2 = re(10v)
+  @test d2 isa Dict
+  @test d2[:a][:b] == [10] && d2[:a][:c] == [20, 30] && d2[:d] == [40]
+  g = gradient(p -> sum(re(p)[:a][:c]) + 3 * sum(re(p)[:d]), v)[1]
+  @test g == [o == 2 || o == 3 ? 1 : o == 4 ? 3 : 0 for o in v]
+  gd = gradient(x -> sum(abs2, destructure(x)[1]), d)[1]
+  @test gd[:a][:c] == [4, 6] && gd[:d] == [8]
+end
+
+@testset "Transpose and Adjoint" begin
+  @test gradient(m -> sum(destructure(m)[1]), (a = transpose([1.0 2.0; 3.0 4.0]),))[1].a == ones(2, 2)
+  @test gradient(m -> sum(destructure(m)[1]), (a = [1.0 2.0 3.0]',))[1].a == ones(3, 1)
+  W = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+  m = (enc = TLayer(W, [0.0, 0.0, 0.0]), dec = TLayer(transpose(W), [0.0, 0.0]))  # tied
+  v, re = destructure(m)
+  @test length(v) == 11
+  m2 = re(v .+ 1)
+  @test m2.dec.w.parent === m2.enc.w
+  g = gradient(x -> sum(destructure(x)[1]), m)[1]
+  @test g.enc.w == ones(3, 2)
+  @test g.dec.w === nothing  # only the first tied position gets the gradient
+  @test gradient(p -> sum(re(p).dec.w), v)[1] == vcat(ones(6), zeros(5))
+end
+
+@testset "type stability of rebuild" begin
+  # Julia 1.10 cannot infer Functors' default reconstructor y -> S(y...), a closure over S::UnionAll
+  if VERSION >= v"1.11"
+    m1 = TChain((TLayer(rand(3, 2), rand(3)), TLayer(rand(Float32, 1, 3), rand(Float32, 1)), sin))
+    v1, re1 = destructure(m1)
+    @test @inferred(re1(v1)) isa typeof(m1)
+    @test @inferred(re1(Float32.(v1))) isa typeof(m1)
+
+    l = TLayer(rand(2, 2), rand(2))
+    m2 = TChain((l, TLayer(rand(2, 2), rand(2)), l))  # tied arrays
+    v2, re2 = destructure(m2)
+    @test length(v2) == 12
+    m2′ = @inferred re2(v2)
+    @test m2′.layers[1].w === m2′.layers[3].w
+  end
+
+  m3 = (a = rand(2), b = (c = rand(2, 2), d = sin, e = (rand(Float32, 1),)), f = 1)
+  v3, re3 = destructure(m3)
+  @test @inferred(re3(v3)) isa typeof(m3)
+end
+
+@testset "reverse over reverse, gradient penalty" begin
+  v, re = destructure((w = [1.0 2.0; 3.0 4.0],))
+  x = [1.0, 1.0]
+  g = gradient(q -> sum(abs2, gradient(xx -> sum(re(q).w * xx), x)[1]), v)[1]
+  @test g ≈ [8, 8, 12, 12]  # sum(abs2, sum(w, dims=1)), w = reshape(q, 2, 2)
+end
+
+@testset "Restructure with 3 arguments" begin
+  v, re = destructure((x = [1.0, 2.0], y = [3.0]))
+  re3 = Optimisers.Restructure(re.model, re.offsets, re.length)
+  @test re3([4, 5, 6]) == (x = [4.0, 5.0], y = [6.0])
+end
