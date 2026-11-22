@@ -69,7 +69,8 @@ Optimisers.trainables
 ```
 
 Code that only reads a model, such as printing it, can use these instead of `trainable` and `trainables`.
-They give the same results, but compile nothing for a new layer type that uses the default `functor` and `trainable`:
+They find the same children and arrays, but return them in containers of `Any` or `AbstractArray`,
+and compile nothing for a new layer type that uses the default `functor`, `trainable` and `isleaf`:
 
 ```@docs
 Optimisers.nospecialize_trainable
