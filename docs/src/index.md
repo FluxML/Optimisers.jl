@@ -287,7 +287,26 @@ ones are preserved inside `re`, an object of type `Restructure`.
 When defining new layers, these can be specified if necessary by overloading [`trainable`](@ref Optimisers.trainable).
 By default, all numeric arrays visible to [Functors.jl](https://github.com/FluxML/Functors.jl)
 are assumed to contain trainable parameters.
-Tied parameters (arrays appearing in different layers) are included only once in `flat`.
+Scalars are not parameters, not even a `Float64` field, but 0-dimensional arrays like `fill(1.0)` and `SArray`s are.
+
+`re(v)` does not copy the non-trainable arrays, such as the running statistics of `BatchNorm`.
+It shares them with `model`, so that what the model writes into them in training accumulates across steps.
+But ForwardDiff evaluates the function once per chunk of `flat`, so in the example above
+these statistics are updated once per chunk, rather than once per step. The gradient is not affected.
+
+The layout of `flat` is fixed. It visits the model depth-first, the trainable children of each node
+in the order of `Functors.functor`, and appends each array in column-major order, as `vec` does.
+A tied array, one which appears several times in the model (see [Tied Parameters](@ref)),
+is included only once, at its first position, and `re(v)` puts the same new array at all its positions.
+The gradient with respect to `flat` has the same layout.
+This differs from ComponentArrays.jl, whose `ComponentVector` stores a tied array once for each position,
+as independent parameters:
+
+```julia
+w = rand(2, 2)
+length(destructure((a = w, b = w))[1])  # 4
+length(ComponentVector((a = w, b = w)))  # 8
+```
 
 Each array of the new model `re(v)` has the element type of the corresponding array in `model`.
 Rebuilding the Float32 `model` above from a `Vector{Float64}` gives Float32 parameters,
@@ -349,6 +368,22 @@ m = re(flat)  # m's arrays are views of flat
 Optimisers.update!(st, flat, ∇flat)  # this also updates m
 ```
 
+Since `re` accepts any vector of the right length, `re(∇flat)` arranges a gradient like the model,
+for instance to look at the part for one layer. Its non-trainable parts are those of `model`.
+A tied array gets the whole gradient at each of its positions, so `re(∇flat)` is not a gradient
+for `update` with the state from `setup(rule, model)`, which would add these up.
+
+To combine the network's parameters with others, `flat` can be part of a `ComponentVector` from ComponentArrays.jl.
+Zygote then returns a `ComponentVector` gradient:
+
+```julia
+using ComponentArrays
+
+p = ComponentVector(nn = flat, k = 3.0)
+∇p = Zygote.gradient(p -> p.k * sum(re(p.nn)(image)), p)[1]
+∇p.nn  # like ∇flat
+```
+
 ## Collecting all trainable parameters
 
 Sometimes it is useful to collect all trainable parameters in a model,
@@ -375,6 +410,8 @@ julia> l2reg(model) = sum([sum(abs2, p) for p in trainables(model)]);
 julia> g = gradient(l2reg, model)[1];
 ```
 Notice that the `BatchNorm` layer has two trainable parameters, `γ` and `β`, which are included in the list, while the `μ ` and `σ²` buffers are not.
+As in `destructure`, a tied array appears only once in `trainables(model)`,
+and the gradient `g` holds its gradient at its first position only, so that `update` counts it once.
 
 Sometimes one wants to iterate over all trainable parameters in a model and the corresponding parameters of a matched structure such a gradient or the moving average of the model. 
 This can be done using `trainables(model, path=true)`. For instance, here is how to update the parameters
