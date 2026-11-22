@@ -133,17 +133,17 @@ adjust(ℓ::Leaf{R}, r::R) where R <: AbstractRule = Leaf(r, ℓ.state, ℓ.froz
 Like [`adjust!`](@ref Optimisers.adjust), but returns a new tree instead of mutating the old one.
 """
 function adjust(tree, eta::Real)
-  t′ = fmap(copy, tree; exclude = maywrite)  # same as used for update / update!
+  t′ = _copy_writable(tree)
   adjust!(t′, eta)
   t′
 end
 function adjust(tree; kw...)
-  t′ = fmap(copy, tree; exclude = maywrite)
+  t′ = _copy_writable(tree)
   adjust!(t′; kw...)
   t′
 end
 function adjust(tree, r::AbstractRule)
-  t′ = fmap(copy, tree; exclude = maywrite)
+  t′ = _copy_writable(tree)
   adjust!(t′, r)
   t′
 end

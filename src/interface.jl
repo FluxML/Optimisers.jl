@@ -70,10 +70,14 @@ end
 ###
 
 function update(tree, model, grad, higher...)
-  t′ = fmap(copy, tree; exclude = maywrite)  # walks inside Leaf
-  x′ = fmap(copy, model; exclude = maywrite)
+  t′ = _copy_writable(tree)  # walks inside Leaf
+  x′ = _copy_writable(model)
   update!(t′, x′, grad, higher...)
 end
+
+# Not exclude = maywrite, which would copy an array of arrays or of Leafs shallowly, as one leaf:
+_copy_writable(x) = fmap(copy, x; exclude = _iswritableleaf)
+_iswritableleaf(x) = isleaf(x) && maywrite(x)
 
 function update!(tree, model, grad, higher...)
   # First walk is to accumulate the gradient. This recursion visits every copy of
