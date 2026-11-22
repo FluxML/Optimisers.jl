@@ -573,8 +573,8 @@ end
       @test st2.a === st2.b[1]
       st3 = Optimisers.adjust(st; eta = 0.5)
       @test st3.b[1].rule.eta == 0.5
-      st4 = Optimisers.adjust(st, Momentum())
-      @test st4.b[1].rule isa Momentum
+      st4 = Optimisers.adjust(st, Descent(0.3))
+      @test st4.b[1].rule.eta == 0.3
       @test st.a.rule.eta == 0.1
       @test st.b[1].rule.eta == 0.1
     end
