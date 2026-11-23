@@ -21,11 +21,12 @@ _convert_eltype(::Type{T}, x::Reactant.ConcretePJRTNumber) where {T<:Number} =
 _convert_eltype(::Type{T}, x::Reactant.ConcreteIFRTNumber) where {T<:Number} =
     Reactant.ConcreteIFRTNumber{T}(x)
 
-# `adjust` keeps the eltype of a tracked number, as it keeps the type of a host one.
-Optimisers._keeptype(old::Reactant.ConcretePJRTNumber{T}, new::Number) where {T} =
-    _convert_eltype(T, new)
-Optimisers._keeptype(old::Reactant.ConcreteIFRTNumber{T}, new::Number) where {T} =
-    _convert_eltype(T, new)
+# `adjust` keeps a tracked number tracked, with its eltype, as it keeps the type of a host one.
+for N in (:ConcretePJRTNumber, :ConcreteIFRTNumber)
+    @eval Optimisers._keeptype(::Reactant.$N{T}, new::Reactant.ConcreteRNumber) where {T} =
+        _convert_eltype(T, new)
+end
+Optimisers._keeptype(old::Reactant.ConcreteRNumber, new::Number) = _number_like(old, new)
 
 # --- the wrapper ----------------------------------------------------------
 # Wrapping a rule in `ReactantOptimiser` lets us override `init`/`_adjust` so the
@@ -72,10 +73,13 @@ end
 # A tracked `1` on the same device as `x`. Arithmetic on a concrete number returns a host
 # number, and `one(x)` would land on the default device.
 _one_like(x::Number) = one(x)
-_one_like(x::Reactant.ConcretePJRTNumber{T}) where {T} = Reactant.ConcretePJRTNumber{T}(
-    one(T); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
-_one_like(x::Reactant.ConcreteIFRTNumber{T}) where {T} = Reactant.ConcreteIFRTNumber{T}(
-    one(T); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
+_one_like(x::Reactant.ConcreteRNumber) = _number_like(x, true)
+
+# A tracked number holding `v`, of the same eltype and on the same device as `x`.
+_number_like(x::Reactant.ConcretePJRTNumber{T}, v) where {T} = Reactant.ConcretePJRTNumber{T}(
+    convert(T, v); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
+_number_like(x::Reactant.ConcreteIFRTNumber{T}, v) where {T} = Reactant.ConcreteIFRTNumber{T}(
+    convert(T, v); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
 
 function Optimisers.init(
     opt::ReactantOptimiser{<:Optimisers.OAdam}, x::AbstractArray{T}
