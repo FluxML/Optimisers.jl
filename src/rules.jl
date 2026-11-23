@@ -665,7 +665,7 @@ julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.
 (embed = :AdamW, hidden = (weight = :Muon, bias = :AdamW), head = :AdamW)
 
 julia> state.hidden.weight
-Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0 0.0; 0.0 0.0])
+Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0, 0.0, 0.0, …])
 ```
 """
 struct Muon{Teta,Tmu,Tlambda} <: AbstractRule
@@ -893,7 +893,7 @@ julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 julia> m = (zeros(3),);
 
 julia> s = Optimisers.setup(o, m)
-(Leaf(OptimiserChain(ClipGrad(1.0), Descent(0.1)), (nothing, nothing)),)
+(Leaf(OptimiserChain(ClipGrad(delta=1.0), Descent(0.1)), (nothing, nothing)),)
 
 julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 ([-0.03, -0.1, -0.1],)
@@ -931,6 +931,9 @@ end
 
 adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
 adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)
+
+_adjust_rule(f, kp, ℓ::OptimiserChain, args, nt) =
+  OptimiserChain(map(opt -> _adjust_rule(f, kp, opt, args, nt), ℓ.opts)...)
 
 
 """
@@ -1051,3 +1054,5 @@ end
 
 adjust(o::MixedPrecision{T}, eta::Real) where T = MixedPrecision(T, adjust(o.rule, eta))
 adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; kw...))
+_adjust_rule(f, kp, o::MixedPrecision{T}, args, nt) where T =
+  MixedPrecision(T, _adjust_rule(f, kp, o.rule, args, nt))

@@ -26,15 +26,15 @@ julia> m
 (x = ([1.0], 2.0), y = [-0.14159265358979312])
 
 julia> s
-(x = (Leaf(Momentum(0.01, 0.9), [0.0], frozen = true), ()), y = Leaf(Momentum(0.01, 0.9), [3.14159]))
+(x = (Leaf(Momentum(eta=0.01, rho=0.9), [0.0], frozen = true), ()), y = Leaf(Momentum(eta=0.01, rho=0.9), [3.14159]))
 
 julia> Optimisers.thaw!(s)
 
 julia> s.x
-(Leaf(Momentum(0.01, 0.9), [0.0]), ())
+(Leaf(Momentum(eta=0.01, rho=0.9), [0.0]), ())
 ```
 """
-freeze!(tree) = foreach(freeze!, tree)
+freeze!(tree) = _foreachstate(freeze!, tree)
 freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
 
 """
@@ -43,8 +43,12 @@ freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
 The reverse of [`freeze!`](@ref Optimisers.freeze!). Applies to all parameters,
 mutating every `Leaf(rule, state, frozen = true)` to `Leaf(rule, state, frozen = false)`.
 """
-thaw!(tree) = foreach(thaw!, tree)
+thaw!(tree) = _foreachstate(thaw!, tree)
 thaw!(ℓ::Leaf) = (ℓ.frozen = false; nothing)
+
+# `setup` marks non-trainable children with `()`, or with `nothing` once it has met an isbits parameter.
+_foreachstate(f, tree) = foreachvalue(f, tree)
+_foreachstate(f, ::Nothing) = nothing
 
 freeze!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
   "`freeze!` must not be applied to a model, only to the state tree from `setup`"))
@@ -72,17 +76,17 @@ To change just the learning rate, provide a number `η::Real`.
 julia> m = (vec = rand(Float32, 2), fun = sin);
 
 julia> st = Optimisers.setup(Nesterov(), m)  # stored momentum is initialised to zero
-(vec = Leaf(Nesterov(0.001, 0.9), Float32[0.0, 0.0]), fun = ())
+(vec = Leaf(Nesterov(eta=0.001, rho=0.9), Float32[0.0, 0.0]), fun = ())
 
 julia> st, m = Optimisers.update(st, m, (vec = [16, 88], fun = nothing));  # with fake gradient
 
 julia> st
-(vec = Leaf(Nesterov(0.001, 0.9), Float32[-0.016, -0.088]), fun = ())
+(vec = Leaf(Nesterov(eta=0.001, rho=0.9), Float32[-0.016, -0.088]), fun = ())
 
 julia> Optimisers.adjust!(st, 0.123)  # change learning rate, stored momentum untouched
 
 julia> st
-(vec = Leaf(Nesterov(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
+(vec = Leaf(Nesterov(eta=0.123, rho=0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 
 To change other parameters, `adjust!` also accepts keyword arguments matching the field
@@ -93,13 +97,13 @@ julia> fieldnames(Adam)
 (:eta, :beta, :epsilon)
 
 julia> st2 = Optimisers.setup(OptimiserChain(ClipGrad(), Adam()), m)
-(vec = Leaf(OptimiserChain(ClipGrad(10.0), Adam(0.001, (0.9, 0.999), 1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
+(vec = Leaf(OptimiserChain(ClipGrad(delta=10.0), Adam(eta=0.001, beta=(0.9, 0.999), epsilon=1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
 
 julia> Optimisers.adjust(st2; beta = (0.777, 0.909), delta = 11.1)  # delta acts on ClipGrad
-(vec = Leaf(OptimiserChain(ClipGrad(11.1), Adam(0.001, (0.777, 0.909), 1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
+(vec = Leaf(OptimiserChain(ClipGrad(delta=11.1), Adam(eta=0.001, beta=(0.777, 0.909), epsilon=1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
 
 julia> Optimisers.adjust(st; beta = "no such field")  # silently ignored!
-(vec = Leaf(Nesterov(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
+(vec = Leaf(Nesterov(eta=0.123, rho=0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 
 The argument `η` may also be a new optimisation rule, of the same type as the rule
@@ -115,17 +119,19 @@ julia> st
 (vec = Leaf(Nesterov(eta=0.456, rho=0.8), Float32[0.0, 0.0]), fun = ())
 ```
 """
-adjust!(tree, eta::Real) = foreach(st -> adjust!(st, eta), tree)
-adjust!(tree; kw...) = foreach(st -> adjust!(st; kw...), tree)
-adjust!(tree, r::AbstractRule) = foreach(st -> adjust!(st, r), tree)
+adjust!(tree, eta::Real) = _foreachstate(st -> adjust!(st, eta), tree)
+adjust!(tree; kw...) = _foreachstate(st -> adjust!(st; kw...), tree)
+adjust!(tree, r::AbstractRule) = _foreachstate(st -> adjust!(st, r), tree)
 
-adjust!(ℓ::Leaf, eta::Real) = (ℓ.rule = adjust(ℓ.rule, eta); nothing)
-adjust!(ℓ::Leaf; kw...) = (ℓ.rule = adjust(ℓ.rule; kw...); nothing)
-adjust!(ℓ::Leaf{R}, r::R) where R <: AbstractRule = (ℓ.rule = r; nothing)
+adjust!(ℓ::Leaf, eta::Real) = _setrule!(ℓ, adjust(ℓ.rule, eta))
+adjust!(ℓ::Leaf; kw...) = _setrule!(ℓ, adjust(ℓ.rule; kw...))
+adjust!(ℓ::Leaf{R}, r::R) where R <: AbstractRule = (ℓ.rule = _unshare(r); nothing)
+adjust!(ℓ::Leaf, r::AbstractRule) = throw(ArgumentError(
+  "adjust!(tree, rule) needs a rule of the type already in the tree, $(typeof(ℓ.rule)), not $(typeof(r))"))
 
 adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
 adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
-adjust(ℓ::Leaf{R}, r::R) where R <: AbstractRule = Leaf(r, ℓ.state, ℓ.frozen)
+adjust(ℓ::Leaf{R}, r::R) where R <: AbstractRule = Leaf(_unshare(r), ℓ.state, ℓ.frozen)
 
 """
     adjust(tree, η) -> tree
@@ -162,7 +168,96 @@ function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
   isempty(nt) && throw(ArgumentError("adjust must be given something to act on!"))
   fs = fieldnames(T)
   vals = map(fs) do field
-    get(nt, field, getfield(r, field))
+    old = getfield(r, field)
+    haskey(nt, field) ? _keeptype(old, nt[field]) : old
   end
   return ConstructionBase.constructorof(T)(vals...)
 end
+
+function _setrule!(ℓ::Leaf{R}, r) where R
+  r isa R || throw(ArgumentError("adjust! cannot change the type of the rule in a Leaf, from $R to $(typeof(r)). \
+    Construct the rule with the number types it should keep, e.g. `Descent(1.0)` instead of `Descent(1)`."))
+  ℓ.rule = r
+  nothing
+end
+
+# Keep the rule's number types, so that `adjust!` can store the new rule in the same `Leaf`.
+_keeptype(old::AbstractFloat, new::Real) = convert(typeof(old), new)
+_keeptype(old::Tuple, new::Tuple) = length(old) == length(new) ? map(_keeptype, old, new) : new
+_keeptype(old, new) = new
+
+###
+### adjust only the rules a filter selects
+###
+
+"""
+    Optimisers.adjust!(tree, filter, η)
+    Optimisers.adjust!(tree, filter; kw...)
+
+Like `adjust!(tree, η)` and `adjust!(tree; kw...)`, but changes only the rules
+for which `filter(keypath, rule)` returns `true`.
+The `filter` is called on each rule inside an [`OptimiserChain`](@ref) or
+[`MixedPrecision`](@ref) separately, along with the [`KeyPath`](@ref) of the parameter
+in the model, which matches the paths of [`trainables`](@ref)`(model; path = true)`.
+
+The `filter` may also be a rule type: `adjust!(tree, SignDecay; lambda = 0.3)` is
+`adjust!(tree, (kp, r) -> r isa SignDecay; lambda = 0.3)`.
+This matters when two rules in a chain have a field of the same name.
+
+A parameter which appears twice in the model is adjusted if any of its paths passes the `filter`.
+
+# Example
+```jldoctest adjust_filter
+julia> m = (weight = [1.0 2.0; 3.0 4.0], bias = [0.0, 0.0]);
+
+julia> st = Optimisers.setup(OptimiserChain(SignDecay(0.1), AdamW(lambda = 0.1)), m);
+
+julia> Optimisers.adjust!(st, SignDecay; lambda = 0.3)  # not AdamW's lambda
+
+julia> st.weight.rule
+OptimiserChain(SignDecay(lambda=0.3), AdamW(eta=0.001, beta=(0.9, 0.999), lambda=0.1, epsilon=1.0e-8, couple=true))
+
+julia> Optimisers.adjust!(st, (kp, r) -> r isa AdamW && last(kp) == :bias; lambda = 0.0)
+
+julia> st.bias.rule
+OptimiserChain(SignDecay(lambda=0.3), AdamW(eta=0.001, beta=(0.9, 0.999), lambda=0.0, epsilon=1.0e-8, couple=true))
+```
+"""
+adjust!(tree, f::Function, eta::Real) = _adjust_where!(f, KeyPath(), tree, (eta,), (;))
+adjust!(tree, f::Function; kw...) = _adjust_where!(f, KeyPath(), tree, (), _nonempty(kw))
+
+adjust!(tree, ::Type{T}, eta::Real) where {T<:AbstractRule} = adjust!(tree, _isa(T), eta)
+adjust!(tree, ::Type{T}; kw...) where {T<:AbstractRule} = adjust!(tree, _isa(T); kw...)
+
+function adjust(tree, f::Union{Function, Type{<:AbstractRule}}, eta::Real)
+  t′ = _copy_writable(tree)
+  adjust!(t′, f, eta)
+  t′
+end
+function adjust(tree, f::Union{Function, Type{<:AbstractRule}}; kw...)
+  t′ = _copy_writable(tree)
+  adjust!(t′, f; kw...)
+  t′
+end
+
+adjust(r::AbstractRule, f::Function, eta::Real) = _adjust_rule(f, KeyPath(), r, (eta,), (;))
+adjust(r::AbstractRule, f::Function; kw...) = _adjust_rule(f, KeyPath(), r, (), _nonempty(kw))
+adjust(r::AbstractRule, ::Type{T}, eta::Real) where {T<:AbstractRule} = adjust(r, _isa(T), eta)
+adjust(r::AbstractRule, ::Type{T}; kw...) where {T<:AbstractRule} = adjust(r, _isa(T); kw...)
+
+_isa(::Type{T}) where {T} = (_, r) -> r isa T
+
+function _nonempty(kw)
+  isempty(kw) && throw(ArgumentError("adjust must be given something to act on!"))
+  NamedTuple(kw)
+end
+
+function _adjust_where!(f, kp, ℓ::Leaf, args, nt)
+  _setrule!(ℓ, _adjust_rule(f, kp, ℓ.rule, args, nt))
+end
+_adjust_where!(f, kp, ::Nothing, args, nt) = nothing  # see _foreachstate
+_adjust_where!(f, kp, tree, args, nt) =
+  foreach(((k, t),) -> _adjust_where!(f, KeyPath(kp, k), t, args, nt), pairs(tree))
+
+# Rules holding other rules add methods, see OptimiserChain and MixedPrecision.
+_adjust_rule(f, kp, r::AbstractRule, args, nt) = f(kp, r) ? adjust(r, args...; nt...) : r

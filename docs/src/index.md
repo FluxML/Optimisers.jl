@@ -155,7 +155,7 @@ end;
 ## Non-`trainable` Parameters
 
 Optimisers.jl uses [Functors.jl](https://fluxml.ai/Functors.jl) to walk the `struct`s
-making up the model, for which they must be annotated `@functor Type`. 
+making up the model, which by default looks into the fields of any `struct`.
 By default optimisation will alter all [`isnumeric`](@ref Optimisers.isnumeric) arrays. 
 
 If some arrays of a particular layer should not be treated this way,
@@ -168,8 +168,6 @@ struct Layer{T}
   length::Int
 end
 Layer(n::Int) = Layer(randn(n), zeros(n), n)
-
-Functors.@functor Layer
 
 # Both array fields will be, for example, moved to the GPU:
 Functors.children(Layer(3))  # (alpha = [...], beta = [...], length)
@@ -225,6 +223,17 @@ To change other fields of the optimisation rule, it accepts keyword arguments:
 Momentum |> fieldnames  # (:eta, :rho)
 
 Optimisers.adjust!(opt, rho = 0.95)  # change ρ for the whole model.
+```
+
+This changes every rule with a field of that name, including both rules in
+`OptimiserChain(SignDecay(), AdamW())`, which each have a `lambda`.
+To change only some rules, pass a rule type, or a function of the parameter's
+[`KeyPath`](@ref) and the rule which returns a `Bool`:
+
+```julia
+Optimisers.adjust!(opt, SignDecay; lambda = 0.01)  # not AdamW's lambda
+
+Optimisers.adjust!(opt, (kp, r) -> last(kp) == :bias; lambda = 0)  # no weight decay on biases
 ```
 
 ## Tied Parameters

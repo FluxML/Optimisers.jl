@@ -21,6 +21,13 @@ _convert_eltype(::Type{T}, x::Reactant.ConcretePJRTNumber) where {T<:Number} =
 _convert_eltype(::Type{T}, x::Reactant.ConcreteIFRTNumber) where {T<:Number} =
     Reactant.ConcreteIFRTNumber{T}(x)
 
+# `adjust` keeps a tracked number tracked, with its eltype, as it keeps the type of a host one.
+for N in (:ConcretePJRTNumber, :ConcreteIFRTNumber)
+    @eval Optimisers._keeptype(::Reactant.$N{T}, new::Reactant.ConcreteRNumber) where {T} =
+        _convert_eltype(T, new)
+end
+Optimisers._keeptype(old::Reactant.ConcreteRNumber, new::Number) = _number_like(old, new)
+
 # --- the wrapper ----------------------------------------------------------
 # Wrapping a rule in `ReactantOptimiser` lets us override `init`/`_adjust` so the
 # learning rate, momenta and step counters are stored/updated as tracked numbers
@@ -66,10 +73,13 @@ end
 # A tracked `1` on the same device as `x`. Arithmetic on a concrete number returns a host
 # number, and `one(x)` would land on the default device.
 _one_like(x::Number) = one(x)
-_one_like(x::Reactant.ConcretePJRTNumber{T}) where {T} = Reactant.ConcretePJRTNumber{T}(
-    one(T); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
-_one_like(x::Reactant.ConcreteIFRTNumber{T}) where {T} = Reactant.ConcreteIFRTNumber{T}(
-    one(T); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
+_one_like(x::Reactant.ConcreteRNumber) = _number_like(x, true)
+
+# A tracked number holding `v`, of the same eltype and on the same device as `x`.
+_number_like(x::Reactant.ConcretePJRTNumber{T}, v) where {T} = Reactant.ConcretePJRTNumber{T}(
+    convert(T, v); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
+_number_like(x::Reactant.ConcreteIFRTNumber{T}, v) where {T} = Reactant.ConcreteIFRTNumber{T}(
+    convert(T, v); client = Reactant.XLA.client(x), device = Reactant.XLA.device(x), x.sharding)
 
 function Optimisers.init(
     opt::ReactantOptimiser{<:Optimisers.OAdam}, x::AbstractArray{T}
@@ -105,6 +115,53 @@ function Optimisers._adjust(
     dev = with_track_numbers(get_device(opt), Integer)
     return ReactantOptimiser(Optimisers._adjust(opt.opt, dev(nt)))
 end
+
+# `adjust!(tree, filter; ...)`: the filter sees the rule inside the wrapper, while the new
+# values still go through the wrapper to stay tracked.
+Optimisers._adjust_rule(f, kp, opt::ReactantOptimiser{<:WrappedContainer}, args, nt) =
+    ReactantOptimiser(Optimisers._adjust_rule(f, kp, opt.opt, args, nt))
+
+Optimisers._adjust_rule(f, kp, opt::ReactantOptimiser, args, nt) =
+    f(kp, opt.opt) ? Optimisers.adjust(opt, args...; nt...) : opt
+
+# A rule's own `adjust(rule, η)` method, for a learning rate not stored in field `eta`,
+# must still be called, and with a host `η::Real`. Then the fields it replaced are put
+# back on the device: only those, as some fields stay on the host, e.g. `ClipNorm`'s `p`.
+function Optimisers.adjust(opt::ReactantOptimiser, eta::Real)
+    new = Optimisers.adjust(opt.opt, eta)
+    dev = get_device(opt)
+    dev isa ReactantDevice || return ReactantOptimiser(new)
+    track = with_track_numbers(dev, AbstractFloat)
+    tracked(x) = x isa Reactant.ConcreteRNumber
+    isleaf(x) = tracked(x) || Optimisers.Functors.isleaf(x)
+    new′ = Optimisers.fmap(opt.opt, new; exclude = isleaf, cache = nothing) do old, x
+        tracked(old) && !tracked(x) ? track(Optimisers._keeptype(old, x)) : x
+    end
+    return ReactantOptimiser(new′)
+end
+
+Optimisers.adjust(opt::ReactantOptimiser{<:WrappedContainer}, eta::Real) =
+    ReactantOptimiser(Optimisers.adjust(opt.opt, eta))
+
+# --- one copy of the tracked numbers per leaf -----------------------------
+# A step compiled while leaves share tracked numbers reads one of them for all leaves,
+# and writes it back to all, undoing a later `adjust!` of only some leaves.
+Optimisers._unshare(opt::ReactantOptimiser) = _copy_tracked(opt)
+
+# A foreign rule already holding on-device numbers, e.g. Lux's. Inside a trace there is
+# nothing to copy, and `get_device` would throw.
+function Optimisers._unshare(opt::Optimisers.AbstractRule)
+    Reactant.within_compile() && return opt
+    get_device(opt) isa ReactantDevice || return opt
+    return _copy_tracked(opt)
+end
+
+_copy_tracked(opt::ReactantOptimiser) = ReactantOptimiser(_copy_tracked(opt.opt))
+_copy_tracked(opt::Optimisers.OptimiserChain) =
+    Optimisers.OptimiserChain(map(_copy_tracked, opt.opts)...)
+_copy_tracked(opt::Optimisers.MixedPrecision{T}) where {T} =
+    Optimisers.MixedPrecision(T, _copy_tracked(opt.rule))
+_copy_tracked(opt) = Optimisers.fmap(copy, opt; exclude = x -> x isa Reactant.ConcreteRNumber)
 
 # --- construction helpers -------------------------------------------------
 # Device-less form: default to the current Reactant device. Dispatches to the

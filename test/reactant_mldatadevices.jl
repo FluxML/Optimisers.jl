@@ -232,6 +232,108 @@ end
     @test Array(ps.w) ≈ w .- 0.5f0
 end
 
+# A filter sees the rules inside the wrappers, and the new values stay tracked.
+@testset "adjust! with a filter on wrapped rules" begin
+    ps = cdev((; w = Float32[1, 2], b = Float32[3, 4]))
+    gs = cdev((; w = zeros(Float32, 2), b = zeros(Float32, 2)))
+    st = Optimisers.setup(OptimiserChain(SignDecay(0f0), WeightDecay(0f0)), ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    lambdas(l) = (l.rule.opt.opts[1].opt.lambda, l.rule.opt.opts[2].opt.lambda)
+
+    Optimisers.adjust!(st, SignDecay; lambda = 0.5f0)  # not WeightDecay's lambda
+    @test lambdas(st.w) == lambdas(st.b) == (0.5f0, 0f0)
+    w = Array(ps.w)
+    b = Array(ps.b)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ w .- 0.5f0 .* sign.(w)
+    @test Array(ps.b) ≈ b .- 0.5f0 .* sign.(b)
+
+    st2 = Optimisers.adjust(st, WeightDecay; lambda = 0.5f0)  # out of place
+    @test typeof(st2) == typeof(st)
+    @test lambdas(st2.w) == (0.5f0, 0.5f0)
+    w = Array(ps.w)
+    step_ra!(st2, ps, gs)
+    @test Array(ps.w) ≈ 0.5f0 .* w .- 0.5f0 .* sign.(w)
+
+    only_b(kp, r) = r isa SignDecay && last(kp) == :b
+    st3 = Optimisers.adjust(st, only_b; lambda = 0f0)
+    @test typeof(st3) == typeof(st)
+    @test lambdas(st3.w) == (0.5f0, 0f0) && lambdas(st3.b) == (0f0, 0f0)
+    w, b = Array(ps.w), Array(ps.b)
+    step_ra!(st3, ps, gs)
+    @test Array(ps.w) ≈ w .- 0.5f0 .* sign.(w)
+    @test Array(ps.b) == b
+
+    # Wrapped atomic rules: one holding no tracked number, and one with a tracked integer.
+    st = Optimisers.setup(Descent(1), ps)
+    Optimisers.adjust!(st, SignDecay, 3)
+    @test st.w.rule.opt.eta === 1
+    Optimisers.adjust!(st, Descent, 2)
+    @test st.w.rule.opt.eta === 2
+
+    st = Optimisers.setup(AccumGrad(1), ps)
+    Optimisers.adjust!(st, AccumGrad; n = 2)
+    @test st.w.rule.opt.n isa Reactant.ConcretePJRTNumber{Int}
+    @test st.w.rule.opt.n == 2
+end
+
+# Each leaf holds its own tracked numbers, so a step compiled while they are equal still
+# sees a later adjustment of only some leaves, instead of writing the old value back.
+@testset "adjust! of some leaves after compiling" begin
+    ps = cdev((; w = Float32[1, 2], b = Float32[3, 4]))
+    gs = cdev((; w = ones(Float32, 2), b = ones(Float32, 2)))
+    st = Optimisers.setup(Descent(0.1f0), ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    Optimisers.adjust!(st.b, 0f0)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ [0.9, 1.9]
+    @test Array(ps.b) == [3, 4]
+    @test st.b.rule.opt.eta == 0
+
+    Optimisers.adjust!(st, Optimisers.make_reactant_compatible(Descent(0.2f0), cdev))
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    Optimisers.adjust!(st.b, 0f0)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ [0.7, 1.7]
+    @test Array(ps.b) == [3, 4]
+end
+
+# A value of another type keeps the tracked numbers' eltype, so a compiled step still applies.
+@testset "adjust! with a value of another number type" begin
+    ps = cdev((; w = Float32[1, 2]))
+    gs = cdev((; w = ones(Float32, 2)))
+    st = Optimisers.setup(OptimiserChain(WeightDecay(0.5f0), Descent(0.1f0)), ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    Optimisers.adjust!(st, 0.5)
+    Optimisers.adjust!(st; lambda = 0)
+    @test st.w.rule.opt.opts[2].opt.eta isa Reactant.ConcreteRNumber{Float32}
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ [0.5, 1.5]
+    @test typeof(Optimisers.adjust(st, Descent, 1)) == typeof(st)
+end
+
+# The rule's own `adjust(rule, η)` is used, and the new value is tracked.
+struct _LR{T} <: Optimisers.AbstractRule
+    lr::T
+end
+Optimisers.init(::_LR, x::AbstractArray) = nothing
+Optimisers.apply!(o::_LR, state, x, dx) = state, dx .* o.lr
+Optimisers.adjust(::_LR, eta::Real) = _LR(eta)
+
+@testset "adjust! calls a wrapped rule's own adjust(rule, η)" begin
+    ps = cdev((; w = Float32[1, 2]))
+    gs = cdev((; w = ones(Float32, 2)))
+    st = Optimisers.setup(_LR(1f0), ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    Optimisers.adjust!(st, 0.5f0)
+    @test st.w.rule.opt.lr isa Reactant.ConcreteRNumber
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ [0.5, 1.5]
+    st2 = Optimisers.adjust(st, _LR, 0.25)
+    @test typeof(st2) == typeof(st)
+    @test st2.w.rule.opt.lr == 0.25f0
+end
+
 # `ClipNorm` has no `eta`, and its `omega` stays tracked so that an already-compiled
 # `update!` uses the new value.
 @testset "adjust! on a wrapped ClipNorm: $(rule)" for rule in (
@@ -273,16 +375,19 @@ end
     ps = cdev((randn(Float32, 3),))
     dev = get_device(ps)
 
-    # (a) Our own wrapper passes through unchanged (same object, not re-wrapped).
+    # (a) Our own wrapper is not re-wrapped (each leaf gets a copy, of the same type).
     opt_ours = Optimisers.make_reactant_compatible(Adam(0.01f0), dev)
     st = Optimisers.setup(opt_ours, ps)
-    @test st[1].rule === opt_ours
+    @test typeof(st[1].rule) == typeof(opt_ours)
+    @test st[1].rule.opt.eta == opt_ours.opt.eta
+    @test st[1].rule.opt.eta !== opt_ours.opt.eta
 
     # (b) A bare rule already carrying on-device scalars (mimics Lux's foreign wrapper)
     #     is detected via `get_device` and left alone.
     opt_foreign = Reactant.to_rarray(Adam(0.01f0); track_numbers = AbstractFloat)
     st2 = Optimisers.setup(opt_foreign, ps)
-    @test st2[1].rule === opt_foreign
+    @test typeof(st2[1].rule) == typeof(opt_foreign)
+    @test st2[1].rule.eta !== opt_foreign.eta
 end
 
 @testset "setup leaves non-Reactant models untouched" begin
