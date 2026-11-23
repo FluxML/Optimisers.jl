@@ -54,7 +54,7 @@ function make_reactant_compatible end
 @compat public adjust!, adjust, freeze!, thaw!
 @compat public trainable, isnumeric, maywrite, Restructure
 @compat public nospecialize_trainable, nospecialize_trainables
-@compat public @.., @lazy, @def
+@compat public @.., @lazy, @def, opmath
 
 ###
 ### one-array functions

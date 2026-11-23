@@ -35,6 +35,9 @@ end
 
 Optimisers._convert(::Type{T}, x::TracedRNumber) where {T} = convert(TracedRNumber{T}, x)
 
+# Traced parameters have eltype `TracedRNumber{T}`, so compute in `TracedRNumber{opmath(T)}`.
+Optimisers.opmath(::Type{TracedRNumber{T}}) where {T} = TracedRNumber{Optimisers.opmath(T)}
+
 # `LinearAlgebra.norm` iterates, and so does the `Broadcasted` reduction reached when the
 # gradient is the lazy output of a previous rule. Materialise the latter, and compute the
 # norm of a concrete array in a compiled function (a traced one has its own `norm`).
@@ -59,10 +62,10 @@ Optimisers._norm(dx::Broadcast.Broadcasted{<:ReactantStyle}, p::Real) =
 # `T(::TracedRNumber)` is not defined, so the stock `T(o.eta)` / `T.(o.beta)` lines blow
 # up when the rule's scalars are traced (promoted via `to_rarray(opt; track_numbers=...)`
 # or `make_reactant_compatible`). Convert traced scalars within the trace instead, so the
-# arithmetic runs in the parameters' eltype as in the eager rule.
+# arithmetic runs in `opmath` of the parameters' eltype as in the eager rule.
 @inline _to(::Type{T}, x::TracedRNumber) where {T} = convert(TracedRNumber{T}, x)
 @inline _to(::Type{T}, x) where {T} = T(x)
-@inline _eps(::Type{T}, x::TracedRNumber) where {T} = _to(T, x)
+@inline _eps(::Type{T}, x::TracedRNumber) where {T} = _to(real(Optimisers.opmath(T)), x)
 @inline _eps(::Type{T}, x) where {T} = Optimisers._eps(T, x)
 
 # A traced `AccumGrad` cannot return `nothing` on the steps where it is still accumulating.
@@ -138,8 +141,9 @@ _select(c, new, old) = new
 function Optimisers.apply!(
     o::Optimisers.RAdam, state, x::TracedRArray{T}, dx,
 ) where {T}
-    η = _to(T, o.eta)
-    β = map(b -> _to(T, b), o.beta)
+    S = Optimisers.opmath(T)
+    η = _to(S, o.eta)
+    β = map(b -> _to(S, b), o.beta)
     ϵ = _eps(T, o.epsilon)
     ρ∞ = real(2 / (1 - β[2]) - 1)
 

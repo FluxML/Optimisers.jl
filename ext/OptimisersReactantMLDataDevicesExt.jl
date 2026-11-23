@@ -46,20 +46,20 @@ Optimisers.apply!(opt::ReactantOptimiser, state, x, y) =
 
 Optimisers.init(opt::ReactantOptimiser, ps) = Optimisers.init(opt.opt, ps)
 
-# Beta-carrying rules: the stock inits use `T.(o.beta)`, which materialises the
+# Beta-carrying rules: the stock inits use `opmath(T).(o.beta)`, which materialises the
 # tracked betas to host constants; swap in the device-preserving conversion.
 for common_opt in (:Adam, :AdaMax, :NAdam, :AdamW, :AdaBelief)
     @eval function Optimisers.init(
         opt::ReactantOptimiser{<:Optimisers.$(common_opt)}, x::AbstractArray{T}
     ) where {T}
-        return zero(x), zero(x), _convert_eltype.((T,), opt.opt.beta)
+        return zero(x), zero(x), _convert_eltype.((Optimisers.opmath(T),), opt.opt.beta)
     end
 end
 
 function Optimisers.init(
     opt::ReactantOptimiser{<:Optimisers.RAdam}, x::AbstractArray{T}
 ) where {T}
-    betas = _convert_eltype.((T,), opt.opt.beta)
+    betas = _convert_eltype.((Optimisers.opmath(T),), opt.opt.beta)
     # The step counter must stay tracked so it flows through a compiled `update!` as a
     # runtime variable (rather than being frozen as a constant). Derive a tracked `1`
     # from an already-tracked scalar (the promoted `beta`) instead of
@@ -84,7 +84,7 @@ _number_like(x::Reactant.ConcreteIFRTNumber{T}, v) where {T} = Reactant.Concrete
 function Optimisers.init(
     opt::ReactantOptimiser{<:Optimisers.OAdam}, x::AbstractArray{T}
 ) where {T}
-    return zero(x), zero(x), _convert_eltype.((T,), opt.opt.beta), zero(x)
+    return zero(x), zero(x), _convert_eltype.((Optimisers.opmath(T),), opt.opt.beta), zero(x)
 end
 # (AccumGrad needs no init override: the stock `init(::AccumGrad{N}, x) = (zero(x), N(1))`
 #  already tracks the counter when `N` is the tracked-integer type.)

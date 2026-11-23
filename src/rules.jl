@@ -57,7 +57,8 @@ end
 init(o::Momentum, x::AbstractArray) = zero(x)
 
 function apply!(o::Momentum, mvel, x::AbstractArray{T}, dx) where T
-  η, ρ = T(o.eta), T(o.rho)
+  S = opmath(T)
+  η, ρ = S(o.eta), S(o.rho)
   @.. mvel = ρ * mvel + η * dx  # Macro @.. broadcasts into mvel if it can, else @. of rhs.
 
   return mvel, mvel
@@ -84,7 +85,8 @@ end
 init(o::Nesterov, x::AbstractArray) = zero(x)
 
 function apply!(o::Nesterov, vel, x::AbstractArray{T}, dx) where T
-  η, ρ = T(o.eta), T(o.rho)
+  S = opmath(T)
+  η, ρ = S(o.eta), S(o.rho)
 
   newdx = @. - ρ^2 * vel + (1+ρ) * η * dx  # Cannot be lazy as this needs the old velocity
   @.. vel = ρ * vel - η * dx
@@ -130,7 +132,8 @@ RMSProp(; eta = 0.001, rho = 0.9, epsilon = 1e-8, kw...) = RMSProp(eta, rho, eps
 init(o::RMSProp, x::AbstractArray) = (zero(x), o.centred ? zero(x) : false)
 
 function apply!(o::RMSProp, state, x::AbstractArray{T}, dx) where T
-  η, ρ, ϵ = T(o.eta), T(o.rho), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, ρ, ϵ = S(o.eta), S(o.rho), _eps(T, o.epsilon)
   quad, lin = state
 
   @.. quad = ρ * quad + (1 - ρ) * abs2(dx)
@@ -215,10 +218,11 @@ end
   epsilon = 1e-8
 end
 
-init(o::Adam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
+init(o::Adam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
 
 function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -247,7 +251,8 @@ end
 init(o::Lion, x::AbstractArray) = zero(x)
 
 function apply!(o::Lion, state, x::AbstractArray{T}, dx) where T
-  η, β = T(o.eta), T.(o.beta)
+  S = opmath(T)
+  η, β = S(o.eta), S.(o.beta)
 
   @.. state = β[2] * state + (1-β[2]) * dx
 
@@ -278,10 +283,11 @@ end
   epsilon = 1e-8
 end
 
-init(o::RAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta), 1)
+init(o::RAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta), 1)
 
 function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   ρ∞ = 2/(1-β[2]) - 1 |> real
 
   mt, vt, βt, t = state
@@ -319,10 +325,11 @@ end
   epsilon = 1e-8
 end
 
-init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(real.(x)), T.(o.beta))
+init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(real.(x)), opmath(T).(o.beta))
 
 function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   mt, ut, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -353,10 +360,11 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
   epsilon = 1e-8
 end
 
-init(o::OAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta), zero(x))
+init(o::OAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta), zero(x))
 
 function apply!(o::OAdam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   mt, vt, βt, term = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -390,7 +398,8 @@ end
 init(o::AdaGrad, x::AbstractArray) = onevalue(o.epsilon, x)
 
 function apply!(o::AdaGrad, state, x::AbstractArray{T}, dx) where T
-  η, ϵ = T(o.eta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, ϵ = S(o.eta), _eps(T, o.epsilon)
   acc = state
 
   @.. acc = acc + abs2(dx)
@@ -420,7 +429,8 @@ end
 init(o::AdaDelta, x::AbstractArray) = (zero(x), zero(x))
 
 function apply!(o::AdaDelta, state, x::AbstractArray{T}, dx) where T
-  ρ, ϵ = T(o.rho), _eps(T, o.epsilon)
+  S = opmath(T)
+  ρ, ϵ = S(o.rho), _eps(T, o.epsilon)
   acc, Δacc = state
 
   @.. acc = ρ * acc + (1 - ρ) * abs2(dx)
@@ -458,7 +468,8 @@ end
 init(o::AMSGrad, x::AbstractArray) = (zero(x), zero(real.(x)), zero(real.(x)))
 
 function apply!(o::AMSGrad, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   mt, vt, v̂t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -490,10 +501,11 @@ Parameters don't need tuning.
   epsilon = 1e-8
 end
 
-init(o::NAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
+init(o::NAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
 
 function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   mt, vt, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -548,10 +560,11 @@ end
 AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
   AdamW(eta, beta, lambda, epsilon; kw...)
 
-init(o::AdamW, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
+init(o::AdamW, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
 
 function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ, λ = T(o.eta), T.(o.beta), _eps(T, o.epsilon), T(o.lambda)
+  S = opmath(T)
+  η, β, ϵ, λ = S(o.eta), S.(o.beta), _eps(T, o.epsilon), S(o.lambda)
   mt, vt, βt = state
 
   # standard Adam update with learning rate eta=1
@@ -595,10 +608,11 @@ Adam optimiser.
   epsilon = 1e-16
 end
 
-init(o::AdaBelief, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
+init(o::AdaBelief, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
 
 function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
+  S = opmath(T)
+  η, β, ϵ = S(o.eta), S.(o.beta), _eps(T, o.epsilon)
   mt, st, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
@@ -760,7 +774,7 @@ end
 init(o::WeightDecay, x::AbstractArray) = nothing
 
 function apply!(o::WeightDecay, state, x::AbstractArray{T}, dx) where T
-  λ = T(o.lambda)
+  λ = opmath(T)(o.lambda)
   dx′ = @lazy dx + λ * x
 
   return state, dx′
@@ -800,7 +814,7 @@ end
 init(o::SignDecay, x::AbstractArray) = nothing
 
 function apply!(o::SignDecay, state, x::AbstractArray{T}, dx) where T
-  λ = T(o.lambda)
+  λ = opmath(T)(o.lambda)
   dx′ = @lazy dx + λ * sign(x)
 
   return state, dx′
@@ -824,7 +838,7 @@ end
 init(o::ClipGrad, x::AbstractArray) = nothing
 
 function apply!(o::ClipGrad, state, x::AbstractArray{T}, dx) where T
-  δ = T(o.delta)
+  δ = opmath(T)(o.delta)
   dx′ = @lazy clamp(dx, -δ, δ)
 
   return state, dx′
@@ -857,7 +871,7 @@ function apply!(o::ClipNorm, state, x::AbstractArray{T}, dx) where T
   if o.throw && !isfinite(nrm)
     throw(DomainError("gradient has $(o.p)-norm $nrm, for array $(summary(x))"))
   end
-  λ = T(min(o.omega / nrm, 1))
+  λ = opmath(T)(min(o.omega / nrm, 1))
 
   return state, @lazy dx * λ
 end

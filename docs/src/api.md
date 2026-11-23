@@ -85,6 +85,7 @@ Optimisers.apply!
 Optimisers.init
 Optimisers.@..
 Optimisers.@lazy
+Optimisers.opmath
 Optimisers.adjust(::AbstractRule, ::Real)
 Optimisers.@def
 ```

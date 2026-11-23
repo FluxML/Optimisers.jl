@@ -259,6 +259,27 @@ Optimisers.adjust!(opt, SignDecay; lambda = 0.01)  # not AdamW's lambda
 Optimisers.adjust!(opt, (kp, r) -> last(kp) == :bias; lambda = 0)  # no weight decay on biases
 ```
 
+## Low Precision
+
+For parameters in `BFloat16` or `Float16`, the rules compute in `Float32`
+(see [`opmath`](@ref Optimisers.opmath)), like PyTorch's kernels, but keep their states
+(such as Adam's moments) in the precision of the parameters, like `torch.optim`.
+This avoids rounding hyperparameters such as `β = (0.9, 0.999)` to `BFloat16`,
+in which `0.999` becomes `1`. Still, an update much smaller than a parameter is lost
+when rounding it back to `BFloat16`, and so are the contributions of single gradients
+to a slowly-decaying moment. With `Float16`, Adam's second moment `(1 - β₂) * dx^2`
+underflows to zero for gradients smaller than about `5e-3`.
+
+The usual remedy, as in PyTorch's automatic mixed precision, is to keep a `Float32` copy of
+the parameters and of the states, which is what [`MixedPrecision`](@ref) does:
+
+```julia
+model = Dense(3 => 2) |> bf16  # Flux model in BFloat16
+opt_state = Optimisers.setup(MixedPrecision(AdamW(1e-3)), model)  # Float32 copy and moments
+```
+
+The gradient (and the forward pass) can stay in `BFloat16`.
+
 ## Tied Parameters
 
 If the same array appears twice (or more) in the model, [Functors.jl](https://fluxml.ai/Functors.jl) should recognise this.
