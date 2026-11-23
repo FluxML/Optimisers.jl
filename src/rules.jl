@@ -665,7 +665,7 @@ julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.
 (embed = :AdamW, hidden = (weight = :Muon, bias = :AdamW), head = :AdamW)
 
 julia> state.hidden.weight
-Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0 0.0; 0.0 0.0])
+Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0, 0.0, 0.0, …])
 ```
 """
 struct Muon{Teta,Tmu,Tlambda} <: AbstractRule

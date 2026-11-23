@@ -136,7 +136,7 @@ julia> struct Layer; mat; fun; end
 julia> model = (lay = Layer([1 2; 3 4f0], sin), vec = [5, 6f0]);
 
 julia> Optimisers.setup(Momentum(), model)  # fields of a new struct are visited by default
-(lay = (mat = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0 0.0; 0.0 0.0]), fun = ()), vec = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0, 0.0]))
+(lay = (mat = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0, 0.0, 0.0, …]), fun = ()), vec = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0, 0.0]))
 
 julia> destructure(model)
 (Float32[1.0, 3.0, 2.0, 4.0, 5.0, 6.0], Restructure(NamedTuple, ..., 6))
