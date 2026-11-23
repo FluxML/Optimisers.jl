@@ -1,10 +1,177 @@
-@deprecate ADAM Adam
-@deprecate NADAM NAdam
-@deprecate ADAMW AdamW
-@deprecate RADAM RAdam
-@deprecate OADAM OAdam
-@deprecate ADAGrad AdaGrad
-@deprecate ADADelta AdaDelta
+"""
+    ADAM(args...; kwargs...)
+
+Deprecated alias for [`Adam`](@ref). Use `Adam(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `Adam`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `Adam`.
+
+# Returns
+- An `Adam` optimisation rule.
+
+# Example
+```julia
+rule = Adam(0.001)
+```
+"""
+function ADAM(args...; kwargs...)
+  Base.depwarn("`ADAM` is deprecated, use `Adam` instead.", :ADAM)
+  return Adam(args...; kwargs...)
+end
+export ADAM
+
+"""
+    NADAM(args...; kwargs...)
+
+Deprecated alias for [`NAdam`](@ref). Use `NAdam(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `NAdam`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `NAdam`.
+
+# Returns
+- An `NAdam` optimisation rule.
+
+# Example
+```julia
+rule = NAdam(0.001)
+```
+"""
+function NADAM(args...; kwargs...)
+  Base.depwarn("`NADAM` is deprecated, use `NAdam` instead.", :NADAM)
+  return NAdam(args...; kwargs...)
+end
+export NADAM
+
+"""
+    ADAMW(args...; kwargs...)
+
+Deprecated alias for [`AdamW`](@ref). Use `AdamW(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `AdamW`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `AdamW`.
+
+# Returns
+- An `AdamW` optimisation rule.
+
+# Example
+```julia
+rule = AdamW(0.001)
+```
+"""
+function ADAMW(args...; kwargs...)
+  Base.depwarn("`ADAMW` is deprecated, use `AdamW` instead.", :ADAMW)
+  return AdamW(args...; kwargs...)
+end
+export ADAMW
+
+"""
+    RADAM(args...; kwargs...)
+
+Deprecated alias for [`RAdam`](@ref). Use `RAdam(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `RAdam`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `RAdam`.
+
+# Returns
+- An `RAdam` optimisation rule.
+
+# Example
+```julia
+rule = RAdam(0.001)
+```
+"""
+function RADAM(args...; kwargs...)
+  Base.depwarn("`RADAM` is deprecated, use `RAdam` instead.", :RADAM)
+  return RAdam(args...; kwargs...)
+end
+export RADAM
+
+"""
+    OADAM(args...; kwargs...)
+
+Deprecated alias for [`OAdam`](@ref). Use `OAdam(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `OAdam`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `OAdam`.
+
+# Returns
+- An `OAdam` optimisation rule.
+
+# Example
+```julia
+rule = OAdam(0.001)
+```
+"""
+function OADAM(args...; kwargs...)
+  Base.depwarn("`OADAM` is deprecated, use `OAdam` instead.", :OADAM)
+  return OAdam(args...; kwargs...)
+end
+export OADAM
+
+"""
+    ADAGrad(args...; kwargs...)
+
+Deprecated alias for [`AdaGrad`](@ref). Use `AdaGrad(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `AdaGrad`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `AdaGrad`.
+
+# Returns
+- An `AdaGrad` optimisation rule.
+
+# Example
+```julia
+rule = AdaGrad(0.001)
+```
+"""
+function ADAGrad(args...; kwargs...)
+  Base.depwarn("`ADAGrad` is deprecated, use `AdaGrad` instead.", :ADAGrad)
+  return AdaGrad(args...; kwargs...)
+end
+export ADAGrad
+
+"""
+    ADADelta(args...; kwargs...)
+
+Deprecated alias for [`AdaDelta`](@ref). Use `AdaDelta(args...; kwargs...)` instead.
+
+# Arguments
+- `args...`: Positional arguments forwarded to `AdaDelta`.
+
+# Keywords
+- `kwargs...`: Keyword arguments forwarded to `AdaDelta`.
+
+# Returns
+- An `AdaDelta` optimisation rule.
+
+# Example
+```julia
+rule = AdaDelta(0.9, 1e-6)
+```
+"""
+function ADADelta(args...; kwargs...)
+  Base.depwarn("`ADADelta` is deprecated, use `AdaDelta` instead.", :ADADelta)
+  return AdaDelta(args...; kwargs...)
+end
+export ADADelta
 
 """
     Descent(η = 1f-1)
