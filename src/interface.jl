@@ -61,8 +61,39 @@ function Base.show(io::IO, ℓ::Leaf; colour = ℓ.frozen ? :cyan : :green)
   ioc = IOContext(io, :compact => true)
   str = sprint(show, ℓ.rule; context = ioc)  # produces Adam{Float32}(0.001, ... not 0.001f0
   printstyled(io, "Leaf(", str, ", "; color = colour)
-  show(ioc, ℓ.state)
+  get(io, :limit, false) === true ? _showstate(ioc, ℓ.state) : show(ioc, ℓ.state)
   printstyled(io, ℓ.frozen ? ", frozen = true)" : ")"; color = colour)
+end
+
+# Used when display asks for `:limit => true` (as the REPL does): Base cuts a vector after 20 entries,
+# which still fills screens when a model has many leaves. Keep just enough to see if the state is all zero.
+const _SHOWN_ENTRIES = 3
+
+_showstate(io::IO, x) = show(io, x)
+
+function _showstate(io::IO, x::AbstractArray)
+  length(x) > _SHOWN_ENTRIES || return show(io, x)
+  head = sprint(show, Array(x[1:_SHOWN_ENTRIES]); context = io)  # e.g. "Float32[0.1, 0.1, 0.1]"
+  print(io, chop(head), ", …]")
+end
+
+function _showstate(io::IO, x::Tuple)
+  print(io, "(")
+  for (i, xᵢ) in enumerate(x)
+    i > 1 && print(io, ", ")
+    _showstate(io, xᵢ)
+  end
+  print(io, length(x) == 1 ? ",)" : ")")
+end
+
+function _showstate(io::IO, x::NamedTuple)
+  print(io, "(")
+  for (i, (k, xᵢ)) in enumerate(pairs(x))
+    i > 1 && print(io, ", ")
+    print(io, k, " = ")
+    _showstate(io, xᵢ)
+  end
+  print(io, ")")
 end
 
 ###
