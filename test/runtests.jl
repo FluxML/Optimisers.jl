@@ -525,6 +525,33 @@ end
       @test st == Optimisers.setup(old, model)
     end
 
+    @testset "setup with a function" begin  # issue 244
+      w = [1.0 2.0; 3.0 4.0]
+      m = (a = (w = w, b = [5.0, 6.0]), tied = (w = w,), d = Dict("v" => [7.0]), n = (1.0, sin), f = Foo([8.0], [9.0]))
+      seen = []
+      st = Optimisers.setup(m) do kp, x
+        push!(seen, (kp, x))
+        ndims(x) == 2 ? Momentum(0.1) : Descent(0.01)
+      end
+      @test seen == trainables(m; path = true)  # same order, and a tied array only once
+      @test st.a.w.rule isa Momentum
+      @test st.tied.w === st.a.w
+      @test all(ℓ -> ℓ.rule isa Descent, (st.a.b, st.d["v"], st.f.x, st.f.y))
+      @test st.n == ((), ())
+      @test Optimisers.setup(Returns(Adam()), m) == Optimisers.setup(Adam(), m)
+
+      g = (a = (w = [1.0 1.0; 1.0 1.0], b = [1.0, 1.0]), tied = nothing, d = nothing, n = nothing, f = nothing)
+      m2 = Optimisers.update(st, m, g)[2]
+      @test m2.a.w ≈ w .- 0.1
+      @test m2.a.b ≈ [5.0, 6.0] .- 0.01
+
+      @test_throws ArgumentError Optimisers.setup((kp, x) -> nothing, m)
+      @test_throws MethodError Optimisers.setup(Adam, m)
+
+      x_dx = Duplicated([1.0, 2.0], [3.0, 4.0])
+      @test Optimisers.setup((kp, x) -> Descent(), x_dx) == Optimisers.setup(Descent(), x_dx)
+    end
+
     @testset "freeze/thaw" begin
       m = (x=[1.0, 2.0], y=([3.0, 4.0], sin));
       st = Optimisers.setup(Descent(0.1), m);

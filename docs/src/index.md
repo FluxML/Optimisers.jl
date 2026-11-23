@@ -178,6 +178,29 @@ Optimisers.trainable(x::Layer) = (; alpha = x.alpha)  # must be a subset of chil
 st = Optimisers.setup(DecayDescent(0.1), Layer(3))
 ```
 
+## Different Rules for Different Parameters
+
+To give some parameters another rule, or other hyperparameters, pass `setup` a function
+in place of the rule. It is called as `f(kp, x)` on each trainable array `x`,
+where `kp` is the [`KeyPath`](@ref) of `x` in the model, and returns the rule for `x`:
+
+```julia
+using Flux, Optimisers
+
+model = Chain(embed = Embedding(100 => 32), hidden = Dense(32 => 32, relu), head = Dense(32 => 100))
+
+# Muon for the hidden weight matrix, AdamW with weight decay on the other matrices only:
+opt = Optimisers.setup(model) do kp, x
+  kp[2] == :hidden && ndims(x) == 2 ? Muon() : AdamW(lambda = ndims(x) == 1 ? 0 : 0.1)
+end
+
+opt.layers.hidden.weight  # Leaf(Muon(...), ...)
+opt.layers.head.bias      # Leaf(AdamW(..., lambda=0.0, ...), ...)
+```
+
+A learning rate schedule can then change each group separately, as in
+`Optimisers.adjust!(opt, Muon, 0.01)`, see below.
+
 ## Frozen Parameters
 
 To temporarily prevent training from affecting some parameters,

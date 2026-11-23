@@ -107,10 +107,27 @@ init
 
 """
     Optimisers.setup(rule, model) -> state_tree
+    Optimisers.setup(f, model) -> state_tree
 
 Initialises the given optimiser for every trainable parameter within the model.
 Returns a tree of the relevant states, which must be passed to [`update`](@ref Optimisers.update)
 or [`update!`](@ref Optimisers.update!).
+
+With a function `f` in place of the `rule`, each trainable array `x` gets the rule `f(kp, x)`,
+where `kp` is the [`KeyPath`](@ref) of `x` in the model, as in `trainables(model; path = true)`.
+An array which appears twice in the model gets the rule of its first position.
+This can also give different rules to different arrays, see [`Muon`](@ref Optimisers.Muon).
+
+```jldoctest
+julia> model = (layer = (weight = ones(3, 2), bias = zeros(3)), head = ones(1, 3));
+
+julia> st = Optimisers.setup(model) do kp, x  # no weight decay on vectors, smaller η for the head
+         AdamW(eta = kp[1] == :head ? 1e-4 : 1e-3, lambda = ndims(x) == 1 ? 0 : 0.1)
+       end;
+
+julia> fmap(ℓ -> (ℓ.rule.eta, ℓ.rule.lambda), st; exclude = ℓ -> ℓ isa Optimisers.Leaf)
+(layer = (weight = (0.001, 0.1), bias = (0.001, 0.0)), head = (0.0001, 0.1))
+```
 
 When the model's parameters live on a Reactant device (with Reactant.jl and
 MLDataDevices.jl loaded), `setup` automatically applies
