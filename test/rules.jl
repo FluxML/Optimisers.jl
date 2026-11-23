@@ -296,6 +296,15 @@ end
   os = Optimisers.setup(Adam(1e-4), x);
   os, x = Optimisers.update(os, x, δx)
   @test x ≈ Float16[1.835, -0.886, 0.5493] rtol=1e-3
+
+  # zero-gradient entries must not become NaN, for every rule with an epsilon
+  @testset "zero gradient, $(name(o))" for o in (Adam(1e-3), AdamW(1e-3), AdamW(1e-3, (0.9, 0.999), 0.01), AdamW(couple=false))
+    x = Float16[1, 2, 3]
+    os = Optimisers.setup(o, x)
+    os, x′ = Optimisers.update(os, x, Float16[0, 0.5, 0])
+    @test all(isfinite, x′)
+    @test x′[1] ≈ x[1] atol=0.1
+  end
 end
 
 @testset "AMSGrad starts from zero state" begin

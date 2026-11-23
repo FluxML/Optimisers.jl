@@ -551,7 +551,7 @@ AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
 init(o::AdamW, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
 
 function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
-  η, β, ϵ, λ = T(o.eta), T.(o.beta), T(o.epsilon), T(o.lambda)
+  η, β, ϵ, λ = T(o.eta), T.(o.beta), _eps(T, o.epsilon), T(o.lambda)
   mt, vt, βt = state
 
   # standard Adam update with learning rate eta=1
