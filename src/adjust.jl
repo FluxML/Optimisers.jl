@@ -34,7 +34,7 @@ julia> s.x
 (Leaf(Momentum(0.01, 0.9), [0.0]), ())
 ```
 """
-freeze!(tree) = foreach(freeze!, tree)
+freeze!(tree) = _foreachstate(freeze!, tree)
 freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
 
 """
@@ -43,8 +43,12 @@ freeze!(ℓ::Leaf) = (ℓ.frozen = true; nothing)
 The reverse of [`freeze!`](@ref Optimisers.freeze!). Applies to all parameters,
 mutating every `Leaf(rule, state, frozen = true)` to `Leaf(rule, state, frozen = false)`.
 """
-thaw!(tree) = foreach(thaw!, tree)
+thaw!(tree) = _foreachstate(thaw!, tree)
 thaw!(ℓ::Leaf) = (ℓ.frozen = false; nothing)
+
+# `setup` marks non-trainable children with `()`, or with `nothing` once it has met an isbits parameter.
+_foreachstate(f, tree) = foreachvalue(f, tree)
+_foreachstate(f, ::Nothing) = nothing
 
 freeze!(::Union{Number, AbstractArray{<:Number}}) = throw(ArgumentError(
   "`freeze!` must not be applied to a model, only to the state tree from `setup`"))
@@ -115,9 +119,9 @@ julia> st
 (vec = Leaf(Nesterov(eta=0.456, rho=0.8), Float32[0.0, 0.0]), fun = ())
 ```
 """
-adjust!(tree, eta::Real) = foreach(st -> adjust!(st, eta), tree)
-adjust!(tree; kw...) = foreach(st -> adjust!(st; kw...), tree)
-adjust!(tree, r::AbstractRule) = foreach(st -> adjust!(st, r), tree)
+adjust!(tree, eta::Real) = _foreachstate(st -> adjust!(st, eta), tree)
+adjust!(tree; kw...) = _foreachstate(st -> adjust!(st; kw...), tree)
+adjust!(tree, r::AbstractRule) = _foreachstate(st -> adjust!(st, r), tree)
 
 adjust!(ℓ::Leaf, eta::Real) = (ℓ.rule = adjust(ℓ.rule, eta); nothing)
 adjust!(ℓ::Leaf; kw...) = (ℓ.rule = adjust(ℓ.rule; kw...); nothing)

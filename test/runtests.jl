@@ -123,6 +123,34 @@ end
         @test d2[1] ≈ [1, 2]
         @test d2[2]["b"] ≈ 1
       end
+
+      @testset "adjust!, freeze! and thaw!" begin
+        d = Dict(1 => [1.0,2.0], 2 => Dict("a" => (; c=[3.0,4.0]), "b" => 1))
+        s = Optimisers.setup(Momentum(0.1), d)
+        Optimisers.adjust!(s, 0.2)
+        @test s[2]["a"].c.rule.eta == 0.2
+        Optimisers.adjust!(s; rho = 0.5)
+        @test s[1].rule.rho == 0.5
+        Optimisers.adjust!(s, Momentum(0.3, 0.4))
+        @test s[2]["a"].c.rule == Momentum(0.3, 0.4)
+        s2 = Optimisers.adjust(s, 0.7)
+        @test s2[1].rule.eta == 0.7
+        @test s[1].rule.eta == 0.3
+        Optimisers.freeze!(s)
+        @test s[2]["a"].c.frozen
+        Optimisers.thaw!(s)
+        @test !s[1].frozen
+      end
+    end
+
+    @testset "adjust! and freeze! with nothing in the state tree" begin
+      m = (s = SA[1.0, 2.0], n = nothing, w = [1.0])
+      st = Optimisers.setup(Descent(0.1), m)
+      @test st.n === nothing
+      Optimisers.adjust!(st, 0.5)
+      @test st.w.rule.eta == 0.5
+      Optimisers.freeze!(st)
+      @test st.w.frozen
     end
 
     @testset "OptimiserChain" begin
