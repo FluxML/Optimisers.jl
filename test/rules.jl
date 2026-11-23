@@ -1,6 +1,7 @@
 using Optimisers
 using ChainRulesCore, Functors, StaticArrays, Zygote
 using LinearAlgebra, Statistics, Test, Random
+using BFloat16s: BFloat16
 
 Random.seed!(1)
 
@@ -304,6 +305,40 @@ end
     os, x′ = Optimisers.update(os, x, Float16[0, 0.5, 0])
     @test all(isfinite, x′)
     @test x′[1] ≈ x[1] atol=0.1
+  end
+end
+
+@testset "BFloat16" begin
+  # issue https://github.com/FluxML/Optimisers.jl/issues/215: BFloat16(0.999) == 1
+  @test Optimisers.opmath(BFloat16) == Optimisers.opmath(Float16) == Float32
+  @test Optimisers.opmath(Float64) == Float64
+  @test Optimisers.opmath(ComplexF16) == ComplexF32
+
+  # Starting from zero, the parameters' rounding is relative to the update itself.
+  gs = [randn(Float32, 100) .* 1f-2 for _ in 1:20]
+  @testset "same as Float64, $(name(o))" for o in RULES
+    s64, x64 = Optimisers.setup(o, zeros(100)), zeros(100)
+    s16, x16 = Optimisers.setup(o, zeros(BFloat16, 100)), zeros(BFloat16, 100)
+    for g in gs
+      s64, x64 = Optimisers.update(s64, x64, Float64.(g))
+      s16, x16 = Optimisers.update(s16, x16, BFloat16.(g))
+    end
+    @test x16 isa Vector{BFloat16}
+    @test Float64.(x16) ≈ x64 rtol=0.05
+  end
+
+  @testset "states keep the parameter eltype" begin
+    st = Optimisers.setup(Adam(), zeros(BFloat16, 2))
+    st, _ = Optimisers.update(st, zeros(BFloat16, 2), BFloat16[1, -1])
+    @test st.state[1] isa Vector{BFloat16}
+    @test st.state[3] isa Tuple{Float32, Float32}
+
+    # not writable, so `@..` returns a new state
+    xs = SA{BFloat16}[0, 0]
+    st, xs = Optimisers.update(Optimisers.setup(Adam(), xs), xs, SA{BFloat16}[1, -1])
+    @test xs isa SVector{2, BFloat16}
+    @test st.state[1] isa SVector{2, BFloat16}
+    @test st.state[2] isa SVector{2, BFloat16}
   end
 end
 

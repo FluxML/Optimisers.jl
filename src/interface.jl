@@ -262,7 +262,8 @@ end
     @.. x = y + z
 
 Sometimes in-place broadcasting macro, for use in `apply!` rules.
-If `maywrite(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`.
+If `maywrite(x)` then it is just `@. x = rhs`, but if not, it becomes `x = @. rhs`,
+converted to the element type of `x` (as `rhs` may be computed in [`opmath`](@ref Optimisers.opmath)).
 """
 macro var".."(ex)
   Meta.isexpr(ex, :(=)) || throw("the macro @.. only accepts assignment, like @.. x = y + z")
@@ -271,9 +272,13 @@ macro var".."(ex)
   :($dst = if $maywrite($dst)
       $dst .= $src
     else
-      $src
+      $_toeltype($dst, $src)
     end)
 end
+
+_toeltype(dst::AbstractArray{T}, src::AbstractArray{T}) where T = src
+_toeltype(dst::AbstractArray{T}, src::AbstractArray) where T = T.(src)
+_toeltype(dst, src) = src
 
 """
     x = @lazy y + z
