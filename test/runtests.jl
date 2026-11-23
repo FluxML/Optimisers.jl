@@ -670,7 +670,7 @@ end
 
     isdefined(Base, :ispublic) && @testset "documented names are public" begin  # issue 221
       api = read(joinpath(@__DIR__, "..", "docs", "src", "api.md"), String)
-      names = unique(Symbol(m[1]) for m in eachmatch(r"^Optimisers\.(\S+?)(?:\(::.*)?$"m, api))
+      names = unique(Symbol(m[1]) for m in eachmatch(r"^Optimisers\.(\S+?)(?:\(::.*)?\r?$"m, api))  # \r? for CRLF checkouts
       @test length(names) > 30
       for name in names
         @test Base.isexported(Optimisers, name) || Base.ispublic(Optimisers, name)
