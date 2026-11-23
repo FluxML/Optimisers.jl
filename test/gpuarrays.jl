@@ -107,3 +107,8 @@ MLDataDevices.Internal.get_device_type(::FakeGPUArray) = MLDataDevices.CUDADevic
   @test_throws "on one device" destructure!(zeros(2), (a = FakeGPUArray([1.0, 2.0]),))
   @test destructure((a = FakeGPUArray([1.0, 2.0]), b = FakeGPUArray([3.0])))[1] == 1:3
 end
+
+@testset "show with :limit" begin  # must not index the state one element at a time
+  st = Optimisers.setup(Adam(), jl(ones(Float32, 10)))
+  @test occursin("Float32[0.0, 0.0, 0.0, …]", sprint(show, st; context = :limit => true))
+end
