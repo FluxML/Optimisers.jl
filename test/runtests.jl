@@ -412,6 +412,101 @@ end
           @test state == state2
     end
 
+    @testset "adjust/adjust! with a filter or rule type" begin  # issue 201
+      model = (weight = [1.0 2.0; 3.0 4.0], bias = [0.0, 0.0])
+      old = OptimiserChain(SignDecay(0.1), AdamW(lambda = 0.1))
+      new = OptimiserChain(SignDecay(0.3), AdamW(lambda = 0.1))  # only SignDecay changed
+      st = Optimisers.setup(old, model)
+
+      st2 = Optimisers.adjust(st, SignDecay; lambda = 0.3)
+      @test st2.weight.rule == st2.bias.rule == new
+      @test st.weight.rule == st.bias.rule == old
+      Optimisers.adjust!(st, SignDecay; lambda = 0.3)
+      @test st.weight.rule == st.bias.rule == new
+      @test Optimisers.adjust(old, SignDecay; lambda = 0.3) == new
+
+      # positional η, and a filter function instead of a type
+      st = Optimisers.setup(OptimiserChain(Descent(0.1), Adam(0.01)), model)
+      st2 = Optimisers.adjust(st, Descent, 0.5)
+      @test st2.bias.rule == OptimiserChain(Descent(0.5), Adam(0.01))
+      @test st.bias.rule == OptimiserChain(Descent(0.1), Adam(0.01))
+      Optimisers.adjust!(st, (kp, r) -> r isa Adam, 0.02)
+      @test st.weight.rule == OptimiserChain(Descent(0.1), Adam(0.02))
+
+      # nested chains
+      st = Optimisers.setup(OptimiserChain(WeightDecay(0.1), OptimiserChain(ClipGrad(), Adam())), model)
+      Optimisers.adjust!(st, Adam, 0.5)
+      @test st.bias.rule == OptimiserChain(WeightDecay(0.1), OptimiserChain(ClipGrad(), Adam(0.5)))
+
+      # filter on the keypath, which matches those of trainables
+      st = Optimisers.setup(old, model)
+      Optimisers.adjust!(st, (kp, r) -> last(kp) == :bias; lambda = 0.0)
+      @test st.weight.rule == old
+      @test st.bias.rule == OptimiserChain(SignDecay(0.0), AdamW(lambda = 0.0))
+
+      nested = (layers = [model, deepcopy(model)],)
+      seen = KeyPath[]
+      Optimisers.adjust(Optimisers.setup(old, nested), (kp, r) -> (push!(seen, kp); false), 0.5)
+      @test Set(seen) == Set(first.(trainables(nested; path = true)))
+      st = Optimisers.setup(old, nested)
+      Optimisers.adjust!(st, (kp, r) -> kp[2] == 2 && r isa AdamW; lambda = 0.5)
+      @test st.layers[1].bias.rule == old
+      @test st.layers[2].bias.rule == OptimiserChain(SignDecay(0.1), AdamW(lambda = 0.5))
+
+      # MixedPrecision
+      st = Optimisers.setup(MixedPrecision(Float32, old), model)
+      st2 = Optimisers.adjust(st, SignDecay; lambda = 0.3)
+      @test st2.weight.rule == MixedPrecision(Float32, new)
+      @test st.weight.rule == MixedPrecision(Float32, old)
+
+      # Dict
+      d = Dict(:a => [1.0, 2.0], :b => [3.0], :c => 1)
+      sd = Optimisers.setup(old, d)
+      sd2 = Optimisers.adjust(sd, (kp, r) -> kp == KeyPath(:a) && r isa SignDecay; lambda = 0.3)
+      @test sd2 isa Dict
+      @test sd2[:a].rule == new
+      @test sd2[:b].rule == old
+      @test sd2[:c] == sd[:c] == ()
+      Optimisers.adjust!(sd, SignDecay; lambda = 0.3)
+      @test sd[:a].rule == sd[:b].rule == new
+
+      # tied arrays
+      w = [1.0, 2.0]
+      tied = (a = w, b = [w])
+      st = Optimisers.setup(old, tied)
+      st2 = Optimisers.adjust(st, SignDecay; lambda = 0.3)
+      @test st2.a === st2.b[1]
+      @test st2.a.rule == new
+      @test st.a.rule == old
+      st3 = Optimisers.adjust(st, (kp, r) -> kp == KeyPath(:b, 1), 0.5)  # the Leaf is shared
+      @test st3.a === st3.b[1]
+      @test st3.a.rule == OptimiserChain(SignDecay(0.1), AdamW(eta = 0.5, lambda = 0.1))
+      @test st.a.rule == old
+
+      # frozen leaves stay frozen, but are still adjusted
+      st = Optimisers.setup(old, model)
+      Optimisers.freeze!(st.bias)
+      st2 = Optimisers.adjust(st, SignDecay; lambda = 0.3)
+      @test st2.bias.frozen && !st2.weight.frozen
+      @test st2.bias.rule == new
+      Optimisers.adjust!(st, SignDecay; lambda = 0.3)
+      @test st.bias.frozen && !st.weight.frozen
+      @test st.bias.rule == new
+
+      # errors and no-ops
+      @test_throws ArgumentError Optimisers.adjust!(st, SignDecay)
+      @test_throws ArgumentError Optimisers.adjust!(st, (kp, r) -> true)
+      @test_throws ArgumentError Optimisers.adjust(st, SignDecay)
+      @test_throws ArgumentError Optimisers.adjust(old, SignDecay)
+      @test_throws MethodError Optimisers.adjust!(st, Int; lambda = 0.3)
+
+      st = Optimisers.setup(old, model)
+      @test Optimisers.adjust(st, (kp, r) -> false; lambda = 0.3) == st
+      @test Optimisers.adjust(st, Descent, 0.3) == st
+      Optimisers.adjust!(st, (kp, r) -> false, 0.3)
+      @test st == Optimisers.setup(old, model)
+    end
+
     @testset "freeze/thaw" begin
       m = (x=[1.0, 2.0], y=([3.0, 4.0], sin));
       st = Optimisers.setup(Descent(0.1), m);
