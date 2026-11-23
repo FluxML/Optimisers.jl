@@ -241,7 +241,7 @@ function _adjust_where!(f, kp, ℓ::Leaf, args, nt)
   ℓ.rule = _adjust_rule(f, kp, ℓ.rule, args, nt)
   nothing
 end
-_adjust_where!(f, kp, ::Nothing, args, nt) = nothing  # non-trainable entry of a Dict
+_adjust_where!(f, kp, ::Nothing, args, nt) = nothing  # see _foreachstate
 _adjust_where!(f, kp, tree, args, nt) =
   foreach(((k, t),) -> _adjust_where!(f, KeyPath(kp, k), t, args, nt), pairs(tree))
 
