@@ -227,6 +227,17 @@ Momentum |> fieldnames  # (:eta, :rho)
 Optimisers.adjust!(opt, rho = 0.95)  # change ρ for the whole model.
 ```
 
+This changes every rule with a field of that name, including both rules in
+`OptimiserChain(SignDecay(), AdamW())`, which each have a `lambda`.
+To change only some rules, pass a rule type, or a function of the parameter's
+[`KeyPath`](@ref) and the rule which returns a `Bool`:
+
+```julia
+Optimisers.adjust!(opt, SignDecay; lambda = 0.01)  # not AdamW's lambda
+
+Optimisers.adjust!(opt, (kp, r) -> last(kp) == :bias; lambda = 0)  # no weight decay on biases
+```
+
 ## Tied Parameters
 
 If the same array appears twice (or more) in the model, [Functors.jl](https://fluxml.ai/Functors.jl) should recognise this.
