@@ -319,14 +319,14 @@ end
   epsilon = 1e-8
 end
 
-init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(x), T.(o.beta))
+init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(real.(x)), T.(o.beta))
 
 function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, ut, βt = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. ut = max(β[2] * ut, abs(dx))
+  @.. ut = max(real(β[2]) * ut, abs(dx))
   dx′ = @lazy (η/(1 - βt[1])) * mt/(ut + ϵ)
 
   return (mt, ut, βt .* β), dx′
@@ -455,14 +455,14 @@ are not bias-corrected, unlike in [`Adam`](@ref).
   epsilon = 1e-8
 end
 
-init(o::AMSGrad, x::AbstractArray) = (zero(x), zero(x), zero(x))
+init(o::AMSGrad, x::AbstractArray) = (zero(x), zero(real.(x)), zero(real.(x)))
 
 function apply!(o::AMSGrad, state, x::AbstractArray{T}, dx) where T
   η, β, ϵ = T(o.eta), T.(o.beta), _eps(T, o.epsilon)
   mt, vt, v̂t = state
 
   @.. mt = β[1] * mt + (1 - β[1]) * dx
-  @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
+  @.. vt = real(β[2]) * vt + (1 - real(β[2])) * abs2(dx)
   @.. v̂t = max(v̂t, vt)
   dx′ = @lazy η * mt / (sqrt(v̂t) + ϵ)
 
