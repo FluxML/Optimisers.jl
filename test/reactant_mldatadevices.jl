@@ -232,6 +232,54 @@ end
     @test Array(ps.w) ≈ w .- 0.5f0
 end
 
+# A filter sees the rules inside the wrappers, and the new values stay tracked.
+@testset "adjust! with a filter on wrapped rules" begin
+    ps = cdev((; w = Float32[1, 2], b = Float32[3, 4]))
+    gs = cdev((; w = zeros(Float32, 2), b = zeros(Float32, 2)))
+    st = Optimisers.setup(OptimiserChain(SignDecay(0f0), WeightDecay(0f0)), ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    lambdas(l) = (l.rule.opt.opts[1].opt.lambda, l.rule.opt.opts[2].opt.lambda)
+
+    Optimisers.adjust!(st, SignDecay; lambda = 0.5f0)  # not WeightDecay's lambda
+    @test lambdas(st.w) == lambdas(st.b) == (0.5f0, 0f0)
+    w = Array(ps.w)
+    b = Array(ps.b)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ w .- 0.5f0 .* sign.(w)
+    @test Array(ps.b) ≈ b .- 0.5f0 .* sign.(b)
+
+    st2 = Optimisers.adjust(st, WeightDecay; lambda = 0.5f0)  # out of place
+    @test typeof(st2) == typeof(st)
+    @test lambdas(st2.w) == (0.5f0, 0.5f0)
+    w = Array(ps.w)
+    step_ra!(st2, ps, gs)
+    @test Array(ps.w) ≈ 0.5f0 .* w .- 0.5f0 .* sign.(w)
+
+    # A step compiled while all leaves share one rule reads the first leaf's numbers for
+    # every leaf, so recompile now that `adjust!` gave each leaf its own.
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    only_b(kp, r) = r isa SignDecay && last(kp) == :b
+    st3 = Optimisers.adjust(st, only_b; lambda = 0f0)
+    @test typeof(st3) == typeof(st)
+    @test lambdas(st3.w) == (0.5f0, 0f0) && lambdas(st3.b) == (0f0, 0f0)
+    w, b = Array(ps.w), Array(ps.b)
+    step_ra!(st3, ps, gs)
+    @test Array(ps.w) ≈ w .- 0.5f0 .* sign.(w)
+    @test Array(ps.b) == b
+
+    # Wrapped atomic rules: one holding no tracked number, and one with a tracked integer.
+    st = Optimisers.setup(Descent(1), ps)
+    Optimisers.adjust!(st, SignDecay, 3)
+    @test st.w.rule.opt.eta === 1
+    Optimisers.adjust!(st, Descent, 2)
+    @test st.w.rule.opt.eta === 2
+
+    st = Optimisers.setup(AccumGrad(1), ps)
+    Optimisers.adjust!(st, AccumGrad; n = 2)
+    @test st.w.rule.opt.n isa Reactant.ConcretePJRTNumber{Int}
+    @test st.w.rule.opt.n == 2
+end
+
 # `ClipNorm` has no `eta`, and its `omega` stays tracked so that an already-compiled
 # `update!` uses the new value.
 @testset "adjust! on a wrapped ClipNorm: $(rule)" for rule in (

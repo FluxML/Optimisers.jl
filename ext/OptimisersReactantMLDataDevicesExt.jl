@@ -106,6 +106,14 @@ function Optimisers._adjust(
     return ReactantOptimiser(Optimisers._adjust(opt.opt, dev(nt)))
 end
 
+# `adjust!(tree, filter; ...)`: the filter sees the rule inside the wrapper, while the new
+# values still go through the wrapper to stay tracked.
+Optimisers._adjust_rule(f, kp, opt::ReactantOptimiser{<:WrappedContainer}, args, nt) =
+    ReactantOptimiser(Optimisers._adjust_rule(f, kp, opt.opt, args, nt))
+
+Optimisers._adjust_rule(f, kp, opt::ReactantOptimiser, args, nt) =
+    f(kp, opt.opt) ? Optimisers.adjust(opt, args...; nt...) : opt
+
 # --- construction helpers -------------------------------------------------
 # Device-less form: default to the current Reactant device. Dispatches to the
 # device-aware methods below, so `OptimiserChain` / `AccumGrad` / `ClipNorm` (all
