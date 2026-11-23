@@ -155,7 +155,7 @@ end;
 ## Non-`trainable` Parameters
 
 Optimisers.jl uses [Functors.jl](https://fluxml.ai/Functors.jl) to walk the `struct`s
-making up the model, for which they must be annotated `@functor Type`. 
+making up the model, which by default looks into the fields of any `struct`.
 By default optimisation will alter all [`isnumeric`](@ref Optimisers.isnumeric) arrays. 
 
 If some arrays of a particular layer should not be treated this way,
@@ -168,8 +168,6 @@ struct Layer{T}
   length::Int
 end
 Layer(n::Int) = Layer(randn(n), zeros(n), n)
-
-Functors.@functor Layer
 
 # Both array fields will be, for example, moved to the GPU:
 Functors.children(Layer(3))  # (alpha = [...], beta = [...], length)

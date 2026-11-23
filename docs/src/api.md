@@ -49,8 +49,8 @@ Optimisers.thaw!
 Optimisers.make_reactant_compatible
 ```
 
-Calling `Functors.@functor` on your model's layer types by default causes
-these functions to recurse into all children, and ultimately optimise
+By default these functions recurse into all children of your model's layer types,
+as Functors.jl looks into the fields of any `struct`, and ultimately optimise
 all `isnumeric` leaf nodes.
 To further restrict this by ignoring some fields of a layer type, define `trainable`:
 
