@@ -218,7 +218,12 @@ end
   epsilon = 1e-8
 end
 
-init(o::Adam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
+# Some backends need scalar state to reside alongside the parameter or the previous state.
+_state_scalar(x, value) = value
+_init_betas(x::AbstractArray{T}, β) where T = _state_scalar.(Ref(x), opmath(T).(β))
+_next_betas(βt, β) = _state_scalar.(βt, βt .* β)
+
+init(o::Adam, x::AbstractArray) = (zero(x), zero(x), _init_betas(x, o.beta))
 
 function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -229,7 +234,7 @@ function apply!(o::Adam, state, x::AbstractArray{T}, dx) where T
   @.. vt = β[2] * vt + (1 - β[2]) * abs2(dx)
   dx′ = @lazy mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx′
+  return (mt, vt, _next_betas(βt, β)), dx′
 end
 
 """
@@ -283,7 +288,7 @@ end
   epsilon = 1e-8
 end
 
-init(o::RAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta), 1)
+init(o::RAdam, x::AbstractArray) = (zero(x), zero(x), _init_betas(x, o.beta), _state_scalar(x, 1))
 
 function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -302,7 +307,7 @@ function apply!(o::RAdam, state, x::AbstractArray{T}, dx) where T
     dx′ = @lazy mt / (1 - βt[1]) * η
   end
 
-  return (mt, vt, βt .* β, t + 1), dx′
+  return (mt, vt, _next_betas(βt, β), _state_scalar(t, t + 1)), dx′
 end
 
 """
@@ -325,7 +330,7 @@ end
   epsilon = 1e-8
 end
 
-init(o::AdaMax, x::AbstractArray{T}) where T = (zero(x), zero(real.(x)), opmath(T).(o.beta))
+init(o::AdaMax, x::AbstractArray) = (zero(x), zero(real.(x)), _init_betas(x, o.beta))
 
 function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -336,7 +341,7 @@ function apply!(o::AdaMax, state, x::AbstractArray{T}, dx) where T
   @.. ut = max(real(β[2]) * ut, abs(dx))
   dx′ = @lazy (η/(1 - βt[1])) * mt/(ut + ϵ)
 
-  return (mt, ut, βt .* β), dx′
+  return (mt, ut, _next_betas(βt, β)), dx′
 end
 
 """
@@ -360,7 +365,7 @@ is a variant of Adam adding an "optimistic" term suitable for adversarial traini
   epsilon = 1e-8
 end
 
-init(o::OAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta), zero(x))
+init(o::OAdam, x::AbstractArray) = (zero(x), zero(x), _init_betas(x, o.beta), zero(x))
 
 function apply!(o::OAdam, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -373,7 +378,7 @@ function apply!(o::OAdam, state, x::AbstractArray{T}, dx) where T
   @.. term = η * mt / (1 - βt[1]) / (sqrt(vt / (1 - βt[2])) + ϵ)
   dx′ = @lazy 2 * term - prev
 
-  return (mt, vt, βt .* β, term), dx′
+  return (mt, vt, _next_betas(βt, β), term), dx′
 end
 
 """
@@ -501,7 +506,7 @@ Parameters don't need tuning.
   epsilon = 1e-8
 end
 
-init(o::NAdam, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
+init(o::NAdam, x::AbstractArray) = (zero(x), zero(x), _init_betas(x, o.beta))
 
 function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -513,7 +518,7 @@ function apply!(o::NAdam, state, x::AbstractArray{T}, dx) where T
   dx′ = @lazy (β[1] * mt / (1 - β[1] * βt[1]) + (1 - β[1]) * dx / (1 - βt[1])) /
           (sqrt(vt * β[2] / (1 - βt[2])) + ϵ) * η
 
-  return (mt, vt, βt .* β), dx′
+  return (mt, vt, _next_betas(βt, β)), dx′
 end
 
 """
@@ -560,7 +565,7 @@ end
 AdamW(; eta = 0.001, beta = (0.9, 0.999), lambda= 0.0,  epsilon = 1e-8, kw...) =
   AdamW(eta, beta, lambda, epsilon; kw...)
 
-init(o::AdamW, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
+init(o::AdamW, x::AbstractArray) = (zero(x), zero(x), _init_betas(x, o.beta))
 
 function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -579,7 +584,7 @@ function apply!(o::AdamW, state, x::AbstractArray{T}, dx) where T
     dx′′ = @lazy η * dx′ + λ * x
   end
 
-  return (mt, vt, βt .* β), dx′′
+  return (mt, vt, _next_betas(βt, β)), dx′′
 end
 
 function Base.show(io::IO, o::AdamW)
@@ -608,7 +613,7 @@ Adam optimiser.
   epsilon = 1e-16
 end
 
-init(o::AdaBelief, x::AbstractArray{T}) where T = (zero(x), zero(x), opmath(T).(o.beta))
+init(o::AdaBelief, x::AbstractArray) = (zero(x), zero(x), _init_betas(x, o.beta))
 
 function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
   S = opmath(T)
@@ -619,7 +624,7 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
   @.. st = β[2] * st + (1 - β[2]) * abs2(dx - mt) + ϵ
   dx′ = @lazy η * mt / (1 - βt[1]) / (sqrt(st / (1 - βt[2])) + ϵ)
 
-  return (mt, st, βt .* β), dx′
+  return (mt, st, _next_betas(βt, β)), dx′
 end
 
 """

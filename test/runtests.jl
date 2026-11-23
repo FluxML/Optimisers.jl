@@ -860,11 +860,12 @@ end
   @testset verbose=true "interface" begin
     include("interface.jl")
   end
-  @testset verbose=true "GPU arrays" begin
-    include("gpuarrays.jl")
-  end
+  # The GPU array tests load MLDataDevices, which changes Reactant's setup path.
   @testset verbose=true "Reactant" begin
     include("reactant.jl")
+  end
+  @testset verbose=true "GPU arrays" begin
+    include("gpuarrays.jl")
   end
   @testset verbose=true "Reactant + MLDataDevices" begin
     include("reactant_mldatadevices.jl")

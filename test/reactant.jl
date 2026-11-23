@@ -1,6 +1,26 @@
 using Reactant, Optimisers
 using BFloat16s: BFloat16
 
+@testset "Eager Reactant setup: $(nameof(typeof(rule)))" for rule in (
+        Adam(), RAdam(), AdaMax(), OAdam(), NAdam(), AdamW(), AdaBelief(),
+    )
+    rng = Random.MersenneTwister(0)
+    p_cpu = randn(rng, 5)
+    grads = [randn(rng, 5) for _ in 1:8]
+
+    st_cpu = Optimisers.setup(rule, p_cpu)
+    p_ra = Reactant.to_rarray(copy(p_cpu))
+    st_ra = Optimisers.setup(rule, p_ra)
+    @test st_ra.rule === rule
+    step! = Reactant.@compile Optimisers.update!(st_ra, p_ra, Reactant.to_rarray(grads[1]))
+    for g in grads
+        st_cpu, p_cpu = Optimisers.update!(st_cpu, p_cpu, g)
+        st_ra, p_ra = step!(st_ra, p_ra, Reactant.to_rarray(g))
+        @test Array(p_ra) ≈ p_cpu
+    end
+    @test all(isapprox.(Float64.(st_ra.state[3]), st_cpu.state[3]))
+end
+
 @testset for opt in (Descent(0.011), Momentum(0.011), Adam(0.011), AdamW(0.011), RAdam(0.011))
     opt_ra = Reactant.to_rarray(opt; track_numbers=AbstractFloat)
 

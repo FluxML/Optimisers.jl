@@ -3,6 +3,7 @@ module OptimisersReactantExt
 using Optimisers: Optimisers, @..
 using LinearAlgebra: LinearAlgebra
 using Reactant: Reactant, TracedRNumber, TracedRArray, ConcretePJRTArray, ConcreteIFRTArray
+using Reactant: ConcretePJRTNumber, ConcreteIFRTNumber
 
 # Once https://github.com/EnzymeAD/Reactant.jl/pull/835 we can support throwing errors
 # from compiled MLIR
@@ -37,6 +38,23 @@ Optimisers._convert(::Type{T}, x::TracedRNumber) where {T} = convert(TracedRNumb
 
 # Traced parameters have eltype `TracedRNumber{T}`, so compute in `TracedRNumber{opmath(T)}`.
 Optimisers.opmath(::Type{TracedRNumber{T}}) where {T} = TracedRNumber{Optimisers.opmath(T)}
+
+# A scalar has no axes to partition, so replicate it on the parameter's mesh.
+for (CA, CN) in ((ConcretePJRTArray, ConcretePJRTNumber), (ConcreteIFRTArray, ConcreteIFRTNumber))
+    @eval begin
+        function Optimisers._state_scalar(x::$CA, value)
+            sharding = Reactant.Sharding.is_sharded(x.sharding) ?
+                Reactant.Sharding.Replicated(x.sharding.mesh) : x.sharding
+            return $CN(value; client = Reactant.XLA.client(x), device = Reactant.XLA.device(x),
+                       sharding)
+        end
+
+        function Optimisers._state_scalar(x::$CN{T}, value) where {T}
+            return $CN{T}(convert(T, value); client = Reactant.XLA.client(x),
+                          device = Reactant.XLA.device(x), x.sharding)
+        end
+    end
+end
 
 # `LinearAlgebra.norm` iterates, and so does the `Broadcasted` reduction reached when the
 # gradient is the lazy output of a previous rule. Materialise the latter, and compute the
