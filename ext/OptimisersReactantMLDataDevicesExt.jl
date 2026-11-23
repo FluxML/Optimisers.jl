@@ -21,6 +21,12 @@ _convert_eltype(::Type{T}, x::Reactant.ConcretePJRTNumber) where {T<:Number} =
 _convert_eltype(::Type{T}, x::Reactant.ConcreteIFRTNumber) where {T<:Number} =
     Reactant.ConcreteIFRTNumber{T}(x)
 
+# `adjust` keeps the eltype of a tracked number, as it keeps the type of a host one.
+Optimisers._keeptype(old::Reactant.ConcretePJRTNumber{T}, new::Number) where {T} =
+    _convert_eltype(T, new)
+Optimisers._keeptype(old::Reactant.ConcreteIFRTNumber{T}, new::Number) where {T} =
+    _convert_eltype(T, new)
+
 # --- the wrapper ----------------------------------------------------------
 # Wrapping a rule in `ReactantOptimiser` lets us override `init`/`_adjust` so the
 # learning rate, momenta and step counters are stored/updated as tracked numbers
@@ -125,7 +131,7 @@ function Optimisers.adjust(opt::ReactantOptimiser, eta::Real)
     tracked(x) = x isa Reactant.ConcreteRNumber
     isleaf(x) = tracked(x) || Optimisers.Functors.isleaf(x)
     new′ = Optimisers.fmap(opt.opt, new; exclude = isleaf, cache = nothing) do old, x
-        tracked(old) && !tracked(x) ? track(x) : x
+        tracked(old) && !tracked(x) ? track(Optimisers._keeptype(old, x)) : x
     end
     return ReactantOptimiser(new′)
 end

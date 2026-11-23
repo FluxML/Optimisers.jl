@@ -123,9 +123,11 @@ adjust!(tree, eta::Real) = _foreachstate(st -> adjust!(st, eta), tree)
 adjust!(tree; kw...) = _foreachstate(st -> adjust!(st; kw...), tree)
 adjust!(tree, r::AbstractRule) = _foreachstate(st -> adjust!(st, r), tree)
 
-adjust!(ℓ::Leaf, eta::Real) = (ℓ.rule = adjust(ℓ.rule, eta); nothing)
-adjust!(ℓ::Leaf; kw...) = (ℓ.rule = adjust(ℓ.rule; kw...); nothing)
+adjust!(ℓ::Leaf, eta::Real) = _setrule!(ℓ, adjust(ℓ.rule, eta))
+adjust!(ℓ::Leaf; kw...) = _setrule!(ℓ, adjust(ℓ.rule; kw...))
 adjust!(ℓ::Leaf{R}, r::R) where R <: AbstractRule = (ℓ.rule = _unshare(r); nothing)
+adjust!(ℓ::Leaf, r::AbstractRule) = throw(ArgumentError(
+  "adjust!(tree, rule) needs a rule of the type already in the tree, $(typeof(ℓ.rule)), not $(typeof(r))"))
 
 adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
 adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
@@ -166,10 +168,23 @@ function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
   isempty(nt) && throw(ArgumentError("adjust must be given something to act on!"))
   fs = fieldnames(T)
   vals = map(fs) do field
-    get(nt, field, getfield(r, field))
+    old = getfield(r, field)
+    haskey(nt, field) ? _keeptype(old, nt[field]) : old
   end
   return ConstructionBase.constructorof(T)(vals...)
 end
+
+function _setrule!(ℓ::Leaf{R}, r) where R
+  r isa R || throw(ArgumentError("adjust! cannot change the type of the rule in a Leaf, from $R to $(typeof(r)). \
+    Construct the rule with the number types it should keep, e.g. `Descent(1.0)` instead of `Descent(1)`."))
+  ℓ.rule = r
+  nothing
+end
+
+# Keep the rule's number types, so that `adjust!` can store the new rule in the same `Leaf`.
+_keeptype(old::AbstractFloat, new::Real) = convert(typeof(old), new)
+_keeptype(old::Tuple, new::Tuple) = length(old) == length(new) ? map(_keeptype, old, new) : new
+_keeptype(old, new) = new
 
 ###
 ### adjust only the rules a filter selects
@@ -238,8 +253,7 @@ function _nonempty(kw)
 end
 
 function _adjust_where!(f, kp, ℓ::Leaf, args, nt)
-  ℓ.rule = _adjust_rule(f, kp, ℓ.rule, args, nt)
-  nothing
+  _setrule!(ℓ, _adjust_rule(f, kp, ℓ.rule, args, nt))
 end
 _adjust_where!(f, kp, ::Nothing, args, nt) = nothing  # see _foreachstate
 _adjust_where!(f, kp, tree, args, nt) =

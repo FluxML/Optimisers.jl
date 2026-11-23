@@ -298,6 +298,20 @@ end
     @test Array(ps.b) == [3, 4]
 end
 
+# A value of another type keeps the tracked numbers' eltype, so a compiled step still applies.
+@testset "adjust! with a value of another number type" begin
+    ps = cdev((; w = Float32[1, 2]))
+    gs = cdev((; w = ones(Float32, 2)))
+    st = Optimisers.setup(OptimiserChain(WeightDecay(0.5f0), Descent(0.1f0)), ps)
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    Optimisers.adjust!(st, 0.5)
+    Optimisers.adjust!(st; lambda = 0)
+    @test st.w.rule.opt.opts[2].opt.eta isa Reactant.ConcreteRNumber{Float32}
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ [0.5, 1.5]
+    @test typeof(Optimisers.adjust(st, Descent, 1)) == typeof(st)
+end
+
 # The rule's own `adjust(rule, η)` is used, and the new value is tracked.
 struct _LR{T} <: Optimisers.AbstractRule
     lr::T
@@ -315,7 +329,7 @@ Optimisers.adjust(::_LR, eta::Real) = _LR(eta)
     @test st.w.rule.opt.lr isa Reactant.ConcreteRNumber
     step_ra!(st, ps, gs)
     @test Array(ps.w) ≈ [0.5, 1.5]
-    st2 = Optimisers.adjust(st, _LR, 0.25f0)
+    st2 = Optimisers.adjust(st, _LR, 0.25)
     @test typeof(st2) == typeof(st)
     @test st2.w.rule.opt.lr == 0.25f0
 end

@@ -359,6 +359,24 @@ end
       @test mp1.γ.rule.rule.rho == 0.7
     end
 
+    @testset "adjust keeps the rule's number types" begin
+      m = (; w = rand(Float32, 2))
+      st = Optimisers.setup(Adam(1f-3), m)
+      Optimisers.adjust!(st, 0.1)
+      @test st.w.rule.eta === 0.1f0
+      Optimisers.adjust!(st; beta = (0.8f0, 0.9f0))
+      @test st.w.rule.beta isa Tuple{Float64, Float64}
+      @test Optimisers.adjust(st; epsilon = 0).w.rule.epsilon === 0.0
+      st = Optimisers.setup(OptimiserChain(SignDecay(1f-4), AdamW(lambda = 1e-2)), m)
+      Optimisers.adjust!(st; lambda = 0)
+      @test st.w.rule.opts[1].lambda === 0f0
+      @test st.w.rule.opts[2].lambda === 0.0
+      st = Optimisers.setup(Descent(1), m)  # an Int field cannot store 0.5
+      @test Optimisers.adjust(st, 2).w.rule.eta === 2
+      @test_throws ArgumentError Optimisers.adjust!(st, 0.5)
+      @test_throws ArgumentError Optimisers.adjust!(Optimisers.setup(Adam(1f-3), m), Adam(1e-2))
+    end
+
     @testset "adjust/adjust! with completely new rule replacement" begin
           model =  Foo([1.0, 2.0], (a = sin, b = [3.0, 4.0], c = 5))
           rule = OptimiserChain(
@@ -395,7 +413,7 @@ end
           @assert state != state2
 
           # attempting to replace with a incompatible rule throws an error:
-          @test_throws MethodError Optimisers.adjust!(state, bad_rule)
+          @test_throws ArgumentError Optimisers.adjust!(state, bad_rule)
 
           # adjust `state` to match `rule2`, instead of  `rule`:
           Optimisers.adjust!(state, rule2)
