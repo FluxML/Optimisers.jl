@@ -187,7 +187,7 @@ end
               # The Flux PR had 1e-2 for all. But AdaDelta(ρ) needs ρ≈0.9 not small. And it helps to make ε not too small too:
               Adam(1e-2), RMSProp(1e-2), RMSProp(1e-2, centred = true), RAdam(1e-2), OAdam(1e-2), AdaGrad(1e-2), AdaDelta(0.9, 1e-5), NAdam(1e-2), AdaBelief(1e-2),
               # These weren't in Flux PR:
-              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), AdamW(1e-2), 
+              Descent(1e-2), Momentum(1e-2), Nesterov(1e-2), AdamW(1e-2), AdaMax(1e-2), AMSGrad(1e-2),
               ]
     # Our "model" is just a complex number
     model = (w = zeros(ComplexF64, 1),)
