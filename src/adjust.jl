@@ -26,12 +26,12 @@ julia> m
 (x = ([1.0], 2.0), y = [-0.14159265358979312])
 
 julia> s
-(x = (Leaf(Momentum(0.01, 0.9), [0.0], frozen = true), ()), y = Leaf(Momentum(0.01, 0.9), [3.14159]))
+(x = (Leaf(Momentum(eta=0.01, rho=0.9), [0.0], frozen = true), ()), y = Leaf(Momentum(eta=0.01, rho=0.9), [3.14159]))
 
 julia> Optimisers.thaw!(s)
 
 julia> s.x
-(Leaf(Momentum(0.01, 0.9), [0.0]), ())
+(Leaf(Momentum(eta=0.01, rho=0.9), [0.0]), ())
 ```
 """
 freeze!(tree) = _foreachstate(freeze!, tree)
@@ -76,17 +76,17 @@ To change just the learning rate, provide a number `η::Real`.
 julia> m = (vec = rand(Float32, 2), fun = sin);
 
 julia> st = Optimisers.setup(Nesterov(), m)  # stored momentum is initialised to zero
-(vec = Leaf(Nesterov(0.001, 0.9), Float32[0.0, 0.0]), fun = ())
+(vec = Leaf(Nesterov(eta=0.001, rho=0.9), Float32[0.0, 0.0]), fun = ())
 
 julia> st, m = Optimisers.update(st, m, (vec = [16, 88], fun = nothing));  # with fake gradient
 
 julia> st
-(vec = Leaf(Nesterov(0.001, 0.9), Float32[-0.016, -0.088]), fun = ())
+(vec = Leaf(Nesterov(eta=0.001, rho=0.9), Float32[-0.016, -0.088]), fun = ())
 
 julia> Optimisers.adjust!(st, 0.123)  # change learning rate, stored momentum untouched
 
 julia> st
-(vec = Leaf(Nesterov(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
+(vec = Leaf(Nesterov(eta=0.123, rho=0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 
 To change other parameters, `adjust!` also accepts keyword arguments matching the field
@@ -97,13 +97,13 @@ julia> fieldnames(Adam)
 (:eta, :beta, :epsilon)
 
 julia> st2 = Optimisers.setup(OptimiserChain(ClipGrad(), Adam()), m)
-(vec = Leaf(OptimiserChain(ClipGrad(10.0), Adam(0.001, (0.9, 0.999), 1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
+(vec = Leaf(OptimiserChain(ClipGrad(delta=10.0), Adam(eta=0.001, beta=(0.9, 0.999), epsilon=1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
 
 julia> Optimisers.adjust(st2; beta = (0.777, 0.909), delta = 11.1)  # delta acts on ClipGrad
-(vec = Leaf(OptimiserChain(ClipGrad(11.1), Adam(0.001, (0.777, 0.909), 1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
+(vec = Leaf(OptimiserChain(ClipGrad(delta=11.1), Adam(eta=0.001, beta=(0.777, 0.909), epsilon=1.0e-8)), (nothing, (Float32[0.0, 0.0], Float32[0.0, 0.0], (0.9, 0.999)))), fun = ())
 
 julia> Optimisers.adjust(st; beta = "no such field")  # silently ignored!
-(vec = Leaf(Nesterov(0.123, 0.9), Float32[-0.016, -0.088]), fun = ())
+(vec = Leaf(Nesterov(eta=0.123, rho=0.9), Float32[-0.016, -0.088]), fun = ())
 ```
 
 The argument `η` may also be a new optimisation rule, of the same type as the rule

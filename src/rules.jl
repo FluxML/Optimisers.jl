@@ -893,7 +893,7 @@ julia> o = OptimiserChain(ClipGrad(1.0), Descent(0.1));
 julia> m = (zeros(3),);
 
 julia> s = Optimisers.setup(o, m)
-(Leaf(OptimiserChain(ClipGrad(1.0), Descent(0.1)), (nothing, nothing)),)
+(Leaf(OptimiserChain(ClipGrad(delta=1.0), Descent(0.1)), (nothing, nothing)),)
 
 julia> Optimisers.update(s, m, ([0.3, 1, 7],))[2]  # clips before discounting
 ([-0.03, -0.1, -0.1],)

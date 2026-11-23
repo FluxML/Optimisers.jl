@@ -4,7 +4,7 @@ DocMeta.setdocmeta!(Optimisers, :DocTestSetup, :(using Optimisers, Functors); re
 DocMeta.setdocmeta!(Functors, :DocTestSetup, :(using Functors); recursive = true)
 
 makedocs(modules = [Optimisers, Functors],
-         doctest = false,
+         doctest = true,
          sitename = "Optimisers.jl",
          pages = ["Home" => "index.md",
                   "API" => "api.md"],

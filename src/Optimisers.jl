@@ -123,11 +123,11 @@ constants. This is a no-op under `@jit`/tracing and for already-compatible rules
 julia> m = (x = rand(3), y = (true, false), z = tanh);
 
 julia> Optimisers.setup(Momentum(), m)  # same field names as m
-(x = Leaf(Momentum(0.01, 0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = ())
+(x = Leaf(Momentum(eta=0.01, rho=0.9), [0.0, 0.0, 0.0]), y = ((), ()), z = ())
 ```
 
-The recursion into structures uses Functors.jl, and any new `struct`s containing parameters
-need to be marked with `Functors.@functor` before use.
+The recursion into structures uses Functors.jl, which by default looks into the fields of any `struct`.
+A type which should not be traversed can be marked with `Functors.@leaf`.
 See [the Flux docs](https://fluxml.ai/Flux.jl/stable/models/advanced/) for more about this.
 
 ```jldoctest
@@ -135,19 +135,19 @@ julia> struct Layer; mat; fun; end
 
 julia> model = (lay = Layer([1 2; 3 4f0], sin), vec = [5, 6f0]);
 
-julia> Optimisers.setup(Momentum(), model)  # new struct is by default ignored
-(lay = (), vec = Leaf(Momentum(0.01, 0.9), Float32[0.0, 0.0]))
-
-julia> destructure(model)
-(Float32[5.0, 6.0], Restructure(NamedTuple, ..., 2))
-
-julia> using Functors; @functor Layer  # annotate this type as containing parameters
-
-julia> Optimisers.setup(Momentum(), model)
-(lay = (mat = Leaf(Momentum(0.01, 0.9), Float32[0.0 0.0; 0.0 0.0]), fun = ()), vec = Leaf(Momentum(0.01, 0.9), Float32[0.0, 0.0]))
+julia> Optimisers.setup(Momentum(), model)  # fields of a new struct are visited by default
+(lay = (mat = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0 0.0; 0.0 0.0]), fun = ()), vec = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0, 0.0]))
 
 julia> destructure(model)
 (Float32[1.0, 3.0, 2.0, 4.0, 5.0, 6.0], Restructure(NamedTuple, ..., 6))
+
+julia> using Functors; @leaf Layer  # annotate this type as containing no parameters
+
+julia> Optimisers.setup(Momentum(), model)
+(lay = (), vec = Leaf(Momentum(eta=0.01, rho=0.9), Float32[0.0, 0.0]))
+
+julia> destructure(model)
+(Float32[5.0, 6.0], Restructure(NamedTuple, ..., 2))
 ```
 """
 setup
@@ -197,7 +197,7 @@ julia> using StaticArrays, Zygote, Optimisers
 julia> m = (x = [1f0, 2f0], y = SA[4f0, 5f0]);  # partly mutable model
 
 julia> t = Optimisers.setup(Momentum(1/30, 0.9), m)  # tree of states
-(x = Leaf(Momentum(0.0333333, 0.9), Float32[0.0, 0.0]), y = Leaf(Momentum(0.0333333, 0.9), Float32[0.0, 0.0]))
+(x = Leaf(Momentum(eta=0.03333333333333333, rho=0.9), Float32[0.0, 0.0]), y = Leaf(Momentum(eta=0.03333333333333333, rho=0.9), Float32[0.0, 0.0]))
 
 julia> g = gradient(m -> sum(abs2.(m.x .+ m.y)), m)[1]  # structural gradient
 (x = Float32[10.0, 14.0], y = Float32[10.0, 14.0])
