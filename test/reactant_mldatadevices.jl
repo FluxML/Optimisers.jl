@@ -1,4 +1,5 @@
 using Reactant, MLDataDevices, Optimisers
+using BFloat16s: BFloat16
 
 # A concrete Reactant device to move host data onto (CPU backend in CI).
 cdev = reactant_device()
@@ -429,4 +430,20 @@ end
     v2, re2! = destructure!(m2)
     @test re2!([10.0, 20, 30, 40, 50]) === m2
     @test Array(m2.a) == [10 30; 20 40] && Array(m2.b) == Float32[50]
+end
+
+@testset "BFloat16, $(nameof(typeof(opt)))" for opt in (Adam(), RAdam())
+    # The eager `setup` wraps the rule, whose `init` keeps the betas in Float32.
+    rng = Random.MersenneTwister(0)
+    grads = [BFloat16.(randn(rng, Float32, 6) ./ 100) for _ in 1:6]
+    st_cpu, p_cpu = Optimisers.setup(opt, zeros(6)), zeros(6)
+    p_ra = cdev(zeros(BFloat16, 6))
+    st_ra = Optimisers.setup(opt, p_ra)
+    @test Float64(st_ra.state[3][2]) ≈ 0.999  # not 1, as in BFloat16
+    for g in grads
+        st_cpu, p_cpu = Optimisers.update(st_cpu, p_cpu, Float64.(g))
+        st_ra, p_ra = @jit Optimisers.update!(st_ra, p_ra, cdev(g))
+    end
+    @test eltype(p_ra) == BFloat16
+    @test Float64.(Array(p_ra)) ≈ p_cpu rtol = 0.05
 end

@@ -1,4 +1,5 @@
 using Reactant, Optimisers
+using BFloat16s: BFloat16
 
 @testset for opt in (Descent(0.011), Momentum(0.011), Adam(0.011), AdamW(0.011), RAdam(0.011))
     opt_ra = Reactant.to_rarray(opt; track_numbers=AbstractFloat)
@@ -137,4 +138,20 @@ end
     st_opt, x_ra3 = @jit Optimisers.update(st_opt, x_ra2, gs_ra2)
     @test Int64(st_opt.state[1][2]) == 1
     @test Array(x_ra3) ≈ Array(x_ra) .- 0.5 .* Array(gs_ra) .- 0.5 .* Array(gs_ra2) rtol = 1e-2
+end
+
+@testset "BFloat16, $(nameof(typeof(opt)))" for opt in (Adam(), RAdam())
+    # The traced rules compute in `TracedRNumber{Float32}`, as `BFloat16(0.999) == 1`.
+    # Six steps reach RAdam's rectified branch.
+    rng = Random.MersenneTwister(0)
+    grads = [BFloat16.(randn(rng, Float32, 6) ./ 100) for _ in 1:6]
+    st_cpu, p_cpu = Optimisers.setup(opt, zeros(6)), zeros(6)
+    p_ra = Reactant.to_rarray(zeros(BFloat16, 6))
+    st_ra = @jit Optimisers.setup(opt, p_ra)
+    for g in grads
+        st_cpu, p_cpu = Optimisers.update(st_cpu, p_cpu, Float64.(g))
+        st_ra, p_ra = @jit Optimisers.update!(st_ra, p_ra, Reactant.to_rarray(g))
+    end
+    @test eltype(p_ra) == BFloat16
+    @test Float64.(Array(p_ra)) ≈ p_cpu rtol = 0.05
 end
