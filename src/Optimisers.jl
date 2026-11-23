@@ -51,7 +51,10 @@ MLDataDevices.jl are present.
 function make_reactant_compatible end
 
 @compat public apply!, init, setup, update, update!, make_reactant_compatible
+@compat public adjust!, adjust, freeze!, thaw!
+@compat public trainable, isnumeric, maywrite, Restructure
 @compat public nospecialize_trainable, nospecialize_trainables
+@compat public @.., @lazy, @def
 
 ###
 ### one-array functions

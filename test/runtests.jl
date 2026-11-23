@@ -667,6 +667,15 @@ end
 
       @test_throws ArgumentError Optimisers.setup(Adam(), (; a=[1,2,3.], b=x_dx))  # Duplicated deep inside is not allowed
     end
+
+    isdefined(Base, :ispublic) && @testset "documented names are public" begin  # issue 221
+      api = read(joinpath(@__DIR__, "..", "docs", "src", "api.md"), String)
+      names = unique(Symbol(m[1]) for m in eachmatch(r"^Optimisers\.(\S+?)(?:\(::.*)?$"m, api))
+      @test length(names) > 30
+      for name in names
+        @test Base.isexported(Optimisers, name) || Base.ispublic(Optimisers, name)
+      end
+    end
   end
   @testset verbose=true "Destructure" begin
     include("destructure.jl")
