@@ -125,11 +125,11 @@ adjust!(tree, r::AbstractRule) = _foreachstate(st -> adjust!(st, r), tree)
 
 adjust!(ℓ::Leaf, eta::Real) = (ℓ.rule = adjust(ℓ.rule, eta); nothing)
 adjust!(ℓ::Leaf; kw...) = (ℓ.rule = adjust(ℓ.rule; kw...); nothing)
-adjust!(ℓ::Leaf{R}, r::R) where R <: AbstractRule = (ℓ.rule = r; nothing)
+adjust!(ℓ::Leaf{R}, r::R) where R <: AbstractRule = (ℓ.rule = _unshare(r); nothing)
 
 adjust(ℓ::Leaf, eta::Real) = Leaf(adjust(ℓ.rule, eta), ℓ.state, ℓ.frozen)
 adjust(ℓ::Leaf; kw...) = Leaf(adjust(ℓ.rule; kw...), ℓ.state, ℓ.frozen)
-adjust(ℓ::Leaf{R}, r::R) where R <: AbstractRule = Leaf(r, ℓ.state, ℓ.frozen)
+adjust(ℓ::Leaf{R}, r::R) where R <: AbstractRule = Leaf(_unshare(r), ℓ.state, ℓ.frozen)
 
 """
     adjust(tree, η) -> tree

@@ -41,11 +41,15 @@ end
 # specialise it rather than overwrite it.
 _prepare_rule(rule, model) = rule
 
+# Hook for extensions to give each `Leaf` its own copy of a rule which holds mutable
+# numbers, as `setup` and `adjust!(tree, rule)` put the same rule in every `Leaf`.
+_unshare(rule) = rule
+
 # _setup is almost fmapstructure, but needs a _trainable_walk, and a cache which ignores numbers etc.
 function _setup(rule, x; cache)
   haskey(cache, x) && return cache[x]
   if isnumeric(x)
-    ℓ = Leaf(rule, init(rule, x))
+    ℓ = Leaf(_unshare(rule), init(rule, x))
     if isbits(x)
       cache[nothing] = nothing  # just to disable the warning
       ℓ

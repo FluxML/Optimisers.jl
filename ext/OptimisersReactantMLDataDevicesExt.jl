@@ -114,6 +114,45 @@ Optimisers._adjust_rule(f, kp, opt::ReactantOptimiser{<:WrappedContainer}, args,
 Optimisers._adjust_rule(f, kp, opt::ReactantOptimiser, args, nt) =
     f(kp, opt.opt) ? Optimisers.adjust(opt, args...; nt...) : opt
 
+# A rule's own `adjust(rule, η)` method, for a learning rate not stored in field `eta`,
+# must still be called, and with a host `η::Real`. Then the fields it replaced are put
+# back on the device: only those, as some fields stay on the host, e.g. `ClipNorm`'s `p`.
+function Optimisers.adjust(opt::ReactantOptimiser, eta::Real)
+    new = Optimisers.adjust(opt.opt, eta)
+    dev = get_device(opt)
+    dev isa ReactantDevice || return ReactantOptimiser(new)
+    track = with_track_numbers(dev, AbstractFloat)
+    tracked(x) = x isa Reactant.ConcreteRNumber
+    isleaf(x) = tracked(x) || Optimisers.Functors.isleaf(x)
+    new′ = Optimisers.fmap(opt.opt, new; exclude = isleaf, cache = nothing) do old, x
+        tracked(old) && !tracked(x) ? track(x) : x
+    end
+    return ReactantOptimiser(new′)
+end
+
+Optimisers.adjust(opt::ReactantOptimiser{<:WrappedContainer}, eta::Real) =
+    ReactantOptimiser(Optimisers.adjust(opt.opt, eta))
+
+# --- one copy of the tracked numbers per leaf -----------------------------
+# A step compiled while leaves share tracked numbers reads one of them for all leaves,
+# and writes it back to all, undoing a later `adjust!` of only some leaves.
+Optimisers._unshare(opt::ReactantOptimiser) = _copy_tracked(opt)
+
+# A foreign rule already holding on-device numbers, e.g. Lux's. Inside a trace there is
+# nothing to copy, and `get_device` would throw.
+function Optimisers._unshare(opt::Optimisers.AbstractRule)
+    Reactant.within_compile() && return opt
+    get_device(opt) isa ReactantDevice || return opt
+    return _copy_tracked(opt)
+end
+
+_copy_tracked(opt::ReactantOptimiser) = ReactantOptimiser(_copy_tracked(opt.opt))
+_copy_tracked(opt::Optimisers.OptimiserChain) =
+    Optimisers.OptimiserChain(map(_copy_tracked, opt.opts)...)
+_copy_tracked(opt::Optimisers.MixedPrecision{T}) where {T} =
+    Optimisers.MixedPrecision(T, _copy_tracked(opt.rule))
+_copy_tracked(opt) = Optimisers.fmap(copy, opt; exclude = x -> x isa Reactant.ConcreteRNumber)
+
 # --- construction helpers -------------------------------------------------
 # Device-less form: default to the current Reactant device. Dispatches to the
 # device-aware methods below, so `OptimiserChain` / `AccumGrad` / `ClipNorm` (all
