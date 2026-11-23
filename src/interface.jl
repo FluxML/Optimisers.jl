@@ -28,8 +28,21 @@ Base.:(==)(a::Leaf, b::Leaf) = children(a) == children(b)
 
 function setup(rule::AbstractRule, model)
   rule = _prepare_rule(rule, model)
+  _setup_tree(Returns(rule), model)
+end
+
+setup(f::Function, model) = _setup_tree((kp, x) -> _prepare_rule(_rule_for(f, kp, x), x), model)
+
+function _rule_for(f, kp, x)
+  rule = f(kp, x)
+  rule isa AbstractRule && return rule
+  throw(ArgumentError("`setup(f, model)` needs `f(kp, x)` to return a rule such as `Adam()`, " *
+    "but for the parameter at $kp it returned $(sprint(show, rule; context = :limit => true))"))
+end
+
+function _setup_tree(f, model)
   cache = IdDict()
-  tree = _setup(rule, model; cache)
+  tree = _setup(f, KeyPath(), model; cache)
   isempty(cache) && @warn "setup found no trainable parameters in this model"
   tree
 end
@@ -37,7 +50,8 @@ end
 # Hook for extensions to adapt the rule to the model before setup. The Reactant
 # extension uses it to wrap the rule (via `make_reactant_compatible`) when the model
 # lives on a Reactant device, so hyper-parameters are tracked on-device rather than
-# baked into the compiled program. Keep this signature untyped so extension methods
+# baked into the compiled program. `setup(f, model)` calls it on each rule `f` returns,
+# with that parameter as the model. Keep this signature untyped so extension methods
 # specialise it rather than overwrite it.
 _prepare_rule(rule, model) = rule
 
@@ -45,10 +59,12 @@ _prepare_rule(rule, model) = rule
 # numbers, as `setup` and `adjust!(tree, rule)` put the same rule in every `Leaf`.
 _unshare(rule) = rule
 
-# _setup is almost fmapstructure, but needs a _trainable_walk, and a cache which ignores numbers etc.
-function _setup(rule, x; cache)
+# _setup is almost fmap_with_path, but needs a _trainable_walk, and a cache which ignores numbers etc.
+# The rule is f(kp, x), so a tied array gets the rule of its first position.
+function _setup(f, kp, x; cache)
   haskey(cache, x) && return cache[x]
   if isnumeric(x)
+    rule = f(kp, x)
     ℓ = Leaf(_unshare(rule), init(rule, x))
     if isbits(x)
       cache[nothing] = nothing  # just to disable the warning
@@ -57,7 +73,8 @@ function _setup(rule, x; cache)
       cache[x] = ℓ
     end
   else
-    mapvalue(xᵢ -> _setup(rule, xᵢ; cache), _trainable(x))
+    ch = _trainable(x)
+    mapvalue((kpᵢ, xᵢ) -> _setup(f, kpᵢ, xᵢ; cache), mapkey(c -> KeyPath(kp, c), ch), ch)
   end
 end
 

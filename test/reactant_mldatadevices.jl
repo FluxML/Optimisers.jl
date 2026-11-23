@@ -298,6 +298,19 @@ end
     @test Array(ps.b) == [3, 4]
 end
 
+@testset "setup with a function wraps each rule" begin
+    ps = cdev((; w = Float32[1 2; 3 4], b = Float32[3, 4]))
+    gs = cdev((; w = ones(Float32, 2, 2), b = ones(Float32, 2)))
+    st = Optimisers.setup((kp, x) -> ndims(x) == 2 ? Momentum(0.1f0) : Descent(0.1f0), ps)
+    @test get_device(st.w.rule) isa ReactantDevice
+    @test st.b.rule.opt isa Descent
+    step_ra! = Reactant.@compile _step!(st, ps, gs)
+    Optimisers.adjust!(st, Descent, 0f0)
+    step_ra!(st, ps, gs)
+    @test Array(ps.w) ≈ [0.9 1.9; 2.9 3.9]
+    @test Array(ps.b) == [3, 4]
+end
+
 # A value of another type keeps the tracked numbers' eltype, so a compiled step still applies.
 @testset "adjust! with a value of another number type" begin
     ps = cdev((; w = Float32[1, 2]))

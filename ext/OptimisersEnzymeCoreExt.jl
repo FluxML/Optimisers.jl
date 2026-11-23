@@ -13,12 +13,14 @@ EnzymeRules.inactive(::typeof(_check_devices), args...) = nothing
 
 """
     setup(rule::AbstractRule, model_grad::Duplicated)
+    setup(f::Function, model_grad::Duplicated)
 
-For use with Enzyme's Duplicated, this just calls `setup(rule, model_grad.val)`.
+For use with Enzyme's Duplicated, this just calls `setup` on `model_grad.val`.
 """
 setup(rule::AbstractRule, model_grad::Duplicated) = setup(rule, model_grad.val)
+setup(f::Function, model_grad::Duplicated) = setup(f, model_grad.val)
 
-_setup(rule, x::Duplicated; cache) = throw(ArgumentError(
+_setup(f, kp, x::Duplicated; cache) = throw(ArgumentError(
   """Objects of type `Duplicated` are only supported by Optimisers.jl at top level,
   they may not appear deep inside other objects."""
 ))

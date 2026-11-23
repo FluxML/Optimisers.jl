@@ -647,18 +647,16 @@ rather than silently using another rule. This includes convolution kernels: the 
 flattens PyTorch's `(c_out, c_in, k...)` kernels to `(c_out, :)` matrices, but Flux stores
 them as `(k..., c_in, c_out)`.
 
-To use Muon for some matrices only, set up the whole model with another rule,
-then replace the states of those matrices:
+To use Muon for some matrices only, give [`setup`](@ref Optimisers.setup) a function which
+chooses the rule of each array, from its [`KeyPath`](@ref) in the model and the array itself:
 
-```jldoctest
-julia> using Functors: fmap, fmap_with_path
+```jldoctest muon
+julia> using Functors: fmap
 
 julia> model = (embed = ones(2, 5), hidden = (weight = ones(2, 2), bias = zeros(2)), head = ones(5, 2));
 
-julia> state = fmap_with_path(Optimisers.setup(AdamW(), model);
-                              exclude = (kp, s) -> s isa Optimisers.Leaf) do kp, s
-         x = getkeypath(model, kp)
-         kp[1] == :hidden && ndims(x) == 2 ? Optimisers.setup(Muon(), x) : s
+julia> state = Optimisers.setup(model) do kp, x
+         kp[1] == :hidden && ndims(x) == 2 ? Muon() : AdamW()
        end;
 
 julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.Leaf)
@@ -666,6 +664,18 @@ julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.
 
 julia> state.hidden.weight
 Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0, 0.0, 0.0, …])
+```
+
+As Muon's learning rate is much larger than AdamW's, a schedule should change each
+separately, using [`adjust!`](@ref Optimisers.adjust!) with a rule type:
+
+```jldoctest muon
+julia> Optimisers.adjust!(state, Muon, 0.01)
+
+julia> Optimisers.adjust!(state, AdamW, 3e-4)
+
+julia> state.hidden.weight.rule.eta, state.hidden.bias.rule.eta
+(0.01, 0.0003)
 ```
 """
 struct Muon{Teta,Tmu,Tlambda} <: AbstractRule
