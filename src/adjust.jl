@@ -168,31 +168,78 @@ function _adjust(r::T, nt::NamedTuple) where T <: AbstractRule
 end
 
 ###
-#adjust with type control
+### adjust only the rules a filter selects
 ###
 
-adjust!(ℓ::Leaf, oT::Type, eta::Real) = (ℓ.rule = adjust(ℓ.rule, oT, eta); nothing)
-adjust!(ℓ::Leaf, oT::Type; kw...) = (ℓ.rule = adjust(ℓ.rule, oT; kw...); nothing)
+"""
+    Optimisers.adjust!(tree, filter, η)
+    Optimisers.adjust!(tree, filter; kw...)
 
-adjust(ℓ::Leaf, oT::Type, eta::Real) = Leaf(adjust(ℓ.rule, oT, eta), ℓ.state, ℓ.frozen)
-adjust(ℓ::Leaf, oT::Type; kw...) = Leaf(adjust(ℓ.rule, oT; kw...), ℓ.state, ℓ.frozen)
+Like `adjust!(tree, η)` and `adjust!(tree; kw...)`, but changes only the rules
+for which `filter(keypath, rule)` returns `true`.
+The `filter` is called on each rule inside an [`OptimiserChain`](@ref) or
+[`MixedPrecision`](@ref) separately, along with the [`KeyPath`](@ref) of the parameter
+in the model, which matches the paths of [`trainables`](@ref)`(model; path = true)`.
 
-adjust!(tree, oT::Type, eta::Real) = foreach(st -> adjust!(st, oT, eta), tree)
-adjust!(tree, oT::Type; kw...) = foreach(st -> adjust!(st, oT; kw...), tree)
+The `filter` may also be a rule type: `adjust!(tree, SignDecay; lambda = 0.3)` is
+`adjust!(tree, (kp, r) -> r isa SignDecay; lambda = 0.3)`.
+This matters when two rules in a chain have a field of the same name.
 
-adjust(r::AbstractRule, oT::Type, eta::Real) = ifelse(isa(r, oT), adjust(r, eta), r)
-adjust(r::AbstractRule, oT::Type; kw...) = ifelse(isa(r, oT), adjust(r; kw...), r)
+A parameter which appears twice in the model is adjusted if any of its paths passes the `filter`.
 
-adjust!(r::AbstractRule, oT::Type, eta::Real) = ifelse(isa(r, oT), adjust!(r, eta), r)
-adjust!(r::AbstractRule, oT::Type; kw...) = ifelse(isa(r, oT), adjust!(r; kw...), r)
+# Example
+```jldoctest adjust_filter
+julia> m = (weight = [1.0 2.0; 3.0 4.0], bias = [0.0, 0.0]);
 
-function adjust(tree, oT::Type, eta::Real)
-  t′ = fmap(copy, tree; exclude = maywrite)
-  adjust!(t′, oT, eta)
+julia> st = Optimisers.setup(OptimiserChain(SignDecay(0.1), AdamW(lambda = 0.1)), m);
+
+julia> Optimisers.adjust!(st, SignDecay; lambda = 0.3)  # not AdamW's lambda
+
+julia> st.weight.rule
+OptimiserChain(SignDecay(lambda=0.3), AdamW(eta=0.001, beta=(0.9, 0.999), lambda=0.1, epsilon=1.0e-8, couple=true))
+
+julia> Optimisers.adjust!(st, (kp, r) -> r isa AdamW && last(kp) == :bias; lambda = 0.0)
+
+julia> st.bias.rule
+OptimiserChain(SignDecay(lambda=0.3), AdamW(eta=0.001, beta=(0.9, 0.999), lambda=0.0, epsilon=1.0e-8, couple=true))
+```
+"""
+adjust!(tree, f::Function, eta::Real) = _adjust_where!(f, KeyPath(), tree, (eta,), (;))
+adjust!(tree, f::Function; kw...) = _adjust_where!(f, KeyPath(), tree, (), _nonempty(kw))
+
+adjust!(tree, ::Type{T}, eta::Real) where {T<:AbstractRule} = adjust!(tree, _isa(T), eta)
+adjust!(tree, ::Type{T}; kw...) where {T<:AbstractRule} = adjust!(tree, _isa(T); kw...)
+
+function adjust(tree, f::Union{Function, Type{<:AbstractRule}}, eta::Real)
+  t′ = _copy_writable(tree)
+  adjust!(t′, f, eta)
   t′
 end
-function adjust(tree, oT::Type; kw...)
-  t′ = fmap(copy, tree; exclude = maywrite)
-  adjust!(t′, oT; kw...)
+function adjust(tree, f::Union{Function, Type{<:AbstractRule}}; kw...)
+  t′ = _copy_writable(tree)
+  adjust!(t′, f; kw...)
   t′
 end
+
+adjust(r::AbstractRule, f::Function, eta::Real) = _adjust_rule(f, KeyPath(), r, (eta,), (;))
+adjust(r::AbstractRule, f::Function; kw...) = _adjust_rule(f, KeyPath(), r, (), _nonempty(kw))
+adjust(r::AbstractRule, ::Type{T}, eta::Real) where {T<:AbstractRule} = adjust(r, _isa(T), eta)
+adjust(r::AbstractRule, ::Type{T}; kw...) where {T<:AbstractRule} = adjust(r, _isa(T); kw...)
+
+_isa(::Type{T}) where {T} = (_, r) -> r isa T
+
+function _nonempty(kw)
+  isempty(kw) && throw(ArgumentError("adjust must be given something to act on!"))
+  NamedTuple(kw)
+end
+
+function _adjust_where!(f, kp, ℓ::Leaf, args, nt)
+  ℓ.rule = _adjust_rule(f, kp, ℓ.rule, args, nt)
+  nothing
+end
+_adjust_where!(f, kp, ::Nothing, args, nt) = nothing  # non-trainable entry of a Dict
+_adjust_where!(f, kp, tree, args, nt) =
+  foreach(((k, t),) -> _adjust_where!(f, KeyPath(kp, k), t, args, nt), pairs(tree))
+
+# Rules holding other rules add methods, see OptimiserChain and MixedPrecision.
+_adjust_rule(f, kp, r::AbstractRule, args, nt) = f(kp, r) ? adjust(r, args...; nt...) : r

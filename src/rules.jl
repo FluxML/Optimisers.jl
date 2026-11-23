@@ -932,8 +932,8 @@ end
 adjust(ℓ::OptimiserChain, eta::Real) = OptimiserChain(map(opt -> adjust(opt, eta), ℓ.opts)...)
 adjust(ℓ::OptimiserChain; kw...) = OptimiserChain(map(opt -> adjust(opt; kw...), ℓ.opts)...)
 
-adjust(ℓ::OptimiserChain, oT::Type, eta::Real) = OptimiserChain(map(opt -> adjust(opt, oT, eta), ℓ.opts)...)
-adjust(ℓ::OptimiserChain, oT::Type; kw...) = OptimiserChain(map(opt -> adjust(opt, oT; kw...), ℓ.opts)...)
+_adjust_rule(f, kp, ℓ::OptimiserChain, args, nt) =
+  OptimiserChain(map(opt -> _adjust_rule(f, kp, opt, args, nt), ℓ.opts)...)
 
 
 """
@@ -1054,3 +1054,5 @@ end
 
 adjust(o::MixedPrecision{T}, eta::Real) where T = MixedPrecision(T, adjust(o.rule, eta))
 adjust(o::MixedPrecision{T}; kw...) where T = MixedPrecision(T, adjust(o.rule; kw...))
+_adjust_rule(f, kp, o::MixedPrecision{T}, args, nt) where T =
+  MixedPrecision(T, _adjust_rule(f, kp, o.rule, args, nt))
