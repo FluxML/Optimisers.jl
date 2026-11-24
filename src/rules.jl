@@ -628,9 +628,9 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    Muon(η = 0.02, μ = 0.95, λ = 0; nesterov = true,
+    Muon(η = 0.02, μ = 0.95, λ = 0; nesterov = true, adjust_lr_fn = :original,
          ns_coefficients = (3.4445, -4.7750, 2.0315), ns_steps = 5)
-    Muon(; [eta, mu, lambda, nesterov, ns_coefficients, ns_steps])
+    Muon(; [eta, mu, lambda, nesterov, adjust_lr_fn, ns_coefficients, ns_steps])
 
 [Muon](https://kellerjordan.github.io/posts/muon/) optimiser for matrix parameters,
 following Keller Jordan's [reference implementation](https://github.com/KellerJordan/Muon).
@@ -638,9 +638,11 @@ following Keller Jordan's [reference implementation](https://github.com/KellerJo
 Each step updates the momentum `m = μ * m + (1 - μ) * dx`, then orthogonalises it: `O` has
 the same singular vectors as `m`, but singular values close to one. (With `nesterov = true`,
 the default, this acts on `μ * m + (1 - μ) * dx` instead.) A parameter `x` of size `(r, c)`
-then changes by `x .-= η .* (sqrt(max(1, r / c)) .* O .+ λ .* x)`.
+then changes by `x .-= η .* (γ .* O .+ λ .* x)`, where the scaling `γ` depends on the
+shape, and by default is `sqrt(max(1, r / c))`.
 For Flux's `Dense`, whose weight is `(out, in)` like that of PyTorch's `Linear`,
-this is the same scaling as in the reference.
+this is the same scaling as in the reference. Note that `γ` multiplies only `O`:
+the weight decay uses `η` alone, as in the reference and in PyTorch.
 
 `O` comes from `ns_steps` steps of a quintic Newton-Schulz iteration, starting from
 `m / norm(m)`. The default coefficients are tuned for speed rather than convergence: after
@@ -657,9 +659,29 @@ while the reference uses `BFloat16`.
                   as in the reference and in [`AdamW`](@ref).
 - Keyword `nesterov`: If `true`, orthogonalise `μ * m + (1 - μ) * dx` (with the new `m`)
                   instead of `m`.
+- Keyword `adjust_lr_fn`: Which shape-dependent scaling `γ` to apply to `O`, one of
+                  `:original`, `:match_rms_adamw`, or `:spectral_unclamped`, described below.
 - Keyword `ns_coefficients`: The three coefficients `(a, b, c)` of the quintic iteration,
                   which acts on each singular value as `σ ↦ a * σ + b * σ^3 + c * σ^5`.
 - Keyword `ns_steps`: How many times to apply that iteration, with `ns_steps ≥ 1`.
+
+# Scaling by shape
+
+For a parameter of size `(r, c)`, the keyword `adjust_lr_fn` selects `γ` as in PyTorch's
+`Muon`:
+
+| `adjust_lr_fn` | `γ` | |
+|:---|:---|:---|
+| `:original` | `sqrt(max(1, r / c))` | the default, as in the reference |
+| `:match_rms_adamw` | `0.2 * sqrt(max(r, c))` | so that learning rates transfer from `AdamW` |
+| `:spectral_unclamped` | `sqrt(r / c)` | like `:original`, without the clamp at one |
+
+!!! warning
+    These differ by more than a little: for a `(1024, 1024)` parameter, `:original` gives
+    `γ = 1` while `:match_rms_adamw` gives `γ = 6.4`. The point of the latter is that it
+    rescales the update to the size `AdamW` would take, so that a learning rate tuned for
+    `AdamW` can be reused. Changing `adjust_lr_fn` without also changing `η` will not
+    give a comparable step.
 
 # Which parameters
 
@@ -687,7 +709,7 @@ julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.
 (embed = :AdamW, hidden = (weight = :Muon, bias = :AdamW), head = :AdamW)
 
 julia> state.hidden.weight
-Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5), [0.0, 0.0, 0.0, …])
+Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true, adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5), [0.0, 0.0, 0.0, …])
 ```
 
 As Muon's learning rate is much larger than AdamW's, a schedule should change each
@@ -707,20 +729,24 @@ struct Muon{Teta,Tmu,Tlambda,Tcoef} <: AbstractRule
   mu::Tmu
   lambda::Tlambda
   nesterov::Bool
+  adjust_lr_fn::Symbol
   ns_coefficients::Tcoef
   ns_steps::Int
 end
 
-function Muon(η, μ = 0.95, λ = 0.0; nesterov::Bool = true,
+function Muon(η, μ = 0.95, λ = 0.0; nesterov::Bool = true, adjust_lr_fn::Symbol = :original,
               ns_coefficients = (3.4445, -4.7750, 2.0315), ns_steps::Integer = 5)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
   0 <= μ < 1 || throw(DomainError(μ, "the momentum must satisfy 0 ≤ μ < 1"))
+  adjust_lr_fn in _MUON_ADJUST_LR_FNS || _muon_bad_adjust_lr_fn(adjust_lr_fn)
   length(ns_coefficients) == 3 || throw(ArgumentError(
     "Muon needs three Newton-Schulz coefficients, got $(length(ns_coefficients))"))
   ns_steps > 0 || throw(DomainError(ns_steps, "the number of Newton-Schulz steps must be positive"))
-  return Muon(float(η), float(μ), float(λ), nesterov,
+  return Muon(float(η), float(μ), float(λ), nesterov, adjust_lr_fn,
               map(float, Tuple(ns_coefficients)), Int(ns_steps))
 end
+
+const _MUON_ADJUST_LR_FNS = (:original, :match_rms_adamw, :spectral_unclamped)
 
 Muon(; eta = 0.02, mu = 0.95, lambda = 0.0, kw...) = Muon(eta, mu, lambda; kw...)
 
@@ -732,7 +758,7 @@ function apply!(o::Muon, mom, x::AbstractMatrix{T}, dx) where T
 
   @.. mom = μ * mom + (1 - μ) * dx
   O = _newton_schulz(o.nesterov ? (@. μ * mom + (1 - μ) * dx) : mom, o.ns_coefficients, o.ns_steps)
-  γ = real(T)(sqrt(max(1, size(x, 1) / size(x, 2))))
+  γ = real(T)(_muon_lr_scale(o.adjust_lr_fn, size(x, 1), size(x, 2)))
 
   return mom, @lazy η * (γ * O + λ * x)
 end
@@ -741,8 +767,23 @@ apply!(o::Muon, state, x::AbstractArray, dx) = _muon_matrix_only(x)
 _muon_matrix_only(x) = throw(ArgumentError("Muon only accepts matrices, not $(summary(x)). " *
   "Use another rule such as AdamW for this parameter, as explained in the docstring of Muon."))
 
+# The shape-dependent scaling of `O`, named as in PyTorch's `Muon`. Not applied to the
+# weight decay, which uses `η` alone. Branching beats dispatching on `Val(name)`, which
+# inference cannot resolve from a field, leaving `apply!` returning `Any`.
+function _muon_lr_scale(name::Symbol, r, c)
+  name === :original && return sqrt(max(1, r / c))
+  name === :match_rms_adamw && return 0.2 * sqrt(max(r, c))
+  name === :spectral_unclamped && return sqrt(r / c)
+  # `adjust` rebuilds a rule without its keyword constructor, so check here too, not only there:
+  return _muon_bad_adjust_lr_fn(name)
+end
+
+_muon_bad_adjust_lr_fn(name) = throw(ArgumentError("Muon's adjust_lr_fn must be one of " *
+  "$(join(repr.(_MUON_ADJUST_LR_FNS), ", ")), not $(repr(name))"))
+
 function Base.show(io::IO, o::Muon)
   print(io, "Muon(eta=$(o.eta), mu=$(o.mu), lambda=$(o.lambda), nesterov=$(o.nesterov), ",
+        "adjust_lr_fn=$(repr(o.adjust_lr_fn)), ",
         "ns_coefficients=$(o.ns_coefficients), ns_steps=$(o.ns_steps))")
 end
 

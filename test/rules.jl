@@ -434,8 +434,23 @@ end
     @test_throws ArgumentError Muon(ns_coefficients = (3.4445, -4.7750))
     @test_throws DomainError Muon(ns_steps = 0)
     @test_throws DomainError Muon(ns_steps = -1)
-    @test sprint(show, Muon()) ==
-      "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
+    @test_throws ArgumentError Muon(adjust_lr_fn = :bogus)
+    # `adjust` rebuilds without the keyword constructor, so an invalid symbol is caught on use:
+    @test_throws ArgumentError Optimisers.update(Optimisers.setup(
+      Optimisers.adjust(Muon(); adjust_lr_fn = :bogus), rand(2, 2)), rand(2, 2), rand(2, 2))
+    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true, " *
+      "adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
+  end
+
+  @testset "scaling by shape" begin
+    # The three variants of PyTorch's `adjust_lr_fn`, on square, tall and wide matrices.
+    @test Optimisers._muon_lr_scale(:original, 1024, 1024) == 1
+    @test Optimisers._muon_lr_scale(:original, 8, 2) ≈ 2
+    @test Optimisers._muon_lr_scale(:original, 2, 8) == 1  # clamped at one
+    @test Optimisers._muon_lr_scale(:spectral_unclamped, 2, 8) ≈ 0.5  # not clamped
+    @test Optimisers._muon_lr_scale(:spectral_unclamped, 8, 2) ≈ 2  # agrees above one
+    @test Optimisers._muon_lr_scale(:match_rms_adamw, 1024, 1024) ≈ 6.4
+    @test Optimisers._muon_lr_scale(:match_rms_adamw, 2, 8) ≈ 0.2 * sqrt(8)
   end
 
   @testset "only matrices" begin
@@ -460,20 +475,24 @@ end
     @test Optimisers._newton_schulz(G, coef, steps) ≈ orthogonalise(G, coef, steps)
   end
 
-  @testset "reference algorithm, nesterov = $nesterov, size $sz, $steps steps of $coef" for
+  @testset "reference algorithm, nesterov = $nesterov, size $sz, $steps steps of $coef, $fn" for
       nesterov in (true, false), sz in ((6, 4), (4, 6)),
-      (coef, steps) in ((KELLER, 5), ((3, -4, 2), 3))
+      (coef, steps) in ((KELLER, 5), ((3, -4, 2), 3)),
+      fn in (:original, :match_rms_adamw, :spectral_unclamped)
     # Keller Jordan's `muon_update` and `Muon.step`. From zero momentum the first two
     # orthogonalised inputs are parallel with or without `nesterov`, so take three steps.
+    # Note that γ multiplies only the orthogonalised update, never the weight decay.
     η, μ, λ = 0.02, 0.9, 0.1
+    γ = Optimisers._muon_lr_scale(fn, sz...)
     x = randn(sz)
-    st = Optimisers.setup(Muon(η, μ, λ; nesterov, ns_coefficients = coef, ns_steps = steps), x)
+    st = Optimisers.setup(
+      Muon(η, μ, λ; nesterov, adjust_lr_fn = fn, ns_coefficients = coef, ns_steps = steps), x)
     x_ref, m = copy(x), zero(x)
     for _ in 1:3
       g = randn(sz)
       m = μ * m + (1 - μ) * g
       u = nesterov ? μ * m + (1 - μ) * g : m
-      x_ref = (1 - η * λ) * x_ref - η * sqrt(max(1, sz[1] / sz[2])) * orthogonalise(u, coef, steps)
+      x_ref = (1 - η * λ) * x_ref - η * γ * orthogonalise(u, coef, steps)
       st, x = Optimisers.update(st, x, g)
     end
     @test x ≈ x_ref
