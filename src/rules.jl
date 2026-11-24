@@ -740,12 +740,7 @@ end
 function Muon(η, μ = 0.95, λ = 0.0, ϵ = 1e-7; nesterov::Bool = true,
               adjust_lr_fn::Symbol = :original,
               ns_coefficients = (3.4445, -4.7750, 2.0315), ns_steps::Integer = 5)
-  η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
-  0 <= μ < 1 || throw(DomainError(μ, "the momentum must satisfy 0 ≤ μ < 1"))
-  adjust_lr_fn in _MUON_ADJUST_LR_FNS || _muon_bad_adjust_lr_fn(adjust_lr_fn)
-  length(ns_coefficients) == 3 || throw(ArgumentError(
-    "Muon needs three Newton-Schulz coefficients, got $(length(ns_coefficients))"))
-  ns_steps > 0 || throw(DomainError(ns_steps, "the number of Newton-Schulz steps must be positive"))
+  _muon_check(η, μ, adjust_lr_fn, ns_coefficients, ns_steps)
   return Muon(float(η), float(μ), float(λ), float(ϵ), nesterov, adjust_lr_fn,
               map(float, Tuple(ns_coefficients)), Int(ns_steps))
 end
@@ -754,6 +749,26 @@ const _MUON_ADJUST_LR_FNS = (:original, :match_rms_adamw, :spectral_unclamped)
 
 Muon(; eta = 0.02, mu = 0.95, lambda = 0.0, epsilon = 1e-7, kw...) =
   Muon(eta, mu, lambda, epsilon; kw...)
+
+function _muon_check(η, μ, adjust_lr_fn, ns_coefficients, ns_steps)
+  η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
+  0 <= μ < 1 || throw(DomainError(μ, "the momentum must satisfy 0 ≤ μ < 1"))
+  adjust_lr_fn in _MUON_ADJUST_LR_FNS || _muon_bad_adjust_lr_fn(adjust_lr_fn)
+  length(ns_coefficients) == 3 || throw(ArgumentError(
+    "Muon needs three Newton-Schulz coefficients, got $(length(ns_coefficients))"))
+  ns_steps > 0 || throw(DomainError(ns_steps, "the number of Newton-Schulz steps must be positive"))
+  return nothing
+end
+
+# `_adjust` rebuilds a rule field by field, skipping the keyword constructor above, so
+# repeat its checks here. Every path into `adjust` for one rule reaches one of these two.
+adjust(r::Muon, eta::Real) = _muon_checked(_adjust(r, (; eta)))
+adjust(r::Muon; kw...) = _muon_checked(_adjust(r, NamedTuple(kw)))
+
+function _muon_checked(r::Muon)
+  _muon_check(r.eta, r.mu, r.adjust_lr_fn, r.ns_coefficients, r.ns_steps)
+  return r  # unchanged, so that `adjust!` can store it back in the same `Leaf`
+end
 
 init(o::Muon, x::AbstractMatrix) = zero(x)
 init(o::Muon, x::AbstractArray) = _muon_matrix_only(x)
@@ -780,7 +795,8 @@ function _muon_lr_scale(name::Symbol, r, c)
   name === :original && return sqrt(max(1, r / c))
   name === :match_rms_adamw && return 0.2 * sqrt(max(r, c))
   name === :spectral_unclamped && return sqrt(r / c)
-  # `adjust` rebuilds a rule without its keyword constructor, so check here too, not only there:
+  # Not reachable through the constructor or `adjust`, both of which check. Still needed:
+  # without it an unknown name falls through to `false`, making γ zero without complaint.
   return _muon_bad_adjust_lr_fn(name)
 end
 

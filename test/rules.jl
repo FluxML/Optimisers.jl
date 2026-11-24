@@ -436,9 +436,25 @@ end
     @test_throws DomainError Muon(ns_steps = 0)
     @test_throws DomainError Muon(ns_steps = -1)
     @test_throws ArgumentError Muon(adjust_lr_fn = :bogus)
-    # `adjust` rebuilds without the keyword constructor, so an invalid symbol is caught on use:
-    @test_throws ArgumentError Optimisers.update(Optimisers.setup(
-      Optimisers.adjust(Muon(); adjust_lr_fn = :bogus), rand(2, 2)), rand(2, 2), rand(2, 2))
+
+    # `adjust` rebuilds field by field, skipping the keyword constructor, so it checks too:
+    @test_throws ArgumentError Optimisers.adjust(Muon(); adjust_lr_fn = :bogus)
+    @test_throws ArgumentError Optimisers.adjust(Muon(); ns_coefficients = (1.0, 2.0))
+    @test_throws DomainError Optimisers.adjust(Muon(); ns_steps = 0)
+    @test_throws DomainError Optimisers.adjust(Muon(); mu = 1.0)
+    @test_throws DomainError Optimisers.adjust(Muon(), -0.1)  # the positional `eta` path
+    # Which covers `adjust!` on a tree, the filter and rule-type forms, and a wrapped Muon,
+    # all of which reach those methods through `_adjust_rule`:
+    @test_throws DomainError Optimisers.adjust!(Optimisers.setup(Muon(), rand(2, 2)), -0.1)
+    @test_throws DomainError Optimisers.adjust!(Optimisers.setup(Muon(), rand(2, 2)), Muon; mu = 1.0)
+    @test_throws DomainError Optimisers.adjust(OptimiserChain(ClipNorm(), Muon()); mu = 1.0)
+    @test_throws DomainError Optimisers.adjust(MixedPrecision(Float64, Muon()); ns_steps = 0)
+    # An unrecognised keyword is still silently ignored, as it is for every rule:
+    @test Optimisers.adjust(Muon(); zeta = "this does nothing") === Muon()
+    # Valid adjustments still go through, keeping the rule type so `adjust!` can store them:
+    @test Optimisers.adjust(Muon(), 0.1) === Muon(0.1)
+    @test Optimisers.adjust(Muon(); adjust_lr_fn = :match_rms_adamw) ===
+      Muon(adjust_lr_fn = :match_rms_adamw)
     @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, epsilon=1.0e-7, " *
       "nesterov=true, adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
   end
