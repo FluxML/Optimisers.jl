@@ -342,6 +342,18 @@ end
   end
 end
 
+@testset "show" begin
+  # The rules whose `show` spells out its own field list, which can drift from the fields.
+  # Those from the `@def` macro are generated from the names, so cannot.
+  @test sprint(show, Descent()) == "Descent(0.1f0)"
+  @test sprint(show, RMSProp()) == "RMSProp(eta=0.001, rho=0.9, epsilon=1.0e-8, centred=false)"
+  @test sprint(show, RMSProp(centred = true)) ==
+    "RMSProp(eta=0.001, rho=0.9, epsilon=1.0e-8, centred=true)"
+  @test sprint(show, AdamW()) ==
+    "AdamW(eta=0.001, beta=(0.9, 0.999), lambda=0.0, epsilon=1.0e-8, couple=true)"
+  # Muon's own is checked alongside its constructors, below.
+end
+
 @testset "centred RMSProp with constant gradient" begin
   # `quad - abs2(lin)` can round to a small negative number
   x = [0f0]
