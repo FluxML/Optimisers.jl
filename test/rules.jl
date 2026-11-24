@@ -429,7 +429,13 @@ end
     @test_throws DomainError Muon(-0.1)
     @test_throws DomainError Muon(0.02, 1)
     @test_throws TypeError Muon(nesterov = 1)
-    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true)"
+    @test Muon(ns_coefficients = [3, -4, 2], ns_steps = 3) === Muon(ns_coefficients = (3.0, -4.0, 2.0), ns_steps = 3)
+    @test Optimisers.adjust(Muon(ns_steps = 3); ns_coefficients = (3, -4, 2)) === Muon(ns_coefficients = (3.0, -4.0, 2.0), ns_steps = 3)
+    @test_throws ArgumentError Muon(ns_coefficients = (3.4445, -4.7750))
+    @test_throws DomainError Muon(ns_steps = 0)
+    @test_throws DomainError Muon(ns_steps = -1)
+    @test sprint(show, Muon()) ==
+      "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
   end
 
   @testset "only matrices" begin
@@ -438,29 +444,36 @@ end
     @test_throws ArgumentError Optimisers.apply!(Muon(), nothing, rand(3), rand(3))
   end
 
-  # Five steps of X ← a X + b (X X') X + c (X X')² X act on each singular value of X
-  # as σ ↦ a σ + b σ³ + c σ⁵, here with Keller Jordan's coefficients:
-  p5(σ) = foldl((σ, _) -> 3.4445σ - 4.7750σ^3 + 2.0315σ^5, 1:5; init = σ)
-  orthogonalise(G) = (F = svd(G); F.U * Diagonal(p5.(F.S ./ (norm(G) + 1e-7))) * F.Vt)
-
-  @testset "Newton-Schulz, $T, size $sz" for T in (Float64, ComplexF64), sz in ((6, 4), (4, 6), (5, 5))
-    G = randn(T, sz)
-    @test Optimisers._newton_schulz5(G) ≈ orthogonalise(G)
+  # Each step of X ← a X + b (X X') X + c (X X')² X acts on every singular value of X
+  # as σ ↦ a σ + b σ³ + c σ⁵, with Keller Jordan's coefficients by default:
+  KELLER = (3.4445, -4.7750, 2.0315)
+  function orthogonalise(G, (a, b, c) = KELLER, steps = 5)
+    F = svd(G)
+    p(σ) = foldl((σ, _) -> a * σ + b * σ^3 + c * σ^5, 1:steps; init = σ)
+    return F.U * Diagonal(p.(F.S ./ (norm(G) + 1e-7))) * F.Vt
   end
 
-  @testset "reference algorithm, nesterov = $nesterov, size $sz" for nesterov in (true, false),
-                                                                    sz in ((6, 4), (4, 6))
+  @testset "Newton-Schulz, $T, size $sz, $steps steps of $coef" for
+      T in (Float64, ComplexF64), sz in ((6, 4), (4, 6), (5, 5)),
+      (coef, steps) in ((KELLER, 5), (KELLER, 1), ((3, -4, 2), 3), ((1.5, -0.5, 0.0), 7))
+    G = randn(T, sz)
+    @test Optimisers._newton_schulz(G, coef, steps) ≈ orthogonalise(G, coef, steps)
+  end
+
+  @testset "reference algorithm, nesterov = $nesterov, size $sz, $steps steps of $coef" for
+      nesterov in (true, false), sz in ((6, 4), (4, 6)),
+      (coef, steps) in ((KELLER, 5), ((3, -4, 2), 3))
     # Keller Jordan's `muon_update` and `Muon.step`. From zero momentum the first two
     # orthogonalised inputs are parallel with or without `nesterov`, so take three steps.
     η, μ, λ = 0.02, 0.9, 0.1
     x = randn(sz)
-    st = Optimisers.setup(Muon(η, μ, λ; nesterov), x)
+    st = Optimisers.setup(Muon(η, μ, λ; nesterov, ns_coefficients = coef, ns_steps = steps), x)
     x_ref, m = copy(x), zero(x)
     for _ in 1:3
       g = randn(sz)
       m = μ * m + (1 - μ) * g
       u = nesterov ? μ * m + (1 - μ) * g : m
-      x_ref = (1 - η * λ) * x_ref - η * sqrt(max(1, sz[1] / sz[2])) * orthogonalise(u)
+      x_ref = (1 - η * λ) * x_ref - η * sqrt(max(1, sz[1] / sz[2])) * orthogonalise(u, coef, steps)
       st, x = Optimisers.update(st, x, g)
     end
     @test x ≈ x_ref
@@ -476,7 +489,7 @@ end
 
   @testset "type stability, size $sz" for sz in ((8, 4), (4, 8))
     x = randn(Float32, sz)
-    @inferred Optimisers._newton_schulz5(x)
+    @inferred Optimisers._newton_schulz(x, KELLER, 5)
     @inferred Optimisers.apply!(Muon(), zero(x), x, x)
   end
 
