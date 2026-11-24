@@ -424,7 +424,8 @@ end
 
 @testset "Muon" begin
   @testset "constructors" begin
-    @test Muon(0.1, 0.9, 0.01; nesterov = false) === Muon(eta = 0.1, mu = 0.9, lambda = 0.01, nesterov = false)
+    @test Muon(0.1, 0.9, 0.01, 1e-6; nesterov = false) ===
+      Muon(eta = 0.1, mu = 0.9, lambda = 0.01, epsilon = 1e-6, nesterov = false)
     @test Optimisers.adjust(Muon(nesterov = false), 0.1) === Muon(0.1; nesterov = false)
     @test_throws DomainError Muon(-0.1)
     @test_throws DomainError Muon(0.02, 1)
@@ -438,8 +439,8 @@ end
     # `adjust` rebuilds without the keyword constructor, so an invalid symbol is caught on use:
     @test_throws ArgumentError Optimisers.update(Optimisers.setup(
       Optimisers.adjust(Muon(); adjust_lr_fn = :bogus), rand(2, 2)), rand(2, 2), rand(2, 2))
-    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true, " *
-      "adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
+    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, epsilon=1.0e-7, " *
+      "nesterov=true, adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
   end
 
   @testset "scaling by shape" begin
@@ -462,17 +463,26 @@ end
   # Each step of X ← a X + b (X X') X + c (X X')² X acts on every singular value of X
   # as σ ↦ a σ + b σ³ + c σ⁵, with Keller Jordan's coefficients by default:
   KELLER = (3.4445, -4.7750, 2.0315)
-  function orthogonalise(G, (a, b, c) = KELLER, steps = 5)
+  function orthogonalise(G, (a, b, c) = KELLER, steps = 5, ϵ = 1e-7)
     F = svd(G)
     p(σ) = foldl((σ, _) -> a * σ + b * σ^3 + c * σ^5, 1:steps; init = σ)
-    return F.U * Diagonal(p.(F.S ./ (norm(G) + 1e-7))) * F.Vt
+    return F.U * Diagonal(p.(F.S ./ (norm(G) + ϵ))) * F.Vt
   end
 
-  @testset "Newton-Schulz, $T, size $sz, $steps steps of $coef" for
+  @testset "Newton-Schulz, $T, size $sz, $steps steps of $coef, eps $ϵ" for
       T in (Float64, ComplexF64), sz in ((6, 4), (4, 6), (5, 5)),
-      (coef, steps) in ((KELLER, 5), (KELLER, 1), ((3, -4, 2), 3), ((1.5, -0.5, 0.0), 7))
+      (coef, steps) in ((KELLER, 5), (KELLER, 1), ((3, -4, 2), 3), ((1.5, -0.5, 0.0), 7)),
+      ϵ in (1e-7, 0.1)
     G = randn(T, sz)
-    @test Optimisers._newton_schulz(G, coef, steps) ≈ orthogonalise(G, coef, steps)
+    @test Optimisers._newton_schulz(G, coef, steps, ϵ) ≈ orthogonalise(G, coef, steps, ϵ)
+  end
+
+  @testset "epsilon prevents dividing by zero, $T" for T in (Float32, Float64)
+    # A zero gradient leaves the momentum zero, so `norm(m)` is zero on the first step.
+    x = randn(T, 4, 3)
+    st, x′ = Optimisers.update(Optimisers.setup(Muon(), x), x, zeros(T, 4, 3))
+    @test x′ ≈ x  # no NaNs: the update is zero, as `0 / ϵ == 0`
+    @test !any(isnan, st.state)
   end
 
   @testset "reference algorithm, nesterov = $nesterov, size $sz, $steps steps of $coef, $fn" for
@@ -508,7 +518,7 @@ end
 
   @testset "type stability, size $sz" for sz in ((8, 4), (4, 8))
     x = randn(Float32, sz)
-    @inferred Optimisers._newton_schulz(x, KELLER, 5)
+    @inferred Optimisers._newton_schulz(x, KELLER, 5, 1e-7)
     @inferred Optimisers.apply!(Muon(), zero(x), x, x)
   end
 
