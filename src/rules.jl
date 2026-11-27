@@ -628,8 +628,9 @@ function apply!(o::AdaBelief, state, x::AbstractArray{T}, dx) where T
 end
 
 """
-    Muon(η = 0.02, μ = 0.95, λ = 0; nesterov = true)
-    Muon(; [eta, mu, lambda, nesterov])
+    Muon(η = 0.02, μ = 0.95, λ = 0, ϵ = 1e-7; nesterov = true, adjust_lr_fn = :original,
+         ns_coefficients = (3.4445, -4.7750, 2.0315), ns_steps = 5)
+    Muon(; [eta, mu, lambda, epsilon, nesterov, adjust_lr_fn, ns_coefficients, ns_steps])
 
 [Muon](https://kellerjordan.github.io/posts/muon/) optimiser for matrix parameters,
 following Keller Jordan's [reference implementation](https://github.com/KellerJordan/Muon).
@@ -637,14 +638,17 @@ following Keller Jordan's [reference implementation](https://github.com/KellerJo
 Each step updates the momentum `m = μ * m + (1 - μ) * dx`, then orthogonalises it: `O` has
 the same singular vectors as `m`, but singular values close to one. (With `nesterov = true`,
 the default, this acts on `μ * m + (1 - μ) * dx` instead.) A parameter `x` of size `(r, c)`
-then changes by `x .-= η .* (sqrt(max(1, r / c)) .* O .+ λ .* x)`.
+then changes by `x .-= η .* (γ .* O .+ λ .* x)`, where the scaling `γ` depends on the
+shape, and by default is `sqrt(max(1, r / c))`.
 For Flux's `Dense`, whose weight is `(out, in)` like that of PyTorch's `Linear`,
-this is the same scaling as in the reference.
+this is the same scaling as in the reference. Note that `γ` multiplies only `O`:
+the weight decay uses `η` alone, as in the reference and in PyTorch.
 
-`O` comes from five steps of a quintic Newton-Schulz iteration, starting from `m / norm(m)`.
-Its coefficients are tuned for speed rather than convergence: singular values of
-`m / norm(m)` above about `0.003` end up between `0.68` and `1.2`, and smaller ones stay smaller.
-This runs in the element type of `x`, while the reference uses `BFloat16`.
+`O` comes from `ns_steps` steps of a quintic Newton-Schulz iteration, starting from
+`m / (norm(m) + ϵ)`. The default coefficients are tuned for speed rather than convergence:
+after five steps, singular values of `m / norm(m)` above about `0.003` end up between
+`0.68` and `1.2`, and smaller ones stay smaller. This runs in the element type of `x`,
+while the reference uses `BFloat16`.
 
 # Parameters
 - Learning rate (`η == eta`): Amount by which gradients are discounted before updating
@@ -653,8 +657,33 @@ This runs in the element type of `x`, while the reference uses `BFloat16`.
                   with `0 ≤ μ < 1`.
 - Weight decay (`λ == lambda`): Decoupled weight decay, multiplied by the learning rate,
                   as in the reference and in [`AdamW`](@ref).
+- Machine epsilon (`ϵ == epsilon`): Constant added to `norm(m)` before dividing by it,
+                  to prevent division by zero when the momentum is zero.
 - Keyword `nesterov`: If `true`, orthogonalise `μ * m + (1 - μ) * dx` (with the new `m`)
                   instead of `m`.
+- Keyword `adjust_lr_fn`: Which shape-dependent scaling `γ` to apply to `O`, one of
+                  `:original`, `:match_rms_adamw`, or `:spectral_unclamped`, described below.
+- Keyword `ns_coefficients`: The three coefficients `(a, b, c)` of the quintic iteration,
+                  which acts on each singular value as `σ ↦ a * σ + b * σ^3 + c * σ^5`.
+- Keyword `ns_steps`: How many times to apply that iteration, with `ns_steps ≥ 1`.
+
+# Scaling by shape
+
+For a parameter of size `(r, c)`, the keyword `adjust_lr_fn` selects `γ` as in PyTorch's
+`Muon`:
+
+| `adjust_lr_fn` | `γ` | |
+|:---|:---|:---|
+| `:original` | `sqrt(max(1, r / c))` | the default, as in the reference |
+| `:match_rms_adamw` | `0.2 * sqrt(max(r, c))` | so that learning rates transfer from `AdamW` |
+| `:spectral_unclamped` | `sqrt(r / c)` | like `:original`, without the clamp at one |
+
+!!! warning
+    These differ by more than a little: for a `(1024, 1024)` parameter, `:original` gives
+    `γ = 1` while `:match_rms_adamw` gives `γ = 6.4`. The point of the latter is that it
+    rescales the update to the size `AdamW` would take, so that a learning rate tuned for
+    `AdamW` can be reused. Changing `adjust_lr_fn` without also changing `η` will not
+    give a comparable step.
 
 # Which parameters
 
@@ -682,7 +711,7 @@ julia> fmap(s -> nameof(typeof(s.rule)), state; exclude = s -> s isa Optimisers.
 (embed = :AdamW, hidden = (weight = :Muon, bias = :AdamW), head = :AdamW)
 
 julia> state.hidden.weight
-Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true), [0.0, 0.0, 0.0, …])
+Leaf(Muon(eta=0.02, mu=0.95, lambda=0.0, epsilon=1.0e-7, nesterov=true, adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5), [0.0, 0.0, 0.0, …])
 ```
 
 As Muon's learning rate is much larger than AdamW's, a schedule should change each
@@ -697,20 +726,49 @@ julia> state.hidden.weight.rule.eta, state.hidden.bias.rule.eta
 (0.01, 0.0003)
 ```
 """
-struct Muon{Teta,Tmu,Tlambda} <: AbstractRule
+struct Muon{Teta,Tmu,Tlambda,Teps,Tcoef} <: AbstractRule
   eta::Teta
   mu::Tmu
   lambda::Tlambda
+  epsilon::Teps
   nesterov::Bool
+  adjust_lr_fn::Symbol
+  ns_coefficients::Tcoef
+  ns_steps::Int
 end
 
-function Muon(η, μ = 0.95, λ = 0.0; nesterov::Bool = true)
+function Muon(η, μ = 0.95, λ = 0.0, ϵ = 1e-7; nesterov::Bool = true,
+              adjust_lr_fn::Symbol = :original,
+              ns_coefficients = (3.4445, -4.7750, 2.0315), ns_steps::Integer = 5)
+  _muon_check(η, μ, adjust_lr_fn, ns_coefficients, ns_steps)
+  return Muon(float(η), float(μ), float(λ), float(ϵ), nesterov, adjust_lr_fn,
+              map(float, Tuple(ns_coefficients)), Int(ns_steps))
+end
+
+const _MUON_ADJUST_LR_FNS = (:original, :match_rms_adamw, :spectral_unclamped)
+
+Muon(; eta = 0.02, mu = 0.95, lambda = 0.0, epsilon = 1e-7, kw...) =
+  Muon(eta, mu, lambda, epsilon; kw...)
+
+function _muon_check(η, μ, adjust_lr_fn, ns_coefficients, ns_steps)
   η < 0 && throw(DomainError(η, "the learning rate cannot be negative"))
   0 <= μ < 1 || throw(DomainError(μ, "the momentum must satisfy 0 ≤ μ < 1"))
-  return Muon(float(η), float(μ), float(λ), nesterov)
+  adjust_lr_fn in _MUON_ADJUST_LR_FNS || _muon_bad_adjust_lr_fn(adjust_lr_fn)
+  length(ns_coefficients) == 3 || throw(ArgumentError(
+    "Muon needs three Newton-Schulz coefficients, got $(length(ns_coefficients))"))
+  ns_steps > 0 || throw(DomainError(ns_steps, "the number of Newton-Schulz steps must be positive"))
+  return nothing
 end
 
-Muon(; eta = 0.02, mu = 0.95, lambda = 0.0, kw...) = Muon(eta, mu, lambda; kw...)
+# `_adjust` rebuilds a rule field by field, skipping the keyword constructor above, so
+# repeat its checks here. Every path into `adjust` for one rule reaches one of these two.
+adjust(r::Muon, eta::Real) = _muon_checked(_adjust(r, (; eta)))
+adjust(r::Muon; kw...) = _muon_checked(_adjust(r, NamedTuple(kw)))
+
+function _muon_checked(r::Muon)
+  _muon_check(r.eta, r.mu, r.adjust_lr_fn, r.ns_coefficients, r.ns_steps)
+  return r  # unchanged, so that `adjust!` can store it back in the same `Leaf`
+end
 
 init(o::Muon, x::AbstractMatrix) = zero(x)
 init(o::Muon, x::AbstractArray) = _muon_matrix_only(x)
@@ -719,8 +777,9 @@ function apply!(o::Muon, mom, x::AbstractMatrix{T}, dx) where T
   η, μ, λ = T(o.eta), T(o.mu), T(o.lambda)
 
   @.. mom = μ * mom + (1 - μ) * dx
-  O = _newton_schulz5(o.nesterov ? (@. μ * mom + (1 - μ) * dx) : mom)
-  γ = real(T)(sqrt(max(1, size(x, 1) / size(x, 2))))
+  O = _newton_schulz(o.nesterov ? (@. μ * mom + (1 - μ) * dx) : mom,
+                     o.ns_coefficients, o.ns_steps, o.epsilon)
+  γ = real(T)(_muon_lr_scale(o.adjust_lr_fn, size(x, 1), size(x, 2)))
 
   return mom, @lazy η * (γ * O + λ * x)
 end
@@ -729,20 +788,37 @@ apply!(o::Muon, state, x::AbstractArray, dx) = _muon_matrix_only(x)
 _muon_matrix_only(x) = throw(ArgumentError("Muon only accepts matrices, not $(summary(x)). " *
   "Use another rule such as AdamW for this parameter, as explained in the docstring of Muon."))
 
+# The shape-dependent scaling of `O`, named as in PyTorch's `Muon`. Not applied to the
+# weight decay, which uses `η` alone. Branching beats dispatching on `Val(name)`, which
+# inference cannot resolve from a field, leaving `apply!` returning `Any`.
+function _muon_lr_scale(name::Symbol, r, c)
+  name === :original && return sqrt(max(1, r / c))
+  name === :match_rms_adamw && return 0.2 * sqrt(max(r, c))
+  name === :spectral_unclamped && return sqrt(r / c)
+  # Not reachable through the constructor or `adjust`, both of which check. Still needed:
+  # without it an unknown name falls through to `false`, making γ zero without complaint.
+  return _muon_bad_adjust_lr_fn(name)
+end
+
+_muon_bad_adjust_lr_fn(name) = throw(ArgumentError("Muon's adjust_lr_fn must be one of " *
+  "$(join(repr.(_MUON_ADJUST_LR_FNS), ", ")), not $(repr(name))"))
+
 function Base.show(io::IO, o::Muon)
-  print(io, "Muon(eta=$(o.eta), mu=$(o.mu), lambda=$(o.lambda), nesterov=$(o.nesterov))")
+  print(io, "Muon(eta=$(o.eta), mu=$(o.mu), lambda=$(o.lambda), epsilon=$(o.epsilon), ",
+        "nesterov=$(o.nesterov), adjust_lr_fn=$(repr(o.adjust_lr_fn)), ",
+        "ns_coefficients=$(o.ns_coefficients), ns_steps=$(o.ns_steps))")
 end
 
 # Keller Jordan's quintic iteration, X ← a X + (b A + c A²) X with A = X X', from X = G / ‖G‖.
 # The Gram matrix is taken on the shorter side, and the buffers are reused across steps.
-function _newton_schulz5(G::AbstractMatrix{T}) where T
-  a, b, c = real(T).((3.4445, -4.7750, 2.0315))
+function _newton_schulz(G::AbstractMatrix{T}, coefficients, steps::Int, epsilon) where T
+  a, b, c = real(T).(coefficients)
   X = similar(G)
-  X .= G ./ (sqrt.(_sumabs2(G)) .+ _eps(T, 1e-7))  # reduces with dims to avoid a GPU readback
+  X .= G ./ (sqrt.(_sumabs2(G)) .+ _eps(T, epsilon))  # reduces with dims to avoid a GPU readback
   tall = size(X, 1) > size(X, 2)
   k = min(size(X)...)
   A, B, Y = similar(X, k, k), similar(X, k, k), similar(X)
-  for _ in 1:5
+  for _ in 1:steps
     tall ? mul!(A, X', X) : mul!(A, X, X')
     copyto!(B, A)
     mul!(B, A, A, c, b)

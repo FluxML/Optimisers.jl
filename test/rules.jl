@@ -436,12 +436,50 @@ end
 
 @testset "Muon" begin
   @testset "constructors" begin
-    @test Muon(0.1, 0.9, 0.01; nesterov = false) === Muon(eta = 0.1, mu = 0.9, lambda = 0.01, nesterov = false)
+    @test Muon(0.1, 0.9, 0.01, 1e-6; nesterov = false) ===
+      Muon(eta = 0.1, mu = 0.9, lambda = 0.01, epsilon = 1e-6, nesterov = false)
     @test Optimisers.adjust(Muon(nesterov = false), 0.1) === Muon(0.1; nesterov = false)
     @test_throws DomainError Muon(-0.1)
     @test_throws DomainError Muon(0.02, 1)
     @test_throws TypeError Muon(nesterov = 1)
-    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, nesterov=true)"
+    @test Muon(ns_coefficients = [3, -4, 2], ns_steps = 3) === Muon(ns_coefficients = (3.0, -4.0, 2.0), ns_steps = 3)
+    @test Optimisers.adjust(Muon(ns_steps = 3); ns_coefficients = (3, -4, 2)) === Muon(ns_coefficients = (3.0, -4.0, 2.0), ns_steps = 3)
+    @test_throws ArgumentError Muon(ns_coefficients = (3.4445, -4.7750))
+    @test_throws DomainError Muon(ns_steps = 0)
+    @test_throws DomainError Muon(ns_steps = -1)
+    @test_throws ArgumentError Muon(adjust_lr_fn = :bogus)
+
+    # `adjust` rebuilds field by field, skipping the keyword constructor, so it checks too:
+    @test_throws ArgumentError Optimisers.adjust(Muon(); adjust_lr_fn = :bogus)
+    @test_throws ArgumentError Optimisers.adjust(Muon(); ns_coefficients = (1.0, 2.0))
+    @test_throws DomainError Optimisers.adjust(Muon(); ns_steps = 0)
+    @test_throws DomainError Optimisers.adjust(Muon(); mu = 1.0)
+    @test_throws DomainError Optimisers.adjust(Muon(), -0.1)  # the positional `eta` path
+    # Which covers `adjust!` on a tree, the filter and rule-type forms, and a wrapped Muon,
+    # all of which reach those methods through `_adjust_rule`:
+    @test_throws DomainError Optimisers.adjust!(Optimisers.setup(Muon(), rand(2, 2)), -0.1)
+    @test_throws DomainError Optimisers.adjust!(Optimisers.setup(Muon(), rand(2, 2)), Muon; mu = 1.0)
+    @test_throws DomainError Optimisers.adjust(OptimiserChain(ClipNorm(), Muon()); mu = 1.0)
+    @test_throws DomainError Optimisers.adjust(MixedPrecision(Float64, Muon()); ns_steps = 0)
+    # An unrecognised keyword is still silently ignored, as it is for every rule:
+    @test Optimisers.adjust(Muon(); zeta = "this does nothing") === Muon()
+    # Valid adjustments still go through, keeping the rule type so `adjust!` can store them:
+    @test Optimisers.adjust(Muon(), 0.1) === Muon(0.1)
+    @test Optimisers.adjust(Muon(); adjust_lr_fn = :match_rms_adamw) ===
+      Muon(adjust_lr_fn = :match_rms_adamw)
+    @test sprint(show, Muon()) == "Muon(eta=0.02, mu=0.95, lambda=0.0, epsilon=1.0e-7, " *
+      "nesterov=true, adjust_lr_fn=:original, ns_coefficients=(3.4445, -4.775, 2.0315), ns_steps=5)"
+  end
+
+  @testset "scaling by shape" begin
+    # The three variants of PyTorch's `adjust_lr_fn`, on square, tall and wide matrices.
+    @test Optimisers._muon_lr_scale(:original, 1024, 1024) == 1
+    @test Optimisers._muon_lr_scale(:original, 8, 2) ≈ 2
+    @test Optimisers._muon_lr_scale(:original, 2, 8) == 1  # clamped at one
+    @test Optimisers._muon_lr_scale(:spectral_unclamped, 2, 8) ≈ 0.5  # not clamped
+    @test Optimisers._muon_lr_scale(:spectral_unclamped, 8, 2) ≈ 2  # agrees above one
+    @test Optimisers._muon_lr_scale(:match_rms_adamw, 1024, 1024) ≈ 6.4
+    @test Optimisers._muon_lr_scale(:match_rms_adamw, 2, 8) ≈ 0.2 * sqrt(8)
   end
 
   @testset "only matrices" begin
@@ -450,29 +488,49 @@ end
     @test_throws ArgumentError Optimisers.apply!(Muon(), nothing, rand(3), rand(3))
   end
 
-  # Five steps of X ← a X + b (X X') X + c (X X')² X act on each singular value of X
-  # as σ ↦ a σ + b σ³ + c σ⁵, here with Keller Jordan's coefficients:
-  p5(σ) = foldl((σ, _) -> 3.4445σ - 4.7750σ^3 + 2.0315σ^5, 1:5; init = σ)
-  orthogonalise(G) = (F = svd(G); F.U * Diagonal(p5.(F.S ./ (norm(G) + 1e-7))) * F.Vt)
-
-  @testset "Newton-Schulz, $T, size $sz" for T in (Float64, ComplexF64), sz in ((6, 4), (4, 6), (5, 5))
-    G = randn(T, sz)
-    @test Optimisers._newton_schulz5(G) ≈ orthogonalise(G)
+  # Each step of X ← a X + b (X X') X + c (X X')² X acts on every singular value of X
+  # as σ ↦ a σ + b σ³ + c σ⁵, with Keller Jordan's coefficients by default:
+  KELLER = (3.4445, -4.7750, 2.0315)
+  function orthogonalise(G, (a, b, c) = KELLER, steps = 5, ϵ = 1e-7)
+    F = svd(G)
+    p(σ) = foldl((σ, _) -> a * σ + b * σ^3 + c * σ^5, 1:steps; init = σ)
+    return F.U * Diagonal(p.(F.S ./ (norm(G) + ϵ))) * F.Vt
   end
 
-  @testset "reference algorithm, nesterov = $nesterov, size $sz" for nesterov in (true, false),
-                                                                    sz in ((6, 4), (4, 6))
+  @testset "Newton-Schulz, $T, size $sz, $steps steps of $coef, eps $ϵ" for
+      T in (Float64, ComplexF64), sz in ((6, 4), (4, 6), (5, 5)),
+      (coef, steps) in ((KELLER, 5), (KELLER, 1), ((3, -4, 2), 3), ((1.5, -0.5, 0.0), 7)),
+      ϵ in (1e-7, 0.1)
+    G = randn(T, sz)
+    @test Optimisers._newton_schulz(G, coef, steps, ϵ) ≈ orthogonalise(G, coef, steps, ϵ)
+  end
+
+  @testset "epsilon prevents dividing by zero, $T" for T in (Float32, Float64)
+    # A zero gradient leaves the momentum zero, so `norm(m)` is zero on the first step.
+    x = randn(T, 4, 3)
+    st, x′ = Optimisers.update(Optimisers.setup(Muon(), x), x, zeros(T, 4, 3))
+    @test x′ ≈ x  # no NaNs: the update is zero, as `0 / ϵ == 0`
+    @test !any(isnan, st.state)
+  end
+
+  @testset "reference algorithm, nesterov = $nesterov, size $sz, $steps steps of $coef, $fn" for
+      nesterov in (true, false), sz in ((6, 4), (4, 6)),
+      (coef, steps) in ((KELLER, 5), ((3, -4, 2), 3)),
+      fn in (:original, :match_rms_adamw, :spectral_unclamped)
     # Keller Jordan's `muon_update` and `Muon.step`. From zero momentum the first two
     # orthogonalised inputs are parallel with or without `nesterov`, so take three steps.
+    # Note that γ multiplies only the orthogonalised update, never the weight decay.
     η, μ, λ = 0.02, 0.9, 0.1
+    γ = Optimisers._muon_lr_scale(fn, sz...)
     x = randn(sz)
-    st = Optimisers.setup(Muon(η, μ, λ; nesterov), x)
+    st = Optimisers.setup(
+      Muon(η, μ, λ; nesterov, adjust_lr_fn = fn, ns_coefficients = coef, ns_steps = steps), x)
     x_ref, m = copy(x), zero(x)
     for _ in 1:3
       g = randn(sz)
       m = μ * m + (1 - μ) * g
       u = nesterov ? μ * m + (1 - μ) * g : m
-      x_ref = (1 - η * λ) * x_ref - η * sqrt(max(1, sz[1] / sz[2])) * orthogonalise(u)
+      x_ref = (1 - η * λ) * x_ref - η * γ * orthogonalise(u, coef, steps)
       st, x = Optimisers.update(st, x, g)
     end
     @test x ≈ x_ref
@@ -488,7 +546,7 @@ end
 
   @testset "type stability, size $sz" for sz in ((8, 4), (4, 8))
     x = randn(Float32, sz)
-    @inferred Optimisers._newton_schulz5(x)
+    @inferred Optimisers._newton_schulz(x, KELLER, 5, 1e-7)
     @inferred Optimisers.apply!(Muon(), zero(x), x, x)
   end
 
