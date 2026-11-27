@@ -154,7 +154,7 @@ function adjust(r::RMSProp; kw...)
 end
 
 function Base.show(io::IO, o::RMSProp)
-  print(io, "RMSProp(eta=$(o.eta), rho=$(o.rho), epsilon=$(o.epsilon), centred=$(o.centred)")
+  print(io, "RMSProp(eta=$(o.eta), rho=$(o.rho), epsilon=$(o.epsilon), centred=$(o.centred))")
 end
 
 
